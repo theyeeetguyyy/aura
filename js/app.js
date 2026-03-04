@@ -45,6 +45,7 @@ const AuraApp = (() => {
         VisualEngine.registerMode('kaleidoscope', KaleidoscopeMode);
         VisualEngine.registerMode('shaderTunnel', ShaderTunnelMode);
         VisualEngine.registerMode('geometryForge', GeometryForgeMode);
+        VisualEngine.registerMode('geometryForge2', GeometryForgeMode2);
         VisualEngine.registerMode('hyperforge', HyperforgeMode);
         VisualEngine.registerMode('godRays', GodRaysMode);
         VisualEngine.registerMode('particleManipulation', ParticleManipulationMode);
