@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="AURA — Audio Reactive Visual Generator. Import music and create stunning real-time visuals with 20 modes and deep parameter control.">
+    <title>AURA — Audio Reactive Visuals</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
+</head>
+
+<body>
+
+    <!-- THREE.JS CANVAS -->
+    <canvas id="aura-canvas"></canvas>
+
+    <!-- DROP ZONE / WELCOME -->
+    <div id="drop-zone">
+        <div class="drop-content">
+            <div class="drop-icon">🎵</div>
+            <h1 class="drop-title">AURA</h1>
+            <p class="drop-subtitle">Drop your music file here or click import</p>
+            <button id="btn-import">Import Audio</button>
+            <p id="loading-text"></p>
+        </div>
+    </div>
+
+    <!-- HIDDEN FILE INPUT -->
+    <input type="file" id="file-input" accept=".mp3,.wav,.ogg,.flac,.m4a,.aac,.wma">
+
+    <!-- PANEL TOGGLE BUTTONS -->
+    <button class="panel-toggle" id="btn-modes" title="Modes (Tab)">◆</button>
+    <button class="panel-toggle" id="btn-params" title="Parameters (P)">⚙</button>
+
+    <!-- MODES PANEL (LEFT) -->
+    <div class="panel" id="modes-panel">
+        <div class="panel-header">
+            <span class="panel-title">Visual Modes</span>
+        </div>
+        <div id="mode-list"></div>
+    </div>
+
+    <!-- PARAMS PANEL (RIGHT) -->
+    <div class="panel" id="params-panel">
+        <div class="panel-header">
+            <span class="panel-title">Parameters</span>
+        </div>
+        <div class="panel-actions">
+            <button class="panel-action-btn" id="btn-randomize">🎲 Randomize</button>
+        </div>
+        <div id="params-content"></div>
+    </div>
+
+    <!-- TRANSPORT BAR -->
+    <div id="transport-bar">
+        <button class="transport-btn" id="btn-play" title="Play/Pause (Space)">▶</button>
+        <button class="transport-btn loop-btn" id="btn-loop" title="Loop (L)">🔁</button>
+        <span id="track-name">No track loaded</span>
+        <div class="seek-container">
+            <input type="range" id="seek-bar" min="0" max="1000" value="0" title="Seek (← →)">
+            <!-- MARKER TRACK -->
+            <div id="marker-track">
+                <div id="marker-dots"></div>
+            </div>
+            <span id="time-display">0:00 / 0:00</span>
+        </div>
+        <!-- CURRENT SECTION INDICATOR -->
+        <div id="section-indicator" class="section-hidden"></div>
+        <div class="volume-container">
+            <span class="volume-icon">🔊</span>
+            <input type="range" id="vol-bar" min="0" max="100" value="80" title="Volume (↑ ↓)">
+        </div>
+        <div class="level-meter">
+            <div id="level-fill"></div>
+        </div>
+        <!-- MARKER CONTROLS -->
+        <div class="marker-controls">
+            <select id="marker-type-select" title="Section Type">
+                <option value="intro">🎵 Intro</option>
+                <option value="verse">🎤 Verse</option>
+                <option value="buildup" selected>📈 Build-up</option>
+                <option value="fakeout">🎭 Fakeout</option>
+                <option value="drop">💥 DROP</option>
+                <option value="drop2">🔥 DROP 2</option>
+                <option value="breakdown">🌀 Breakdown</option>
+                <option value="bridge">🌉 Bridge</option>
+                <option value="climax">⚡ Climax</option>
+                <option value="outro">🎬 Outro</option>
+            </select>
+            <button class="transport-btn marker-btn" id="btn-add-marker" title="Add Marker (M)">📌</button>
+            <button class="transport-btn marker-btn" id="btn-clear-markers" title="Clear All Markers">🗑️</button>
+        </div>
+        <button class="transport-btn" id="btn-record" title="Record (R)">⏺</button>
+        <button class="transport-btn" id="btn-flash" title="Toggle Beat Flash (F)" style="font-size:13px; opacity:1;">⚡</button>
+    </div>
+
+    <div class="shortcuts-hint">
+        Space: Play · Tab: Modes · P: Params · R: Record · F: Flash · G: Fullscreen · [ ]: Prev/Next Mode · ←→: Seek · M: Marker
+    </div>
+
+    <!-- THREE.JS + POST-PROCESSING FROM CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Post-processing shim - inline minimal implementations
+        // EffectComposer
+        THREE.Pass = function () { this.enabled = true; this.needsSwap = true; this.renderToScreen = false; };
+        THREE.Pass.prototype = {
+            setSize: function () { },
+            render: function () { console.error('THREE.Pass: .render() must be implemented'); }
+        };
+
+        THREE.EffectComposer = function (renderer, renderTarget) {
+            this.renderer = renderer;
+            const size = renderer.getSize(new THREE.Vector2());
+            this._pixelRatio = renderer.getPixelRatio();
+            this._width = size.x;
+            this._height = size.y;
+            if (renderTarget === undefined) {
+                renderTarget = new THREE.WebGLRenderTarget(this._width * this._pixelRatio, this._height * this._pixelRatio);
+            }
+            this.renderTarget1 = renderTarget;
+            this.renderTarget2 = renderTarget.clone();
+            this.writeBuffer = this.renderTarget1;
+            this.readBuffer = this.renderTarget2;
+            this.passes = [];
+        };
+        THREE.EffectComposer.prototype = {
+            addPass: function (pass) {
+                this.passes.push(pass);
+                pass.setSize(this._width * this._pixelRatio, this._height * this._pixelRatio);
+            },
+            setSize: function (width, height) {
+                this._width = width;
+                this._height = height;
+                const effectiveWidth = this._width * this._pixelRatio;
+                const effectiveHeight = this._height * this._pixelRatio;
+                this.renderTarget1.setSize(effectiveWidth, effectiveHeight);
+                this.renderTarget2.setSize(effectiveWidth, effectiveHeight);
+                this.passes.forEach(p => p.setSize(effectiveWidth, effectiveHeight));
+            },
+            render: function (deltaTime) {
+                let maskActive = false;
+                for (let i = 0; i < this.passes.length; i++) {
+                    const pass = this.passes[i];
+                    if (!pass.enabled) continue;
+                    pass.renderToScreen = (i === this.passes.length - 1);
+                    pass.render(this.renderer, this.writeBuffer, this.readBuffer, deltaTime, maskActive);
+                    if (pass.needsSwap) {
+                        const tmp = this.readBuffer;
+                        this.readBuffer = this.writeBuffer;
+                        this.writeBuffer = tmp;
+                    }
+                }
+            }
+        };
+
+        // RenderPass
+        THREE.RenderPass = function (scene, camera) {
+            THREE.Pass.call(this);
+            this.scene = scene;
+            this.camera = camera;
+            this.clear = true;
+            this.needsSwap = false;
+        };
+        THREE.RenderPass.prototype = Object.assign(Object.create(THREE.Pass.prototype), {
+            render: function (renderer, writeBuffer, readBuffer) {
+                if (this.renderToScreen) {
+                    renderer.setRenderTarget(null);
+                    renderer.render(this.scene, this.camera);
+                } else {
+                    renderer.setRenderTarget(writeBuffer);
+                    if (this.clear) renderer.clear();
+                    renderer.render(this.scene, this.camera);
+                    renderer.setRenderTarget(null);
+                }
+            }
+        });
+
+        // UnrealBloomPass (simplified)
+        THREE.UnrealBloomPass = function (resolution, strength, radius, threshold) {
+            THREE.Pass.call(this);
+            this.strength = strength !== undefined ? strength : 1;
+            this.radius = radius;
+            this.threshold = threshold;
+            this.resolution = resolution;
+            this.needsSwap = false;
+            // Store blend uniform for glow
+            this._blendMaterial = null;
+        };
+        THREE.UnrealBloomPass.prototype = Object.assign(Object.create(THREE.Pass.prototype), {
+            render: function (renderer, writeBuffer, readBuffer) {
+                // Simplified: just render with slight tone mapping adjustment
+                if (this.renderToScreen) {
+                    renderer.setRenderTarget(null);
+                    renderer.toneMappingExposure = 1.0 + this.strength * 0.5;
+                }
+            },
+            setSize: function () { }
+        });
+    </script>
+
+    <!-- CORE ENGINE -->
+    <script src="js/audio.js"></script>
+    <script src="js/params.js"></script>
+    <script src="js/recorder.js"></script>
+    <script src="js/markers.js"></script>
+    <script src="js/visuals.js"></script>
+    <script src="js/ui.js"></script>
+
+    <!-- VISUAL MODES -->
+    <script src="js/modes/frequencyBars.js"></script>
+    <script src="js/modes/particleStorm.js"></script>
+    <script src="js/modes/radialBloom.js"></script>
+    <script src="js/modes/terrainMesh.js"></script>
+    <script src="js/modes/waveformScope.js"></script>
+    <script src="js/modes/spectrogram.js"></script>
+    <script src="js/modes/kaleidoscope.js"></script>
+    <script src="js/modes/shaderTunnel.js"></script>
+    <script src="js/modes/geometryShapes.js"></script>
+    <script src="js/modes/hyperforge.js"></script>
+    <script src="js/modes/godRays.js"></script>
+    <script src="js/modes/particleManipulation.js"></script>
+    <script src="js/modes/mathMode.js"></script>
+    <script src="js/modes/fractalTree.js"></script>
+    <script src="js/modes/voronoiField.js"></script>
+    <script src="js/modes/lissajous.js"></script>
+    <script src="js/modes/mobiusRings.js"></script>
+    <script src="js/modes/gridDistortion.js"></script>
+    <script src="js/modes/dnaHelix.js"></script>
+    <script src="js/modes/polyhedronExplode.js"></script>
+    <script src="js/modes/starfield.js"></script>
+    <script src="js/modes/nebula.js"></script>
+    <script src="js/modes/aurora.js"></script>
+    <script src="js/modes/cyberGrid.js"></script>
+    <script src="js/modes/neonPlasma.js"></script>
+    <script src="js/modes/dimensionalRift.js"></script>
+    <script src="js/modes/rhythmicGeometry.js"></script>
+
+    <!-- APP BOOTSTRAP -->
+    <script src="js/app.js"></script>
+
+</body>
+
+</html>

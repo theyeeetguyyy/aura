@@ -1,0 +1,875 @@
+/* ============================================================
+   AURA — Styles
+   Dark glass theme, minimal UI, visual focus
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+    --bg-dark: #050510;
+    --bg-panel: rgba(10, 10, 30, 0.85);
+    --bg-glass: rgba(15, 15, 40, 0.7);
+    --border: rgba(120, 80, 255, 0.15);
+    --border-glow: rgba(120, 80, 255, 0.4);
+    --accent: #8b5cf6;
+    --accent-bright: #a78bfa;
+    --accent-dim: #6d28d9;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --red: #ef4444;
+    --green: #22c55e;
+    --font: 'Inter', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+    --radius: 12px;
+    --panel-width: 280px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg-dark);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* ── Canvas ─────────────────────────────────────────── */
+#aura-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+/* ── Drop Zone ──────────────────────────────────────── */
+#drop-zone {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(5, 5, 16, 0.75);
+    backdrop-filter: blur(8px);
+    transition: all 0.5s ease;
+}
+
+#drop-zone.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#drop-zone.drag-over {
+    background: rgba(139, 92, 246, 0.15);
+    border: 2px dashed var(--accent);
+}
+
+#drop-zone.loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.drop-content {
+    text-align: center;
+    animation: dropPulse 3s ease-in-out infinite;
+}
+
+.drop-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+    opacity: 0.8;
+}
+
+.drop-title {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--accent-bright), #f472b6, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+}
+
+.drop-subtitle {
+    color: var(--text-dim);
+    font-size: 15px;
+    margin-bottom: 24px;
+}
+
+#btn-import {
+    background: linear-gradient(135deg, var(--accent-dim), var(--accent));
+    color: white;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.2s ease;
+    letter-spacing: 0.5px;
+}
+
+#btn-import:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.4);
+}
+
+#loading-text {
+    margin-top: 16px;
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
+@keyframes dropPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+/* ── Transport Bar ──────────────────────────────────── */
+#transport-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+    background: var(--bg-panel);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    opacity: 0;
+    transform: translateY(100%);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#transport-bar.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Play button */
+.transport-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.transport-btn:hover {
+    background: var(--accent-bright);
+    transform: scale(1.1);
+}
+
+/* Track name */
+#track-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Seek bar */
+.seek-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+#time-display {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    min-width: 90px;
+    text-align: right;
+}
+
+/* Range inputs styling */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+    transition: background 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.3);
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+}
+
+#seek-bar {
+    flex: 1;
+    height: 4px;
+}
+
+#seek-bar:hover {
+    height: 6px;
+}
+
+/* Volume */
+.volume-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.volume-icon {
+    font-size: 16px;
+    color: var(--text-dim);
+}
+
+#vol-bar {
+    width: 80px;
+}
+
+/* Level meter */
+.level-meter {
+    width: 60px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+#level-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--green), var(--accent), var(--red));
+    border-radius: 2px;
+    transition: width 0.05s linear;
+}
+
+/* Record button */
+#btn-record {
+    background: transparent;
+    border: 2px solid rgba(239, 68, 68, 0.5);
+    color: var(--red);
+    font-family: var(--mono);
+    font-size: 11px;
+    min-width: 40px;
+    padding: 0 8px;
+}
+
+#btn-record.recording {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: var(--red);
+    animation: recPulse 1s ease-in-out infinite;
+}
+
+@keyframes recPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 0 15px 3px rgba(239, 68, 68, 0.3);
+    }
+}
+
+/* ── Panels ─────────────────────────────────────────── */
+.panel {
+    position: fixed;
+    top: 0;
+    z-index: 50;
+    width: var(--panel-width);
+    height: calc(100% - 64px);
+    background: var(--bg-panel);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    overflow-y: auto;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.panel::-webkit-scrollbar {
+    width: 4px;
+}
+
+.panel::-webkit-scrollbar-thumb {
+    background: var(--border-glow);
+    border-radius: 2px;
+}
+
+/* Modes panel (left) */
+#modes-panel {
+    left: 0;
+    transform: translateX(-100%);
+    border-right: 1px solid var(--border);
+}
+
+#modes-panel.open {
+    transform: translateX(0);
+}
+
+/* Params panel (right) */
+#params-panel {
+    right: 0;
+    transform: translateX(100%);
+    border-left: 1px solid var(--border);
+}
+
+#params-panel.open {
+    transform: translateX(0);
+}
+
+.panel-header {
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: var(--bg-panel);
+    backdrop-filter: blur(20px);
+    z-index: 1;
+}
+
+.panel-title {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--accent-bright);
+}
+
+.panel-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+    transition: color 0.2s;
+}
+
+.panel-close:hover {
+    color: var(--text);
+}
+
+/* Mode list */
+#mode-list {
+    padding: 8px;
+}
+
+.mode-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 13px;
+}
+
+.mode-item:hover {
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.mode-item.active {
+    background: rgba(139, 92, 246, 0.2);
+    border: 1px solid var(--border-glow);
+}
+
+.mode-icon {
+    font-size: 18px;
+    width: 28px;
+    flex-shrink: 0;
+    text-align: center;
+}
+
+.mode-name {
+    font-weight: 500;
+}
+
+/* Params panel content */
+#params-content {
+    padding: 8px;
+}
+
+.param-section {
+    margin-bottom: 16px;
+}
+
+.param-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent-dim);
+    padding: 8px 12px;
+    margin-bottom: 4px;
+}
+
+.param-control {
+    margin-bottom: 2px;
+}
+
+.param-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: background 0.15s;
+}
+
+.param-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.param-row label {
+    font-size: 12px;
+    color: var(--text-dim);
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+.param-slider {
+    flex: 1;
+    min-width: 0;
+}
+
+.param-value {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent-bright);
+    min-width: 40px;
+    text-align: right;
+}
+
+.param-toggle {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.3s;
+    flex-shrink: 0;
+}
+
+.param-toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    transition: transform 0.2s ease;
+}
+
+.param-toggle:checked {
+    background: var(--accent);
+}
+
+.param-toggle:checked::after {
+    transform: translateX(16px);
+}
+
+.param-select {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-family: var(--font);
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+}
+
+.param-select:focus {
+    border-color: var(--accent);
+}
+
+.param-select option {
+    background: var(--bg-dark);
+    color: var(--text);
+}
+
+.param-color {
+    width: 32px;
+    height: 24px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0;
+    cursor: pointer;
+    background: none;
+}
+
+/* ── Panel Toggle Buttons ───────────────────────────── */
+.panel-toggle {
+    position: fixed;
+    top: 16px;
+    z-index: 60;
+    background: var(--bg-glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: all 0.2s ease;
+}
+
+.panel-toggle:hover {
+    background: var(--bg-panel);
+    border-color: var(--border-glow);
+    transform: scale(1.05);
+}
+
+#btn-modes {
+    left: 16px;
+}
+
+#btn-params {
+    right: 16px;
+}
+
+/* Randomize + Preset buttons */
+.panel-actions {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.panel-action-btn {
+    flex: 1;
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid var(--border);
+    color: var(--accent-bright);
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 11px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.panel-action-btn:hover {
+    background: rgba(139, 92, 246, 0.2);
+    border-color: var(--border-glow);
+}
+
+/* ── Hidden File Input ──────────────────────────────── */
+#file-input {
+    display: none;
+}
+
+/* ── Keyboard Hints ─────────────────────────────────── */
+.shortcuts-hint {
+    position: fixed;
+    bottom: 76px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 90;
+    font-size: 11px;
+    color: var(--text-dim);
+    opacity: 0.5;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    font-family: var(--mono);
+}
+
+.shortcuts-hint:hover {
+    opacity: 1;
+}
+
+/* ── Marker System ─────────────────────────────────── */
+
+/* Seek container needs relative for marker track overlay */
+.seek-container {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    min-width: 0;
+    position: relative;
+}
+
+/* Marker track — sits directly under seek bar */
+#marker-track {
+    position: relative;
+    width: 100%;
+    height: 14px;
+    order: 2;
+    cursor: crosshair;
+}
+
+#marker-dots {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.marker-dot {
+    position: absolute;
+    top: 0;
+    width: 3px;
+    height: 14px;
+    border-radius: 1px;
+    transform: translateX(-50%);
+    cursor: pointer;
+    pointer-events: all;
+    transition: all 0.15s ease;
+    z-index: 1;
+}
+
+.marker-dot:hover {
+    width: 5px;
+    filter: brightness(1.3);
+    box-shadow: 0 0 8px currentColor;
+}
+
+.marker-dot .marker-label {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 9px;
+    font-weight: 600;
+    font-family: var(--mono);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.8);
+    color: inherit;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+    margin-bottom: 2px;
+}
+
+.marker-dot:hover .marker-label {
+    opacity: 1;
+}
+
+/* Section regions (colored spans between markers) */
+.marker-region {
+    position: absolute;
+    top: 0;
+    height: 14px;
+    opacity: 0.15;
+    border-radius: 1px;
+    pointer-events: none;
+}
+
+/* Section indicator badge */
+#section-indicator {
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--mono);
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    min-width: 50px;
+    text-align: center;
+}
+
+#section-indicator.section-hidden {
+    opacity: 0;
+    width: 0;
+    min-width: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+/* Marker controls in transport bar */
+.marker-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+#marker-type-select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 6px;
+    border-radius: 6px;
+    font-family: var(--font);
+    font-size: 11px;
+    cursor: pointer;
+    outline: none;
+    max-width: 110px;
+}
+
+#marker-type-select:focus {
+    border-color: var(--accent);
+}
+
+#marker-type-select option {
+    background: var(--bg-dark);
+    color: var(--text);
+}
+
+.marker-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border) !important;
+}
+
+.marker-btn:hover {
+    border-color: var(--border-glow) !important;
+    background: rgba(139, 92, 246, 0.15);
+}
+
+/* Seek bar takes full row */
+#seek-bar {
+    flex: 1;
+    height: 4px;
+    order: 1;
+    width: 100%;
+    min-width: 100%;
+}
+
+#seek-bar:hover {
+    height: 6px;
+}
+
+#time-display {
+    order: 3;
+}
+
+/* ── Responsive ─────────────────────────────────────── */
+@media (max-width: 768px) {
+    .panel {
+        width: 100%;
+    }
+
+    #track-name {
+        display: none;
+    }
+
+    .level-meter {
+        display: none;
+    }
+
+    #vol-bar {
+        width: 50px;
+    }
+
+    .shortcuts-hint {
+        display: none;
+    }
+
+    .marker-controls {
+        display: none;
+    }
+
+    #section-indicator {
+        display: none;
+    }
+}
+
+/* ── Loop Button ── */
+.loop-btn {
+    opacity: 0.4;
+    transition: all 0.3s ease;
+    font-size: 0.85em !important;
+}
+
+.loop-btn.active {
+    opacity: 1;
+    color: var(--green) !important;
+    text-shadow: 0 0 10px var(--green);
+}
+
+.loop-btn:hover {
+    opacity: 0.8;
+}
+
+/* ── Mode Serial Numbers ── */
+.mode-number {
+    font-family: var(--mono);
+    font-size: 0.65em;
+    color: var(--text-dim);
+    opacity: 0.5;
+    min-width: 20px;
+    margin-right: 4px;
+}
+
+.mode-item.active .mode-number {
+    opacity: 1;
+    color: var(--accent-bright);
+}
