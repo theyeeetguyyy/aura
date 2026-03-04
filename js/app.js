@@ -64,6 +64,11 @@ const AuraApp = (() => {
         VisualEngine.registerMode('neonPlasma', NeonPlasmaMode);
         VisualEngine.registerMode('dimensionalRift', DimensionalRiftMode);
         VisualEngine.registerMode('rhythmicGeometry', RhythmicGeometryMode);
+        VisualEngine.registerMode('sdfRaymarcher', SDFRaymarcherMode);
+        VisualEngine.registerMode('noiseRealm', NoiseRealmMode);
+        VisualEngine.registerMode('gpgpuParticles', GPGPUParticlesMode);
+        VisualEngine.registerMode('fractalShader', FractalShaderMode);
+        VisualEngine.registerMode('voidEngine', VoidEngineMode);
     }
 
     function loop() {

@@ -8,7 +8,7 @@
 
 ---
 
-**AURA** is a real-time audio visualizer that transforms any music file into stunning 3D visuals. Built with **Three.js**, it features **28 unique visual modes**, deep audio analysis, beat-synced effects, and full parameter control — all running in your browser with zero dependencies to install.
+**AURA** is a real-time audio visualizer that transforms any music file into stunning 3D visuals. Built with **Three.js**, it features **33 unique visual modes**, deep audio analysis, beat-synced effects, and full parameter control — all running in your browser with zero dependencies to install.
 
 ## ✨ Features
 
@@ -21,7 +21,7 @@
 - **Micro-dynamics** — modulation depth, rhythmic density, groove swing
 - **Structure-aware sections** — Intro, Verse, Build-up, Drop, Breakdown, Bridge, Climax, Outro
 
-### 🎨 28 Visual Modes
+### 🎨 33 Visual Modes
 
 | Mode | Description |
 |------|-------------|
@@ -53,6 +53,12 @@
 | **Neon Plasma** | Flowing plasma fields with vibrant neon colors |
 | **Dimensional Rift** | Reality-tearing portal effects on beat drops |
 | **Rhythmic Geometry** | Beat-locked geometric patterns and transformations |
+| **SDF Raymarcher** | Raymarched signed-distance-field geometry with boolean ops |
+| **Noise Realm** | Layered noise fields with domain warping and FBM |
+| **GPGPU Particles** | 65K GPU-simulated particles with curl noise and vortex forces |
+| **Fractal Shader** | Mandelbrot, Julia, and Burning Ship fractals with audio zoom |
+| **Void Engine** | Raymarched black hole with gravitational lensing and accretion disk |
+
 
 ### 🎛️ Parameter System
 - **Global controls** — Reactivity, Smoothing, Screen Shake, Beat Flash, Zoom Punch, Bloom
@@ -144,7 +150,7 @@ aura/
     ├── ui.js               # UI Controller — panels, transport bar, keyboard shortcuts
     ├── recorder.js         # Recording System — MediaRecorder MP4/WebM capture
     ├── markers.js          # Marker System — song section tagging & timeline
-    └── modes/              # 28 visual mode plugins
+    └── modes/              # 33 visual mode plugins
         ├── frequencyBars.js
         ├── particleStorm.js
         ├── radialBloom.js
@@ -172,7 +178,12 @@ aura/
         ├── cyberGrid.js
         ├── neonPlasma.js
         ├── dimensionalRift.js
-        └── rhythmicGeometry.js
+        ├── rhythmicGeometry.js
+        ├── sdfRaymarcher.js
+        ├── noiseRealm.js
+        ├── gpgpuParticles.js
+        ├── fractalShader.js
+        └── voidEngine.js
 ```
 
 ## 🛠️ Tech Stack
