@@ -388,7 +388,8 @@ const GeometryForgeMode = {
         }
         if (audio.sectionType !== 'fakeout') this._fakeoutLock = false;
 
-        const activeDisplaceMode = this._sectionDisplaceMode || dMode;
+        const userDisplaceMode = params.displaceMode ?? 'frequency';
+        const activeDisplaceMode = this._sectionDisplaceMode || userDisplaceMode;
 
         // Gun shot → instant full explode
         if (audio.gunShotDetected) {
@@ -399,7 +400,6 @@ const GeometryForgeMode = {
         }
 
         // Displacement — apply sectionEffects scale
-        let dMode2 = activeDisplaceMode;
         let dAmt = (params.displaceAmount ?? 12) * _displaceScale * progRamp;
         const dFreq = params.displaceFreq ?? 3, nScale = params.noiseScale ?? 2, oct = Math.floor(params.noiseOctaves ?? 3);
         const bass = audio.smoothBands.bass, sub = audio.smoothBands.sub, mid = audio.smoothBands.mid;
@@ -461,7 +461,7 @@ const GeometryForgeMode = {
             if (symMode === 'y' || symMode === 'xy' || symMode === 'xyz') sy = Math.abs(by);
             if (symMode === 'z' || symMode === 'xyz') sz = Math.abs(bz);
 
-            switch (dMode2) {
+            switch (activeDisplaceMode) {
                 case 'frequency': disp = freq * dAmt; break;
                 case 'noise': disp = this.fbm(sx * 0.05 * nScale + this.time * 0.5, sy * 0.05 * nScale + this.time * 0.3, sz * 0.05 * nScale, oct) * dAmt * (0.3 + bass * 2); break;
                 case 'spike': disp = Math.pow(freq, 3) * dAmt * 3 * (1 + audio.bassBeatIntensity * 3); break;
