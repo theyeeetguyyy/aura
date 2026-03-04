@@ -6,6 +6,7 @@
 const AuraApp = (() => {
     let running = false;
     let canvas = null;
+    let _rafId = null; // 7.1: Track RAF handle to prevent double-loop
 
     function init() {
         canvas = document.getElementById('aura-canvas');
@@ -65,8 +66,8 @@ const AuraApp = (() => {
     }
 
     function loop() {
-        if (!running) return;
-        requestAnimationFrame(loop);
+        if (!running) { _rafId = null; return; }
+        _rafId = requestAnimationFrame(loop);
 
         // 1. Update audio analysis
         AudioEngine.update();
@@ -80,7 +81,23 @@ const AuraApp = (() => {
 
     function stop() {
         running = false;
+        if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
     }
+
+    // Pause RAF loop when tab is hidden — saves 100% CPU/GPU
+    // 7.1: Uses _rafId to prevent double-loop race condition
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            running = false;
+        } else {
+            if (canvas && !_rafId) {
+                running = true;
+                loop();
+            } else if (canvas) {
+                running = true; // loop already running, just un-pause it
+            }
+        }
+    });
 
     // Auto-init when DOM ready
     if (document.readyState === 'loading') {

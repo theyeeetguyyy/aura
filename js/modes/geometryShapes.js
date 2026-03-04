@@ -365,14 +365,54 @@ const GeometryForgeMode = {
         }
         if (!audio.isDrop) this._dropTriggeredThisDrop = false;
 
-        // Displacement
-        const dMode = params.displaceMode ?? 'frequency', dAmt = (params.displaceAmount ?? 12) * react;
+        // ─── SECTION-AWARE TEAROUT REACTIONS ───
+        const SE = audio.sectionEffects || { displacementScale: 1, particleScale: 1, speed: 1 };
+        const _displaceScale = SE.displacementScale * react;
+        const _speedScale = SE.speed;
+        const behavior = (typeof SECTION_BEHAVIORS !== 'undefined' && SECTION_BEHAVIORS[audio.sectionType])
+            ? SECTION_BEHAVIORS[audio.sectionType] : null;
+        const progRamp = (behavior && behavior.useSectionProgressRamp) ? (0.5 + 0.5 * (audio.sectionProgress || 0)) : 1.0;
+
+        // Section entry → auto-select displaceMode
+        if (audio.sectionChanged) {
+            const modeMap = { drop: 'shatter', drop2: 'glitch', climax: 'harmonics', breakdown: 'melt', buildup: 'spike', intro: 'noise', verse: 'frequency', fakeout: 'breathe', bridge: 'ripple', outro: 'breathe' };
+            if (modeMap[audio.sectionType]) this._sectionDisplaceMode = modeMap[audio.sectionType];
+            // Snap phase on section entry
+            this._phaseOffset = audio.barPhase || 0;
+        }
+        // Fakeout hard cut
+        if (audio.sectionChanged && audio.sectionType === 'fakeout') {
+            this.explodePhase = 0;
+            this._sectionDisplaceMode = 'breathe';
+            this._fakeoutLock = true;
+        }
+        if (audio.sectionType !== 'fakeout') this._fakeoutLock = false;
+
+        const activeDisplaceMode = this._sectionDisplaceMode || dMode;
+
+        // Gun shot → instant full explode
+        if (audio.gunShotDetected) {
+            this.explodePhase = Math.max(this.explodePhase, audio.gunShotIntensity * (params.beatExplode || 1) * 1.5);
+        }
+        if (audio.gunShotDecay > 0) {
+            this.explodePhase = Math.max(this.explodePhase, audio.gunShotDecay * 0.5);
+        }
+
+        // Displacement — apply sectionEffects scale
+        let dMode2 = activeDisplaceMode;
+        let dAmt = (params.displaceAmount ?? 12) * _displaceScale * progRamp;
         const dFreq = params.displaceFreq ?? 3, nScale = params.noiseScale ?? 2, oct = Math.floor(params.noiseOctaves ?? 3);
         const bass = audio.smoothBands.bass, sub = audio.smoothBands.sub, mid = audio.smoothBands.mid;
         const treble = audio.smoothBands.treble, rms = audio.rms;
         const symMode = params.symmetryMode ?? 'off';
         const patternType = params.surfacePattern ?? 'none';
         const pulse = params.pulseRate > 0 ? Math.sin(this.time * params.pulseRate) * 0.2 + 1 : 1;
+
+        // Wobble LFO → displacement modulation
+        if (audio.hasSustainedBass && audio.wobbleIntensity > 0.2) {
+            const wobbleMod = 0.5 + 0.5 * (audio.wobbleLFO || 0);
+            dAmt *= (0.4 + 0.6 * wobbleMod);
+        }
 
         // Beat — beat-phase-driven pulse for rhythmic feel
         if (audio.bassBeat && params.beatExplode > 0) this.explodePhase += audio.bassBeatIntensity * params.beatExplode * 0.12; // was 0.3
@@ -383,7 +423,9 @@ const GeometryForgeMode = {
         const breathScale = (1 + (sub + bass) * (params.bassBreath ?? 2) * react * 0.2 + beatPulse * bass * react * 0.15) * pulse;
         let beatScale = 1;
         if (params.beatShrink && audio.beat) beatScale = 1 - audio.beatIntensity * 0.2;
-        const chromatic = params.chromaticSplit ?? 0;
+        // Screech → chromatic split boost
+        const effectiveChromaticSplit = (params.chromaticSplit ?? 0) + (audio.screechIntensity || 0) * 3.0;
+        const chromatic = effectiveChromaticSplit;
 
         const solidPos = this.meshSolid.geometry.attributes.position.array;
         const solidCol = this.meshSolid.geometry.attributes.color.array;
@@ -419,7 +461,7 @@ const GeometryForgeMode = {
             if (symMode === 'y' || symMode === 'xy' || symMode === 'xyz') sy = Math.abs(by);
             if (symMode === 'z' || symMode === 'xyz') sz = Math.abs(bz);
 
-            switch (dMode) {
+            switch (dMode2) {
                 case 'frequency': disp = freq * dAmt; break;
                 case 'noise': disp = this.fbm(sx * 0.05 * nScale + this.time * 0.5, sy * 0.05 * nScale + this.time * 0.3, sz * 0.05 * nScale, oct) * dAmt * (0.3 + bass * 2); break;
                 case 'spike': disp = Math.pow(freq, 3) * dAmt * 3 * (1 + audio.bassBeatIntensity * 3); break;
@@ -444,7 +486,13 @@ const GeometryForgeMode = {
             const patMod = this.getPattern(patternType, t, i / vertCount, this.time);
 
             solidPos[i3] = (bx + nx * disp * patMod) * scale + (chromatic > 0 ? Math.sin(t * 6.28 + this.time) * chromatic * freq : 0);
-            solidPos[i3 + 1] = (by + ny * disp * patMod) * scale - gravAmt * t * 0.5;
+            // Siren rising → Y-axis stretch
+            if ((audio.sirenRising || 0) > 0.3) {
+                const stretch = audio.sirenRising * dAmt * 0.5;
+                solidPos[i3 + 1] = (by + ny * disp * patMod) * scale - gravAmt * t * 0.5 + ny * stretch * audio.sirenRising;
+            } else {
+                solidPos[i3 + 1] = (by + ny * disp * patMod) * scale - gravAmt * t * 0.5;
+            }
             solidPos[i3 + 2] = (bz + nz * disp * patMod) * scale + (chromatic > 0 ? Math.cos(t * 6.28 + this.time) * chromatic * freq : 0);
 
             // Vertex colors
@@ -546,12 +594,20 @@ const GeometryForgeMode = {
             this.group.rotation.z = this.group.rotation.z % TWO_PI;
         }
 
-        // Beat spin burst — subtle, only on strong beats, single axis to avoid tumbling
+        // Beat spin burst — beat-synced via beatPulse
         if (audio.bassBeat) {
             const burst = (params.beatSpinBurst ?? 0.3);
-            const maxBurst = 0.04; // hard cap regardless of section — was 0.08/0.15
-            // Only Y axis — keeps the shape upright and symmetrical
-            this.group.rotation.y += Math.min(maxBurst, audio.bassBeatIntensity * 0.08 * burst);
+            const maxBurst = 0.04;
+            // Use beatPulse for tight grid
+            const bpulse = (typeof VisualEngine !== 'undefined' && VisualEngine.beatPulse)
+                ? VisualEngine.beatPulse(audio.beatPhase || 0, 0.15) : 1;
+            const rotBoost = 1 + bpulse * burst * (_speedScale || 1);
+            this.group.rotation.y += Math.min(maxBurst, audio.bassBeatIntensity * 0.08 * burst * rotBoost);
+        }
+        // Fakeout lock: minimal rotation
+        if (this._fakeoutLock) {
+            this.group.rotation.x *= 0.95;
+            this.group.rotation.z *= 0.95;
         }
         // Drop decay: subtle Z tilt that resolves cleanly, much smaller coefficient
         if (audio.dropDecay > 0.3) this.group.rotation.z += audio.dropDecay * 0.02; // was 0.15

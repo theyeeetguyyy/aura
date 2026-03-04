@@ -1,0 +1,1024 @@
+# AURA — Comprehensive Improvement Guide
+> Full audit of bugs, performance issues, UX improvements, new features, and creative ideas.  
+> Generated after a complete read of: `audio.js`, `visuals.js`, `ui.js`, `app.js`, `markers.js`, `params.js`, `recorder.js`, `style.css`, `geometryShapes.js`, `hyperforge.js`, `index.html`
+
+---
+
+## TABLE OF CONTENTS
+1. [Bug Fixes](#1-bug-fixes)
+2. [Performance Optimizations](#2-performance-optimizations)
+3. [Missing / Broken Features](#3-missing--broken-features)
+4. [UI / UX Improvements](#4-ui--ux-improvements)
+5. [New Features](#5-new-features)
+6. [Creative Ideas & Visual Modes](#6-creative-ideas--visual-modes)
+7. [Code Architecture & Quality](#7-code-architecture--quality)
+8. [Mobile / Accessibility](#8-mobile--accessibility)
+9. [Priority Quick Wins](#9-priority-quick-wins-implement-first)
+
+---
+
+## 1. BUG FIXES
+
+### 1.1 `clock.getDelta()` spike on tab switch — `visuals.js`
+**Problem:** When the user switches tabs and returns, `THREE.Clock.getDelta()` returns the full elapsed time (could be minutes). This causes dt to be enormous for one frame, making physics in every mode explode — particles shoot off to infinity, rotation jumps, shake goes haywire.
+
+**Fix:** Clamp dt after calling `clock.getDelta()`:
+```js
+const dt = Math.min(clock.getDelta(), 0.05); // never more than 50ms
+```
+
+---
+
+### 1.2 `orbitDirty` flag never resets — `visuals.js`
+**Problem:** `orbitDirty` is set to `true` when the user drags or scrolls, and also continuously inside `updateEffects` when `cameraAutoRotate` is on. But it is **never set back to `false`**. The result is that `applyOrbit()` (which recalculates `baseCameraPos` from spherical coords) runs every single frame indefinitely, even when the user stopped orbiting. This is a minor redundant calculation but creates a silent correctness issue: any mode that sets `camera.position` in its own `update()` loop will have those values immediately overwritten by `applyOrbit()` — making it impossible for a mode to control the camera directly.
+
+**Fix:** Reset `orbitDirty = false` at the end of `applyOrbit()`.
+
+---
+
+### 1.3 Mode error is logged 60 times per second — `visuals.js`
+**Problem:** The try/catch around `activeMode.update()` calls `console.warn` on every frame when a mode throws. This floods the console and can cause measurable slowdown from string formatting.
+
+**Fix:** Add a per-mode error flag so only the first error is logged:
+```js
+let modeErrorReported = false;
+// ...in update():
+try {
+    activeMode.update(...);
+    modeErrorReported = false;
+} catch(err) {
+    if (!modeErrorReported) {
+        console.warn(`Mode "${activeModeKey}" error:`, err);
+        modeErrorReported = true;
+    }
+}
+// Reset modeErrorReported = false inside setMode()
+```
+
+---
+
+### 1.4 Double render on composer error — `visuals.js`
+**Problem:** The render block reads:
+```js
+try {
+    if (composer && postProcessing) composer.render();
+    else { renderer.setRenderTarget(null); renderer.render(scene, camera); }
+} catch (err) {
+    renderer.setRenderTarget(null);
+    renderer.render(scene, camera); // renders AGAIN after composer already partially rendered
+}
+```
+If `composer.render()` throws mid-way (e.g., a pass throws), the scene has already been partially rendered, and the fallback renders it again. This causes one frame of double-exposure artifact.
+
+**Fix:** In the catch block, just log the error and disable post-processing for future frames:
+```js
+} catch (err) {
+    console.warn('Composer error, disabling post-processing:', err);
+    ParamSystem.set('postProcessing', false);
+}
+```
+
+---
+
+### 1.5 Mouse drag on canvas activates while over UI panels — `visuals.js`
+**Problem:** The `mousedown` listener is on the canvas, but the canvas covers the full screen. When the user clicks on a slider or button inside an open panel, the panel receives the click event but the orbit drag also starts. Mouse events don't propagate up through the transparent canvas in expected ways here, but if any click bleeds through, it starts an orbit drag.
+
+**Fix:** In the `mousedown` handler, check if the event target is the canvas:
+```js
+canvas.addEventListener('mousedown', (e) => {
+    if (e.button === 0 && e.target === canvas) { // only if directly on canvas
+        isDragging = true;
+        ...
+    }
+});
+```
+
+---
+
+### 1.6 `computeMicroDynamics` allocates a new array every frame — `audio.js`
+**Problem:**
+```js
+const bins = new Array(ENTROPY_BINS).fill(0); // called 60x/second → GC pressure
+const windowRMS = []; // same
+```
+Also `Math.max(...windowRMS)` uses spread, creating an argument list from the array — minor but avoidable.
+
+**Fix:** Pre-allocate these at module scope:
+```js
+const _entropyBins = new Uint32Array(32);
+const _windowRMS = new Float32Array(16);
+// In computeMicroDynamics:
+_entropyBins.fill(0);
+// ... use _windowRMS[w] = ...
+let rmsMax = 0, rmsMin = Infinity;
+for (let w = 0; w < 16; w++) { /* update rmsMax/rmsMin inline */ }
+```
+
+---
+
+### 1.7 `computeSpectralDynamics` allocates an array every frame — `audio.js`
+**Problem:**
+```js
+const bandValues = BAND_NAMES.map(b => audioBus.smoothBands[b]); // new array every frame
+```
+**Fix:** Pre-allocate `const _bandValues = new Float32Array(7)` and fill it in-place.
+
+---
+
+### 1.8 `params.js` — `custom` color palette is just rainbow
+**Problem:** The `colorPalette` select has a `custom` option but it's defined as:
+```js
+custom: (t) => `hsl(${t * 360}, 90%, 55%)`
+```
+This is identical to rainbow. Users who pick "custom" get no actual customization.
+
+**Fix:** Either remove the `custom` option until a custom color editor is built, or wire it to a pair of custom color picker inputs that define the gradient endpoints.
+
+---
+
+### 1.9 `renderMarkers()` not called when a new file loads — `ui.js`
+**Problem:** When a second audio file is dropped or imported, `handleFile()` never calls `renderMarkers()`. The marker track retains dots/regions from the previous file mapped to the old duration — their positions are now wrong.
+
+**Fix:** Call `renderMarkers()` at the end of `handleFile()` after the track loads.
+
+---
+
+### 1.10 `buildParamsUI` causes full DOM rebuild on Randomize — `ui.js`
+**Problem:** Clicking "🎲 Randomize" calls `ParamSystem.randomize()` then `buildParamsUI()`. The latter tears down and rebuilds the entire params panel DOM — all inputs, all sections. This causes a visible flash/re-scroll and loses any focused input.
+
+**Fix:** After `randomize()`, walk the existing input elements and update their `.value` and `.checked` in-place rather than rebuilding:
+```js
+// Add a new method: UI.refreshParamValues()
+function refreshParamValues() {
+    document.querySelectorAll('[data-param-key]').forEach(el => {
+        const key = el.dataset.paramKey;
+        const val = ParamSystem.get(key);
+        if (el.type === 'range' || el.type === 'color') el.value = val;
+        if (el.type === 'checkbox') el.checked = val;
+        if (el.tagName === 'SELECT') el.value = val;
+        // update sibling .param-value span
+    });
+}
+```
+Requires adding `data-param-key` attributes to inputs during `createControl()`.
+
+---
+
+### 1.11 Seek bar `mousedown` / `input` gap — `ui.js`
+**Problem:** `seekDragging` is set on `mousedown` on the seek bar, but the `input` event fires on value change. If a user clicks a point on the seek bar without dragging, `seekDragging` is set to `true` but `updateTransport()` stops updating the bar. The bar freezes until `mouseup` fires. This is the right behavior during a drag but feels unresponsive on a simple click.
+
+**Fix:** Only set `seekDragging = true` inside a `mousemove` handler (i.e., only when the mouse actually moves after mousedown), not on `mousedown` alone.
+
+---
+
+### 1.12 `timeToNextSection` returns `Infinity` — `markers.js`
+**Problem:** `timeToNextSection()` returns `Infinity` when there is no next marker. Any code that does arithmetic with this (e.g., `time / timeToNextSection`) will produce 0 silently, which may be correct or incorrect depending on context.
+
+**Fix:** Return a very large but finite sentinel value (e.g., `9999`) or `null`, and guard callers explicitly.
+
+---
+
+### 1.13 AudioContext created before user gesture on some browsers — `audio.js`
+**Problem:** `AudioEngine.init()` is called from `AuraApp.init()` which fires on `DOMContentLoaded` — before any user interaction. Modern browsers (Chrome 71+) block `AudioContext` creation or leave it in `'suspended'` state until a user gesture. The code does call `ctx.resume()` in `loadFile()` and `play()`, but the initial `createAnalyser()` and node connections in `init()` happen in a suspended context, which means the gain node chain is connected but no audio flows.
+
+**Fix:** Defer `AudioEngine.init()` to the first user interaction (file import button click or file drop). This also avoids holding an AudioContext open indefinitely before any audio is loaded.
+
+---
+
+### 1.14 `loop-btn` active state not synced on file load — `ui.js`
+**Problem:** When a new file loads, `audioElement.loop` is reset to `false` in `loadFile()`. But the UI `loop-btn` retains its `active` CSS class from the previous session if the user had loop enabled.
+
+**Fix:** In `handleFile()`, sync the loop button state after loading:
+```js
+const loopBtn = document.getElementById('btn-loop');
+if (loopBtn) loopBtn.classList.toggle('active', AudioEngine.isLooping());
+```
+
+---
+
+### 1.15 `section-indicator` width animation flashes — `style.css`
+**Problem:** `#section-indicator.section-hidden` sets `width: 0` and `min-width: 0`. The `transition: all 0.3s ease` animates `width` and `min-width`, but `width: 0` on a flex child can cause layout reflow every frame during animation. This is subtle but visible as the transport bar content shifts.
+
+**Fix:** Instead of animating width, just animate `opacity` and use `visibility: hidden` + `pointer-events: none`, keeping the element's width fixed (or use `transform: scale(0)` which is GPU-composited).
+
+---
+
+## 2. PERFORMANCE OPTIMIZATIONS
+
+### 2.1 Pause animation loop when tab is hidden
+**Impact: HIGH — 100% CPU/GPU savings when tab is backgrounded**
+
+Currently the `requestAnimationFrame` loop runs indefinitely. Add a `visibilitychange` listener:
+```js
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        running = false;
+    } else {
+        running = true;
+        clock.getDelta(); // consume the spike delta
+        loop();
+    }
+});
+```
+
+---
+
+### 2.2 Pre-allocate `THREE.Color` in `ParamSystem.getColorThreeHSL` — `params.js`
+**Impact: MEDIUM — reduces GC pressure in modes that call `getColorThree()` per vertex per frame**
+
+```js
+// Current:
+return new THREE.Color().setHSL(hsl.h / 360, hsl.s, hsl.l);
+
+// Fixed: module-level cache
+const _cachedColor = new THREE.Color();
+function getColorThreeHSL(t, palette) {
+    const hsl = getColorHSL(t, palette);
+    _cachedColor.setHSL(hsl.h / 360, hsl.s, hsl.l);
+    return _cachedColor; // caller must not store the reference
+}
+```
+Note: Modes that store the returned color must clone it: `color.clone()` if they need to hold multiple colors simultaneously.
+
+---
+
+### 2.3 Run heavy analysis only every N frames — `audio.js`
+**Impact: MEDIUM — saves ~15% CPU on analysis**
+
+These functions do significant work but don't need 60fps resolution:
+- `computeHarmonicAnalysis()` — run every 3 frames
+- `computeRhythmAnalysis()` — run every 5 frames
+- `computeSpectralDynamics()` — run every 2 frames
+- `computeMicroDynamics()` — run every 2 frames
+
+Add a frame counter at the top of `update()`:
+```js
+let _analysisFrame = 0;
+function update() {
+    _analysisFrame = (_analysisFrame + 1) % 60;
+    // ...
+    if (_analysisFrame % 3 === 0) computeHarmonicAnalysis();
+    if (_analysisFrame % 5 === 0) computeRhythmAnalysis();
+    // etc.
+}
+```
+
+---
+
+### 2.4 Adaptive render quality based on FPS — `visuals.js`
+**Impact: HIGH — maintains smooth experience on lower-end GPUs**
+
+Track rolling average FPS. If FPS drops below 45, reduce pixel ratio. If it drops below 30, reduce further or skip every other mode update:
+```js
+let fpsHistory = [];
+let lastFpsTime = performance.now();
+// In update():
+const now = performance.now();
+fpsHistory.push(1000 / (now - lastFpsTime));
+lastFpsTime = now;
+if (fpsHistory.length > 60) fpsHistory.shift();
+if (fpsHistory.length === 60) {
+    const avgFps = fpsHistory.reduce((a, b) => a + b) / 60;
+    if (avgFps < 30 && renderer.getPixelRatio() > 1) {
+        renderer.setPixelRatio(1);
+    } else if (avgFps > 55 && renderer.getPixelRatio() < window.devicePixelRatio) {
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    }
+}
+```
+
+---
+
+### 2.5 Mode list DOM rebuild is innerHTML every time — `ui.js`
+**Impact: LOW — but causes flash and forced reflow**
+
+`updateModeList()` sets `list.innerHTML` from scratch. This destroys and recreates ~27 DOM nodes. Instead, only update the `active` class:
+```js
+function updateModeList() {
+    document.querySelectorAll('.mode-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.mode === VisualEngine.activeModeKey);
+    });
+}
+// Build the list only once in init(), then only update classes on mode change
+```
+
+---
+
+### 2.6 `beatTimes` and `onsetTimes` arrays use `shift()` — `audio.js`
+**Impact: LOW — but shift() on arrays is O(n)**
+
+Use a circular buffer pattern instead of push/shift:
+```js
+let beatTimesHead = 0;
+const beatTimesBuffer = new Float64Array(20);
+// Write: beatTimesBuffer[beatTimesHead % 20] = now; beatTimesHead++;
+// Read: iterate from oldest to newest using modular indexing
+```
+
+---
+
+### 2.7 `Math.max(...windowRMS)` spread call — `audio.js`
+**Impact: LOW** — Already addressed in Bug 1.6 but worth noting separately. Spread into function arguments copies the array contents to the call stack. For small arrays (16 elements) the impact is negligible, but it's a bad pattern to have in a hot path.
+
+---
+
+### 2.8 Fog density update every frame is a lerp on a scalar — `visuals.js`
+**Impact: NEGLIGIBLE** — Already efficient. Keep as-is.
+
+---
+
+### 2.9 `flashOverlay.material.color.lerp(c, 0.3)` allocates `THREE.Color` via `getColorThree` — `visuals.js`
+**Impact: LOW** — Already addressed by fix 2.2 above, but the lerp itself is fine.
+
+---
+
+## 3. MISSING / BROKEN FEATURES
+
+### 3.1 UnrealBloomPass is a complete no-op
+**Severity: HIGH**
+
+The inline `THREE.UnrealBloomPass` shim in `index.html` literally just adjusts `renderer.toneMappingExposure` when it's the last pass. It does not perform any bloom (convolution, bright-pass, blur, or additive blend). The "Post Processing" toggle and "Bloom" slider in params have almost no visible effect.
+
+**Fix options:**
+- **Option A (Recommended):** Load the actual Three.js post-processing scripts from CDN or bundle them:
+  ```html
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  ```
+  Note: These are available at the `three@0.128.0` version on jsDelivr/unpkg.
+
+- **Option B:** Implement a simple two-pass bloom manually with `THREE.WebGLRenderTarget`, a bright-pass threshold shader, and a separable Gaussian blur shader — about 150 lines of GLSL.
+
+---
+
+### 3.2 Section `colorTemp` is defined but never used
+**Severity: MEDIUM**
+
+`markers.js` defines `colorTemp` for every section type (`'cool'`, `'warm'`, `'hot'`, `'ethereal'`, `'extreme'`, `'neutral'`). This is read nowhere in `visuals.js`, `audio.js`, or any mode. The intent is clear: shift the scene's color temperature based on the current section.
+
+**Fix:** In `visuals.js → updateEffects()`, read `MarkerSystem.getCurrentSection()?.colorTemp` and apply a corresponding hue/saturation shift to the scene's ambient color or the `ParamSystem.colorPalette` selection:
+```js
+const colorTempMap = {
+    cool: 220, neutral: 280, warm: 30, hot: 10, ethereal: 280, extreme: 0
+};
+const sectionHueShift = colorTempMap[section?.colorTemp] ?? 280;
+// Apply to flash color, fog color, and expose via audioBus.sectionHueShift
+```
+
+---
+
+### 3.3 BPM is detected but never displayed
+**Severity: MEDIUM**
+
+`audioBus.bpm` is estimated and updated in `audio.js`, but there is no UI element showing the current BPM. This is extremely useful information for live performance.
+
+**Fix:** Add a BPM badge to the transport bar, positioned next to the time display:
+```html
+<span id="bpm-display" class="bpm-badge">-- BPM</span>
+```
+Update it in `UI.updateTransport()`:
+```js
+const bpmEl = document.getElementById('bpm-display');
+if (bpmEl) bpmEl.textContent = `${AudioEngine.audioBus.bpm} BPM`;
+```
+
+---
+
+### 3.4 Mode number keys only map to modes 1–9, not 10–27
+**Severity: LOW**
+
+The keyboard handler maps `Digit1`–`Digit9` to modes, but there are 27 registered modes. Modes 10–27 have no direct keyboard shortcut.
+
+**Fix options:**
+- Use `Ctrl+1`–`Ctrl+9` or `Alt+1`–`Alt+9` for modes 10–18 and 19–27
+- Add `0` to cycle to mode 10
+- Or just document that `[` / `]` should be used for navigation
+
+---
+
+### 3.5 Marker drag-to-reposition is not implemented
+**Severity: MEDIUM**
+
+Markers can be added (M key / button) and deleted (right-click), but cannot be moved. For precise placement (especially after live performance), dragging is essential.
+
+**Fix:** In `renderMarkers()`, add `mousedown` → `mousemove` → `mouseup` drag handlers to each `.marker-dot`. Track drag ratio relative to track width and update `marker.time` accordingly, then call `renderMarkers()` on mouseup.
+
+---
+
+### 3.6 Marker export/import UI is missing
+**Severity: LOW**
+
+`MarkerSystem.exportMarkers()` and `importMarkers()` are implemented but there's no UI to trigger them. These are useful for saving a marked-up song for later or sharing with others.
+
+**Fix:** Add two small buttons to the marker controls area: "💾 Save Markers" (downloads a `.json` file) and "📂 Load Markers" (file input → JSON).
+
+---
+
+### 3.7 `silenceDetected` is set on audioBus but never used
+**Severity: LOW**
+
+`audioBus.silenceDetected` is computed in `computeLoudness()` but no mode or visual effect checks it. Silence is a dramatic moment in music that could trigger a visual pause or fade-out.
+
+**Fix:** In `visuals.js`, check `audioBus.silenceDetected` and smoothly fade the scene to near-black (or hold a freeze frame) when silence is detected for > 0.5 seconds.
+
+---
+
+### 3.8 `audioBus.groove`, `rhythmComplexity`, `harmonicRatio`, `chordDensity` are computed but unused
+**Severity: LOW**
+
+Several rich audio features from v4 analysis are computed every frame but no visual mode actually reads them. These are excellent candidates for driving interesting effects:
+- `groove` (0–1 swing detection) → warp rotation timing
+- `harmonicRatio` (0=noise, 1=tonal) → toggle between chaotic and smooth displacement
+- `chordDensity` → scatter/complexity of particle systems
+- `rhythmComplexity` → entropy of geometry patterns
+
+These should be documented prominently so mode authors use them.
+
+---
+
+## 4. UI / UX IMPROVEMENTS
+
+### 4.1 Transport bar is overcrowded
+The bottom bar packs: play, loop, track name, seek bar + marker track, time display, section indicator, volume, level meter, marker type select, add marker, clear markers, record, flash — that's 14 distinct UI elements in 64px height. On screens < 1200px wide, elements overlap or become unusable.
+
+**Recommended restructure:**
+- Move marker controls (type select + add + clear) into the **Modes panel** or a dedicated **Timeline Panel**
+- Move the flash toggle into the **Params panel** under Global
+- Move record button to a floating action button in the top-right corner
+- The transport bar should contain only: Play, Loop, Track Name, Seek/Marker Track, Time, Volume, Level Meter, BPM
+
+---
+
+### 4.2 Panel toggle buttons have no active state
+When a panel is open, the `◆` and `⚙` buttons look identical to when they're closed. The user has no affordance to know which panel is open.
+
+**Fix:** Toggle an `active` class on the panel toggle buttons:
+```js
+document.getElementById('btn-modes').classList.toggle('active', modePanelOpen);
+```
+In CSS: `.panel-toggle.active { background: var(--accent); border-color: var(--accent-bright); }`
+
+---
+
+### 4.3 Mode list lacks search and categories
+27 modes is manageable but will grow. Add a search filter input at the top of the modes panel:
+```js
+// In setupPanels():
+searchInput.addEventListener('input', () => {
+    document.querySelectorAll('.mode-item').forEach(el => {
+        const matches = el.dataset.mode.toLowerCase().includes(searchInput.value.toLowerCase());
+        el.style.display = matches ? '' : 'none';
+    });
+});
+```
+Also group modes into visual categories with a collapsible section header:
+- **Geometry** — frequencyBars, geometryForge, hyperforge, polyhedronExplode, mobiusRings, dnaHelix
+- **Particles** — particleStorm, particleManipulation, starfield, nebula
+- **Spatial** — terrainMesh, gridDistortion, cyberGrid, shaderTunnel, dimensionalRift
+- **Organic** — aurora, radialBloom, fractalTree, voronoiField, neonPlasma
+- **Analytic** — waveformScope, spectrogram, lissajous, mathMode
+- **Experimental** — kaleidoscope, rhythmicGeometry, godRays
+
+---
+
+### 4.4 Color palette select shows no preview
+The palette dropdown shows text names like "cyberpunk", "ocean", "fire" with no visual indication of what they look like.
+
+**Fix:** Replace the `<select>` with a custom palette picker that shows a gradient swatch for each option. This can be done with a div-based dropdown and `background: linear-gradient(...)` per option.
+
+---
+
+### 4.5 Params panel sliders don't show real-time audio-driven feedback
+Users can't see how much the audio is actually affecting parameters. A subtle animated "activity" indicator on each slider that shows the effective value after audio reactivity would be educational and satisfying.
+
+**Fix:** Add a thin colored "activity bar" overlay on each slider track that shows `currentEffectiveValue` (e.g., base slider value × current audio reactivity). This is especially useful for Reactivity, Bloom, and Beat Explode.
+
+---
+
+### 4.6 No confirmation before "Clear All Markers"
+The 🗑️ button immediately deletes all markers with no undo. One accidental click loses all carefully placed markers.
+
+**Fix:** Either add a simple `confirm()` dialog, or implement a 2-step confirmation (button changes to "⚠️ Sure?" for 2 seconds on first click).
+
+---
+
+### 4.7 Marker dots are too thin to click reliably
+The `.marker-dot` is 3px wide. The hover expands it to 5px. On a 1920px screen with a 10-minute track, markers can be as close as a few pixels apart. A 3px click target is well below the 44px minimum recommended by accessibility guidelines.
+
+**Fix:** Use a transparent hitbox overlay (wider transparent element) for click events, while keeping the visual dot narrow:
+```css
+.marker-dot::before {
+    content: '';
+    position: absolute;
+    left: -8px; right: -8px;
+    top: 0; bottom: 0;
+}
+```
+
+---
+
+### 4.8 Section progress within current section is not visualized
+`audioBus.sectionProgress` (0–1) is computed but the section indicator badge shows only the section name/icon. A small progress bar inside the badge would show how far through the current section the playhead is.
+
+**Fix:** Add a `::after` pseudo-element to `#section-indicator` styled as an internal progress bar that animates via CSS custom property.
+
+---
+
+### 4.9 No waveform in the seek bar
+The seek bar is a generic `<input type="range">`. Audio players universally show a waveform or at minimum energy envelope in the seek bar.
+
+**Fix:** Behind the seek bar, add a `<canvas id="waveform-canvas">` that renders the waveform overview on file load using the audio buffer from the AudioContext. This can be done once at load time (not every frame):
+```js
+// After AudioEngine.loadFile():
+const offlineCtx = new OfflineAudioContext(1, audioBuffer.length, audioBuffer.sampleRate);
+// downsample and draw to waveform canvas
+```
+
+---
+
+### 4.10 No visual feedback on screenshot or recording start
+When recording starts, the button pulses (good). But there's no full-screen indicator that says "REC" prominently — easy to forget the app is recording.
+
+**Fix:** Add a fixed "● REC 0:00" overlay in the top-right corner of the canvas when recording is active. This also gets captured in the recording itself as a useful timecode reference. Make it toggleable.
+
+---
+
+### 4.11 The keyboard shortcuts hint is barely legible
+`.shortcuts-hint` has `opacity: 0.5` and is `pointer-events: none`. Many users won't notice it or read it.
+
+**Fix:** Replace it with a `?` button in the top-right area that opens a shortcuts modal popup — styled like the panels, listing all shortcuts in a clean table.
+
+---
+
+### 4.12 Drop zone doesn't show audio format support clearly
+Users frequently try to drop video files or other formats and get no feedback. The drop zone says "Drop your music file here" with no format list.
+
+**Fix:** Show supported formats below the subtitle: "Supports MP3, WAV, FLAC, OGG, M4A, AAC"
+
+---
+
+### 4.13 Volume slider has no numeric display
+Users can't see the exact volume level, only a slider position.
+
+**Fix:** Add a small percentage display next to the volume slider: `<span id="vol-display">80%</span>` updated on input.
+
+---
+
+### 4.14 Seek bar time display shows wrong format for long tracks
+`formatTime(s)` produces `m:ss` format, which is fine for < 1 hour. For longer recordings it would produce `90:05` rather than `1:30:05`. Minor edge case but worth fixing.
+
+---
+
+## 5. NEW FEATURES
+
+### 5.1 Preset Save/Load System
+**Priority: HIGH**
+
+The infrastructure is all there — `ParamSystem.exportPreset()` and `importPreset()` exist but nothing calls them.
+
+**Implementation:**
+- Add "💾 Save Preset" and "📂 Load Preset" buttons to the params panel actions row
+- Save to localStorage with a user-defined name AND allow download as `.json`
+- Show a "My Presets" expandable section in the params panel listing saved presets with single-click load and a delete button
+- Ship 5–10 factory presets that showcase different styles ("Club Night", "Ambient Drift", "Glitch Artefact", etc.)
+
+---
+
+### 5.2 Real Post-Processing Effect Chain
+**Priority: HIGH**
+
+Beyond just bloom, expose a stackable effect chain with per-effect parameters:
+
+| Effect | Key Parameters |
+|--------|---------------|
+| Bloom | Threshold, Strength, Radius |
+| Chromatic Aberration | Offset, Audio reactivity |
+| Film Grain | Amount, Speed |
+| Vignette | Radius, Softness |
+| CRT Scanlines | Line thickness, Flicker |
+| Glitch | Intensity, Trigger (beat/drop) |
+| Pixelate | Cell size, Audio reactivity |
+| Kaleidoscope Post | Segments (applied on top of any mode) |
+| Mirror Post | Axis |
+| Color Grade | Saturation, Contrast, Hue Shift |
+
+Render each as a custom `ShaderPass` with a simple GLSL fragment shader. The UI for chaining would be a small vertical list of toggle+slider rows in the params panel under "Effects Chain".
+
+---
+
+### 5.3 BPM Tap Tempo + Manual Override
+**Priority: MEDIUM**
+
+The auto-detected BPM is good but often wrong during complex passages or pitched-down genres. Add:
+- A "TAP" button the user can click/press (T key) 4 times to set BPM manually
+- A BPM input field where users can type exact BPM
+- A "× 0.5 / × 2" button to halve or double the BPM (useful for half-time feels)
+
+```js
+// Tap tempo logic:
+const tapTimes = [];
+function onTap() {
+    tapTimes.push(performance.now());
+    if (tapTimes.length > 8) tapTimes.shift();
+    if (tapTimes.length >= 2) {
+        const intervals = [];
+        for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i-1]);
+        const avg = intervals.reduce((a,b) => a+b) / intervals.length;
+        AudioEngine.audioBus.bpm = Math.round(60000 / avg);
+    }
+}
+```
+
+---
+
+### 5.4 Microphone / Live Audio Input
+**Priority: MEDIUM**
+
+Add a "🎙️ Live Input" option alongside the file import button. Use `navigator.mediaDevices.getUserMedia({ audio: true })` and connect the stream to the AudioEngine's gainNode instead of the audioElement source.
+
+This unlocks live DJ performance use cases and makes AURA a live reactive visualizer.
+
+---
+
+### 5.5 Mode Sequencer / Auto-Pilot
+**Priority: MEDIUM**
+
+A "✨ Auto Mode" feature that automatically switches visual modes based on detected section changes. Define a mapping:
+```js
+const sectionModeMap = {
+    intro: ['nebula', 'starfield'],
+    verse: ['waveformScope', 'frequencyBars'],
+    buildup: ['particleStorm', 'geometryForge'],
+    drop: ['hyperforge', 'rhythmicGeometry', 'polyhedronExplode'],
+    breakdown: ['aurora', 'fractalTree'],
+    outro: ['nebula', 'spectrogram']
+};
+```
+On section change, randomly pick from the pool for that section type. Expose the mapping as a user-editable configuration in the params panel.
+
+---
+
+### 5.6 Crossfade Between Modes
+**Priority: MEDIUM**
+
+Currently switching modes is an instant cut. Implement a short crossfade (0.5–2 seconds) by rendering both the old and new mode into separate render targets and blending them with a `ShaderPass`:
+
+```glsl
+// crossfade.frag
+uniform sampler2D tOld;
+uniform sampler2D tNew;
+uniform float progress;
+void main() {
+    vec4 c0 = texture2D(tOld, vUv);
+    vec4 c1 = texture2D(tNew, vUv);
+    gl_FragColor = mix(c0, c1, progress);
+}
+```
+
+---
+
+### 5.7 Screenshot / Frame Capture
+**Priority: LOW**
+
+Add a camera icon button (or Ctrl+S shortcut) that calls `canvas.toDataURL('image/png')` and triggers a download. Simple but extremely useful for capturing stunning moments.
+
+```js
+function screenshot() {
+    const link = document.createElement('a');
+    link.download = `aura_${Date.now()}.png`;
+    link.href = document.getElementById('aura-canvas').toDataURL();
+    link.click();
+}
+```
+
+---
+
+### 5.8 A-B Loop Points
+**Priority: MEDIUM**
+
+Allow the user to set an "in" point (A) and "out" point (B) on the seek bar to loop a specific section. Keys: `I` to set in-point, `O` to set out-point, `Shift+L` to toggle A-B loop. Show A and B markers as non-deletable markers on the timeline in a different color.
+
+---
+
+### 5.9 FPS + Debug HUD
+**Priority: LOW**
+
+A toggleable debug overlay (key: `D` or `Ctrl+D`) that shows:
+- Current FPS (rolling average)
+- Active mode name
+- Audio stats: BPM, RMS, detected section, drop decay
+- Memory: renderer.info.render (draw calls, triangles)
+- Beat flash counter
+
+Display as a small fixed `<div>` in the top-left, styled with the mono font, semi-transparent.
+
+---
+
+### 5.10 Playlist / Queue Support
+**Priority: LOW**
+
+Allow multiple files to be queued. When a track ends, automatically advance to the next. Show the queue list as an expandable section above the transport bar. Support drag-to-reorder within the queue.
+
+---
+
+### 5.11 Tempo Sync Effects Grid
+**Priority: MEDIUM**
+
+Lock the beat flash, zoom punch, and screen shake to the exact BPM grid rather than to beat detection events. This makes the visuals feel "locked in" to the music in a way that audio-reactive only can't achieve. Add a "BPM Lock" toggle — when enabled, effects fire at `60000/bpm` intervals from the last detected beat, regardless of whether a beat is detected that frame.
+
+---
+
+### 5.12 Marker Context Menu
+**Priority: LOW**
+
+Replace right-click-to-delete with a proper context menu on right-click that shows:
+- 🕐 Seek to [time]
+- 🎭 Change type → submenu of section types
+- ✏️ Rename (custom label)
+- 🗑️ Delete
+
+---
+
+### 5.13 Keyboard Shortcut Modal
+**Priority: LOW**
+
+A `?` button or `Escape` key opens a full-screen keyboard reference modal styled in AURA's glass aesthetic. Every shortcut listed with its function, in a clean two-column layout.
+
+---
+
+### 5.14 Export/Import Full Session
+**Priority: LOW**
+
+A single "💾 Save Session" that bundles: current param values, current markers, current mode, color palette — into a single JSON file. A "📂 Load Session" restores everything. This lets users bookmark their favorite configurations for a specific track.
+
+---
+
+## 6. CREATIVE IDEAS & VISUAL MODES
+
+### 6.1 New Visual Mode: Liquid Mercury
+A mesh of metaball-like spheres that merge and split based on audio bands. Sub-bass drives the blob count, mid-range drives surface tension. A chrome-like `MeshStandardMaterial` with environment mapping creates a liquid metal aesthetic. On drop, the surface shatters into droplets using a Voronoi fracture.
+
+---
+
+### 6.2 New Visual Mode: Oscilloscope XY / Lissajous++
+Extend the existing Lissajous mode with:
+- Dual-channel mode: left audio channel drives X, right drives Y (true stereo scope)
+- Color that encodes velocity (slow = dark, fast = bright)
+- Persistence / phosphor glow trail (slower fade = old CRT scope look)
+- Frequency ratio control that snaps to musical intervals (2:1 octave, 3:2 fifth, etc.)
+
+---
+
+### 6.3 New Visual Mode: String Theory
+Visualize strings of particles connected by elastic "springs" where tension is driven by bass frequencies. Strings snap and reform on drop. Inspired by actual string physics — each string vibrates at a harmonic of the detected fundamental frequency.
+
+---
+
+### 6.4 New Visual Mode: Terrain Flythrough
+A camera that moves through an infinite procedural terrain (height-mapped by frequency data), flying forward continuously. The speed increases with energy. Valleys correspond to low energy, mountain peaks to drop moments. Color the terrain by height with a geologically-realistic palette that shifts to volcanic on drops.
+
+---
+
+### 6.5 New Visual Mode: Circuit Board
+A top-down view of an animated circuit board. Traces light up when current frequency bin exceeds a threshold. On beat, packets of light travel down traces. On drop, the board overloads with a surge of white light. Very cyberpunk, very satisfying.
+
+---
+
+### 6.6 New Visual Mode: Cellular Automaton
+A grid of cells running a modified Conway's Game of Life where birth/death rules are modulated by audio (high energy = more chaotic rules, low energy = stable rules). The grid resolution changes with zoom punch. Beat events seed new random alive cells in a burst pattern.
+
+---
+
+### 6.7 New Visual Mode: Portrait / Face Warp
+A procedurally-generated abstract "face" (using symmetrically warped Bezier curves) that reacts emotionally to audio: bass widens the jaw, treble raises the brows, drop triggers a scream expression. Intentionally uncanny and unsettling — perfect for industrial/darkwave.
+
+---
+
+### 6.8 Audio-Reactive Post Layer: Shockwave Ripple
+On every detected drop/beat, emit a radial shockwave distortion that expands from the center outward using a UV distortion shader — like the visual effect of a subwoofer pressure wave in air. Stack multiple ripples with different speeds. This is applied as a post-processing pass on top of any mode.
+
+---
+
+### 6.9 Mood-Based Palette Auto-Selector
+Use the existing rich audio analysis to automatically select the most appropriate color palette:
+- High `spectralTilt` (bass-heavy) + drop → `fire` or `cyberpunk`
+- High `harmonicRatio` (tonal) + calm → `aurora` or `pastel`
+- High `spectralFlatness` (noise) → `monochrome`
+- High `groove` (swing) → `sunset`
+- `isCalm` + `isBreakdown` → `ocean`
+
+Expose as an "AI Palette" toggle in global params. The palette smoothly crossfades between selections (interpolate H/S/L instead of switching abruptly).
+
+---
+
+### 6.10 Pitch-to-Color Mapping
+When `harmonicRatio > 0.5` (the audio is tonal/melodic), derive the scene's primary hue from `audioBus.pitchClass` (0–11 = C through B). Map pitch classes to the color wheel:
+```
+C=0° Red, C#=30° Orange, D=60°, D#=90°, E=120° Green, F=150°,
+F#=180° Cyan, G=210°, G#=240° Blue, A=270°, A#=300° Purple, B=330°
+```
+This creates a subconsciously "correct" synesthetic mapping where the visuals feel tuned to the music.
+
+---
+
+### 6.11 Dual Monitor / Second Screen Mode
+A button labeled "🖥️ Popout" that opens `window.open()` with a clean canvas-only page (no UI) that syncs to the same `VisualEngine` state. The main window retains the full UI. Users can drag the popout to a second monitor for presentation.
+
+Technical note: Communication between windows requires `BroadcastChannel` API or `localStorage` events since each window has its own JS context.
+
+---
+
+### 6.12 VJ Crossfader / Dual Mode
+A crossfader slider between two simultaneously-running visual modes, rendered to separate offscreen canvases and blended in a shader. This lets VJs smoothly transition between modes in real-time, including at exactly the drop moment.
+
+---
+
+### 6.13 Audio-Reactive Typography
+A mode where large 3D text (using Three.js `TextGeometry` with a font loader) spells out the current section name (DROP, VERSE, BUILD, etc.) and deforms based on audio. The letters inflate on bass, fragment on drop, reassemble on breakdown. Colors are palette-driven.
+
+---
+
+### 6.14 Physics-Based Camera Inertia
+Replace the current instant camera position assignment with a spring-damper physics model:
+```js
+// Camera spring physics
+cameraVelocity.add(tempVec.subVectors(targetPosition, actualCameraPos).multiplyScalar(springK));
+cameraVelocity.multiplyScalar(dampingFactor);
+actualCameraPos.add(cameraVelocity);
+camera.position.copy(actualCameraPos);
+```
+The camera feels like it has weight — it overshoots slightly on fast movements, creating organic motion. Bass beats give the camera a "kick" impulse.
+
+---
+
+### 6.15 Live Spectrum Painting
+A mode where frequency data is "painted" onto a growing canvas over time — like a spectrogram but rendered as an evolving abstract artwork. Each row of pixels represents one frame's frequency data, colored by palette. As time progresses, the image scrolls upward, creating a living tapestry of the song's frequency history. The full spectrogram becomes visible as a long horizontal image at the end of the song.
+
+---
+
+## 7. CODE ARCHITECTURE & QUALITY
+
+### 7.1 Mode registration manifest pattern — `app.js`
+The `registerModes()` function has 27 manual `VisualEngine.registerMode()` calls. Every new mode requires an edit to `app.js` AND a `<script>` tag in `index.html`.
+
+**Better pattern:** Define a manifest array:
+```js
+const MODE_MANIFEST = [
+    { key: 'frequencyBars', script: 'js/modes/frequencyBars.js', ctor: () => FrequencyBarsMode },
+    // ...
+];
+```
+Load scripts dynamically and register from the manifest. This decouples mode authoring from app bootstrapping.
+
+---
+
+### 7.2 `ParamSystem.get()` is a dict lookup every call
+Every mode calls `params.reactivity`, `params.smoothing`, etc. directly (passed in from `ParamSystem.getAllGlobal()` + `getAllMode()`) which is fine — this is already spread into a flat object. No change needed here.
+
+---
+
+### 7.3 `audioBus` is a single shared mutable object with no type safety
+With 60+ properties on `audioBus`, it's easy for a mode author to misspell a property name and get `undefined` silently. Consider:
+- Adding JSDoc `@typedef` to document all audioBus properties
+- Creating a getter shim that warns on unknown property access in development mode:
+```js
+const audioBus = new Proxy(rawBus, {
+    get(target, key) {
+        if (!(key in target)) console.warn(`audioBus: unknown property "${key}"`);
+        return target[key];
+    }
+});
+```
+
+---
+
+### 7.4 Scene cleanup on mode switch doesn't call `dispose()` on textures
+`visuals.js → setMode()` correctly disposes geometries and materials on scene children before mode switch, but textures referenced by materials are not explicitly disposed:
+```js
+if (child.material) {
+    // Current code disposes material but not textures
+    if (child.material.map) child.material.map.dispose();
+    if (child.material.normalMap) child.material.normalMap.dispose();
+    // etc. for all texture slots
+    child.material.dispose();
+}
+```
+Texture leaks accumulate VRAM over many mode switches.
+
+---
+
+### 7.5 No error boundary around mode initialization
+If a mode's `init()` throws (e.g., due to a missing geometry or bad param), `setMode()` will throw up and the engine is left in an inconsistent state — `activeModeKey` is set to the new key but `activeMode` may be partially initialized.
+
+**Fix:** Wrap `activeMode.init()` in try/catch, and if it throws, revert to the previous mode:
+```js
+try {
+    if (activeMode.init) activeMode.init(scene, camera, renderer);
+} catch (err) {
+    console.error(`Mode "${key}" failed to init:`, err);
+    // Revert to previous mode
+    activeModeKey = previousKey;
+    activeMode = modes[previousKey];
+    return;
+}
+```
+
+---
+
+### 7.6 `ParamSystem.initGlobals()` called at module definition time
+`initGlobals()` is called at the bottom of the `ParamSystem` IIFE. This is fine, but it means global param values are initialized before `THREE` is available (not a problem currently since no param defaults use THREE, but could be a footgun in the future).
+
+---
+
+### 7.7 Consider a `ModeBase` class or mixin pattern for modes
+Every mode re-implements the same lifecycle pattern: `{ name, params, init, update, destroy }`. A shared `ModeBase` with default no-op implementations and a `dispose()` utility would reduce boilerplate and make the interface explicit.
+
+---
+
+## 8. MOBILE / ACCESSIBILITY
+
+### 8.1 No touch support for camera orbit
+The mouse controls (drag to orbit, scroll to zoom) have no touch equivalents. Mobile/tablet users cannot orbit the camera.
+
+**Fix:** Add `touchstart`, `touchmove`, `touchend` listeners. Single-finger drag = orbit, two-finger pinch = zoom:
+```js
+canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) { isDragging = true; lastMouseX = e.touches[0].clientX; ... }
+});
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (e.touches.length === 1 && isDragging) { /* orbit */ }
+    if (e.touches.length === 2) { /* pinch zoom */ }
+}, { passive: false });
+```
+
+---
+
+### 8.2 No touch support for panel interaction on mobile
+On mobile, the panels are full-width (from the CSS media query), but opening them requires clicking the toggle buttons. A swipe-from-left gesture should open the modes panel, swipe-from-right the params panel.
+
+---
+
+### 8.3 Missing ARIA labels on icon-only buttons
+Transport buttons use emoji icons (`▶`, `⏸`, `⏺`, `⚡`) without ARIA labels. Screen readers announce these as the emoji name, which is confusing.
+
+**Fix:** Add `aria-label` attributes to all transport buttons:
+```html
+<button aria-label="Play/Pause" ...>▶</button>
+<button aria-label="Record" ...>⏺</button>
+```
+
+---
+
+### 8.4 `user-select: none` on entire body blocks text selection everywhere
+This prevents users from selecting text anywhere in the app, including the track name (which they might want to copy). Scope the `user-select: none` only to interactive UI elements, not the whole `<body>`.
+
+---
+
+### 8.5 Color palette names are not accessible to color-blind users
+Palette names like "fire", "ocean", "cyberpunk" convey color meaning, which is fine. But the only differentiator between them in the UI is text. Adding a small color swatch preview (fix 4.4) helps all users.
+
+---
+
+### 8.6 Transport bar is 64px tall — too short for tap targets on mobile
+44px is the minimum recommended tap target size. The 32px marker buttons and 40px transport buttons are fine, but the seek bar's 4px height makes it very hard to tap accurately on mobile.
+
+**Fix:** In the mobile media query, increase the seek bar's effective tap area with padding:
+```css
+@media (max-width: 768px) {
+    #seek-bar { padding: 16px 0; }
+}
+```
+
+---
+
+## 9. PRIORITY QUICK WINS (IMPLEMENT FIRST)
+
+These are the highest-impact, lowest-effort changes. Do these before anything else:
+
+| Priority | Fix | File | Effort |
+|----------|-----|------|--------|
+| 🔴 CRITICAL | Clamp `dt` to 0.05 max | `visuals.js` | 1 line |
+| 🔴 CRITICAL | Load real Three.js post-processing (actual bloom) | `index.html` | 4 script tags |
+| 🔴 HIGH | Pause RAF loop on tab hidden | `app.js` | 5 lines |
+| 🔴 HIGH | Mode error throttle (no 60fps console spam) | `visuals.js` | 8 lines |
+| 🟠 HIGH | Show BPM in transport bar | `ui.js`, `index.html` | 10 lines |
+| 🟠 HIGH | `renderMarkers()` on new file load | `ui.js` | 1 line |
+| 🟠 HIGH | `orbitDirty` reset to false | `visuals.js` | 1 line |
+| 🟠 HIGH | Panel toggle button active state | `ui.js`, `style.css` | 10 lines |
+| 🟡 MEDIUM | Pre-allocate `_entropyBins` and `_windowRMS` | `audio.js` | 5 lines |
+| 🟡 MEDIUM | Pre-allocate `THREE.Color` in `getColorThreeHSL` | `params.js` | 5 lines |
+| 🟡 MEDIUM | Fix `custom` palette or remove the option | `params.js` | 5 lines |
+| 🟡 MEDIUM | Dispose textures on mode switch | `visuals.js` | 10 lines |
+| 🟡 MEDIUM | Screenshot shortcut | `ui.js` | 8 lines |
+| 🟢 LOW | Marker dot wider click hitbox | `style.css` | 5 lines |
+| 🟢 LOW | Clear markers confirmation | `ui.js` | 3 lines |
+| 🟢 LOW | `loop-btn` state sync on file load | `ui.js` | 2 lines |
+| 🟢 LOW | ARIA labels on transport buttons | `index.html` | ~14 attributes |
+
+---
+
+*End of AURA Improvement Guide — v1.0*  
+*Total issues identified: 15 bugs · 9 perf · 8 missing features · 14 UX issues · 14 new features · 15 creative ideas · 7 architecture notes · 6 accessibility issues*

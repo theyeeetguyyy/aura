@@ -387,8 +387,9 @@ const HyperforgeMode = {
     },
 
     displaceSurface(audio, params, dt) {
-        const mode = params.displaceMode || 'fourier', amt = (params.displaceAmt || 8) * (params.reactivity || 1.5);
-        const speed = params.displaceSpeed || 1.5;
+        const SE = audio.sectionEffects || { displacementScale: 1, speed: 1 };
+        const mode = params.displaceMode || 'fourier', amt = (params.displaceAmt || 8) * (params.reactivity || 1.5) * SE.displacementScale;
+        const speed = (params.displaceSpeed || 1.5) * SE.speed;
         const bass = audio.smoothBands.bass || 0, sub = audio.smoothBands.sub || 0, rms = audio.rms || 0;
         const breathScale = 1 + (sub + bass) * (params.bassBreath || 2.5) * 0.2;
         const colorMode = params.colorMode || 'reactionDiffusion';
@@ -447,7 +448,13 @@ const HyperforgeMode = {
             }
 
             pos[i3] = (bx + nx * disp) * breathScale;
-            pos[i3 + 1] = (by + ny * disp) * breathScale;
+            // Sub sustain → surface displacement rumble
+            if (audio.hasSustainedBass) {
+                const subPulse = (audio.subSustain || 0) * (audio.wobbleLFO || 0) * amt * 0.4;
+                pos[i3 + 1] = (by + ny * disp) * breathScale + subPulse;
+            } else {
+                pos[i3 + 1] = (by + ny * disp) * breathScale;
+            }
             pos[i3 + 2] = (bz + nz * disp) * breathScale;
 
             // Colors
@@ -482,11 +489,22 @@ const HyperforgeMode = {
         const type = params.attractorType || 'lorenz';
         const type2 = params.secondAttractor || 'none';
         const blend = params.attractorBlend || 0.5;
-        const speed = (params.attractorSpeed || 1) * dt * 15;
+        const SE = audio.sectionEffects || { speed: 1 };
+        const speed = (params.attractorSpeed || 1) * dt * 15 * SE.speed * (1 + (audio.sirenRising || 0) * 2);
         const scale = (params.attractorScale || 1) * 0.5;
         const jitter = params.particleJitter || 0;
         const audioLink = params.attractorAudioLink || 'bass';
         const audioMod = audio.smoothBands[audioLink] || 0;
+
+        // Gun shot → burst all attractor particles outward
+        if (audio.gunShotDetected) {
+            for (let i = 0; i < this.attractorVelocities.length; i++) {
+                const vel = this.attractorVelocities[i];
+                vel.x *= (1 + (audio.gunShotIntensity || 0) * 8);
+                vel.y *= (1 + (audio.gunShotIntensity || 0) * 8);
+                vel.z *= (1 + (audio.gunShotIntensity || 0) * 8);
+            }
+        }
 
         for (let i = 0; i < this.maxAttractorParts; i++) {
             const i3 = i * 3;
@@ -553,7 +571,15 @@ const HyperforgeMode = {
             if (dist > 50 || !isFinite(x)) { const a2 = Math.random() * Math.PI * 2; x = Math.cos(a2) * 15; y = (Math.random() - 0.5) * 10; z = Math.sin(a2) * 15; v.x = 0; v.y = 0; v.z = 0; }
             this.flowPositions[i3] = x; this.flowPositions[i3 + 1] = y; this.flowPositions[i3 + 2] = z;
             const c = ParamSystem.getColorThreeHSL(dist / 30 + this.time * 0.05);
-            this.flowColors[i3] = c.r; this.flowColors[i3 + 1] = c.g; this.flowColors[i3 + 2] = c.b;
+            let cr = c.r, cg = c.g, cb = c.b;
+            // Screech → force colors toward harsh yellow-white
+            if (audio.screechDetected) {
+                const si = (audio.screechIntensity || 0) * 0.4;
+                cr = cr * (1 - si) + 1.0 * si;
+                cg = cg * (1 - si) + 0.95 * si;
+                cb = cb * (1 - si) + 0.6 * si;
+            }
+            this.flowColors[i3] = cr; this.flowColors[i3 + 1] = cg; this.flowColors[i3 + 2] = cb;
         }
         this.flowSystem.geometry.attributes.position.needsUpdate = true;
         this.flowSystem.geometry.attributes.color.needsUpdate = true;

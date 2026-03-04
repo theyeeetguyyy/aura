@@ -7,6 +7,10 @@ const UI = (() => {
     let modePanelOpen = false;
     let paramsPanelOpen = false;
     let seekDragging = false;
+    let modeListBuilt = false; // 2.5: Track if mode list DOM exists
+    let debugHUDVisible = false; // 5.9: Debug HUD state
+    let clearMarkersConfirm = false; // 4.6: 2-step confirm state
+    let clearMarkersTimer = null;
 
     // Cached DOM references (populated in setupTransport)
     let _seekBar = null;
@@ -14,6 +18,12 @@ const UI = (() => {
     let _playBtn = null;
     let _recBtn = null;
     let _levelFill = null;
+    let _bpmDisplay = null;
+    let _volDisplay = null;
+    let _debugHUD = null;
+    let _recOverlay = null;
+    let _fpsHistory = [];
+    let _lastFpsTime = performance.now();
 
     function init() {
         setupTransport();
@@ -22,6 +32,8 @@ const UI = (() => {
         setupKeyboard();
         setupDropZone();
         setupMarkers();
+        setupShortcutsModal();
+        setupPresets();
     }
 
     // ── Transport Bar ──────────────────────────────────────
@@ -32,6 +44,8 @@ const UI = (() => {
         _recBtn = document.getElementById('btn-record');
         _timeDisplay = document.getElementById('time-display');
         _levelFill = document.getElementById('level-fill');
+        _bpmDisplay = document.getElementById('bpm-display');
+        _volDisplay = document.getElementById('vol-display');
 
         _playBtn.addEventListener('click', () => {
             AudioEngine.togglePlay();
@@ -57,9 +71,11 @@ const UI = (() => {
         });
         document.addEventListener('mouseup', () => { seekDragging = false; });
 
-        // Volume
+        // Volume — 4.13: Show percentage
         volBar.addEventListener('input', () => {
-            AudioEngine.setVolume(volBar.value / 100);
+            const v = volBar.value / 100;
+            AudioEngine.setVolume(v);
+            if (_volDisplay) _volDisplay.textContent = `${volBar.value}%`;
         });
 
         // Record
@@ -67,6 +83,7 @@ const UI = (() => {
             const canvas = document.getElementById('aura-canvas');
             Recorder.toggle(canvas);
             _recBtn.classList.toggle('recording', Recorder.isRecording);
+            updateRecOverlay();
         });
 
         // Flash toggle
@@ -78,6 +95,11 @@ const UI = (() => {
                 flashBtn.title = enabled ? 'Beat Flash ON (F)' : 'Beat Flash OFF (F)';
             });
         }
+
+        // 5.9: Create debug HUD
+        createDebugHUD();
+        // 4.10: Create REC overlay
+        createRecOverlay();
     }
 
     function updatePlayButton() {
@@ -94,17 +116,27 @@ const UI = (() => {
             _timeDisplay.textContent = `${formatTime(bus.currentTime)} / ${formatTime(bus.duration)}`;
         }
 
+        // 3.3: Update BPM display
+        if (_bpmDisplay && bus.loaded) {
+            _bpmDisplay.textContent = `${bus.bpm} BPM`;
+        }
+
         // Update play button state
         if (_playBtn) _playBtn.textContent = bus.isPlaying ? '⏸' : '▶';
 
-        // Recording time
+        // Recording time + 4.10: REC overlay
         if (_recBtn) {
             if (Recorder.isRecording) {
                 _recBtn.textContent = `⏺ ${formatTime(Recorder.getRecordingTime())}`;
                 _recBtn.classList.add('recording');
+                if (_recOverlay) {
+                    _recOverlay.style.display = 'block';
+                    _recOverlay.textContent = `● REC ${formatTime(Recorder.getRecordingTime())}`;
+                }
             } else {
                 _recBtn.textContent = '⏺';
                 _recBtn.classList.remove('recording');
+                if (_recOverlay) _recOverlay.style.display = 'none';
             }
         }
 
@@ -112,6 +144,9 @@ const UI = (() => {
         if (_levelFill) {
             _levelFill.style.width = `${bus.rms * 100}%`;
         }
+
+        // 5.9: Update debug HUD
+        if (debugHUDVisible && _debugHUD) updateDebugHUD(bus);
     }
 
     // ── File Import ────────────────────────────────────────
@@ -148,6 +183,13 @@ const UI = (() => {
 
             // Show transport
             document.getElementById('transport-bar').classList.add('active');
+
+            // 1.9: Re-render markers for new file (clears stale markers from old duration)
+            renderMarkers();
+
+            // 1.14: Sync loop button state on file load
+            const loopBtn = document.getElementById('btn-loop');
+            if (loopBtn) loopBtn.classList.toggle('active', AudioEngine.isLooping());
 
         } catch (err) {
             console.error('Failed to load audio:', err);
@@ -215,12 +257,25 @@ const UI = (() => {
             }
         });
 
-        // Randomize button
+        // 4.3: Mode search filter
+        const modeSearch = document.getElementById('mode-search');
+        if (modeSearch) {
+            modeSearch.addEventListener('input', () => {
+                const query = modeSearch.value.toLowerCase();
+                document.querySelectorAll('.mode-item').forEach(el => {
+                    const name = (el.querySelector('.mode-name')?.textContent || '').toLowerCase();
+                    const key = (el.dataset.mode || '').toLowerCase();
+                    el.style.display = (name.includes(query) || key.includes(query)) ? '' : 'none';
+                });
+            });
+        }
+
+        // 1.10: Randomize — update param values in-place instead of full rebuild
         const randomBtn = document.getElementById('btn-randomize');
         if (randomBtn) {
             randomBtn.addEventListener('click', () => {
                 ParamSystem.randomize();
-                buildParamsUI();
+                refreshParamValues();
             });
         }
     }
@@ -229,6 +284,8 @@ const UI = (() => {
         modePanelOpen = !modePanelOpen;
         const panel = document.getElementById('modes-panel');
         panel.classList.toggle('open', modePanelOpen);
+        // 4.2: Panel toggle button active state
+        document.getElementById('btn-modes').classList.toggle('active', modePanelOpen);
         if (modePanelOpen) updateModeList();
     }
 
@@ -236,19 +293,30 @@ const UI = (() => {
         paramsPanelOpen = !paramsPanelOpen;
         const panel = document.getElementById('params-panel');
         panel.classList.toggle('open', paramsPanelOpen);
+        // 4.2: Panel toggle button active state
+        document.getElementById('btn-params').classList.toggle('active', paramsPanelOpen);
         if (paramsPanelOpen) buildParamsUI();
     }
 
     function updateModeList() {
         const list = document.getElementById('mode-list');
         const keys = VisualEngine.getModeKeys();
-        list.innerHTML = keys.map((key, idx) => `
-            <div class="mode-item ${key === VisualEngine.activeModeKey ? 'active' : ''}" data-mode="${key}">
-                <span class="mode-number">${(idx + 1).toString().padStart(2, '0')}</span>
-                <span class="mode-icon">${getModeIcon(key)}</span>
-                <span class="mode-name">${VisualEngine.getModeName(key)}</span>
-            </div>
-        `).join('');
+
+        // 2.5: Build DOM only once, then just toggle active class
+        if (!modeListBuilt) {
+            list.innerHTML = keys.map((key, idx) => `
+                <div class="mode-item" data-mode="${key}">
+                    <span class="mode-number">${(idx + 1).toString().padStart(2, '0')}</span>
+                    <span class="mode-icon">${getModeIcon(key)}</span>
+                    <span class="mode-name">${VisualEngine.getModeName(key)}</span>
+                </div>
+            `).join('');
+            modeListBuilt = true;
+        }
+        // Just toggle active class
+        document.querySelectorAll('.mode-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.mode === VisualEngine.activeModeKey);
+        });
     }
 
     function getModeIcon(key) {
@@ -314,9 +382,11 @@ const UI = (() => {
             input.step = schema.step || 0.01;
             input.value = value ?? schema.default;
             input.className = 'param-slider';
+            input.dataset.paramKey = key; // 1.10: For refreshParamValues
 
             const valueDisplay = document.createElement('span');
             valueDisplay.className = 'param-value';
+            valueDisplay.dataset.paramValueFor = key; // 1.10
             valueDisplay.textContent = parseFloat(input.value).toFixed(2);
 
             input.addEventListener('input', () => {
@@ -337,6 +407,7 @@ const UI = (() => {
             input.type = 'checkbox';
             input.checked = value ?? schema.default;
             input.className = 'param-toggle';
+            input.dataset.paramKey = key; // 1.10
 
             input.addEventListener('change', () => {
                 ParamSystem.set(key, input.checked);
@@ -351,6 +422,7 @@ const UI = (() => {
 
             const select = document.createElement('select');
             select.className = 'param-select';
+            select.dataset.paramKey = key; // 1.10
             schema.options.forEach(opt => {
                 const o = document.createElement('option');
                 o.value = opt;
@@ -374,6 +446,7 @@ const UI = (() => {
             input.type = 'color';
             input.value = value ?? schema.default;
             input.className = 'param-color';
+            input.dataset.paramKey = key; // 1.10
 
             input.addEventListener('input', () => {
                 ParamSystem.set(key, input.value);
@@ -385,6 +458,26 @@ const UI = (() => {
         }
 
         return wrapper;
+    }
+
+    // 1.10: Refresh param input values in-place (no DOM rebuild)
+    function refreshParamValues() {
+        document.querySelectorAll('[data-param-key]').forEach(el => {
+            const key = el.dataset.paramKey;
+            const val = ParamSystem.get(key);
+            if (val === undefined) return;
+            if (el.type === 'range' || el.type === 'color') el.value = val;
+            if (el.type === 'checkbox') el.checked = val;
+            if (el.tagName === 'SELECT') el.value = val;
+        });
+        // Update value display spans
+        document.querySelectorAll('[data-param-value-for]').forEach(span => {
+            const key = span.dataset.paramValueFor;
+            const val = ParamSystem.get(key);
+            if (val !== undefined && typeof val === 'number') {
+                span.textContent = val.toFixed(2);
+            }
+        });
     }
 
     // ── Keyboard Shortcuts ─────────────────────────────────
@@ -406,14 +499,22 @@ const UI = (() => {
                 case 'KeyP':
                     toggleParamsPanel();
                     break;
-                case 'KeyR':
+                case 'KeyR': {
                     const canvas = document.getElementById('aura-canvas');
                     Recorder.toggle(canvas);
                     _recBtn.classList.toggle('recording', Recorder.isRecording);
+                    updateRecOverlay();
                     break;
+                }
                 case 'KeyM':
                     addMarkerAtCurrentTime();
                     break;
+                case 'KeyD': {
+                    // 5.9: Toggle debug HUD
+                    debugHUDVisible = !debugHUDVisible;
+                    if (_debugHUD) _debugHUD.style.display = debugHUDVisible ? 'block' : 'none';
+                    break;
+                }
                 case 'KeyF': {
                     // F = toggle beat flash
                     const enabled = VisualEngine.toggleFlash();
@@ -432,6 +533,14 @@ const UI = (() => {
                         document.exitFullscreen();
                     }
                     break;
+                case 'KeyS': {
+                    // 5.7: Screenshot (Ctrl+S)
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        screenshot();
+                    }
+                    break;
+                }
                 case 'KeyL': {
                     const isLoop = AudioEngine.toggleLoop();
                     const loopBtn = document.getElementById('btn-loop');
@@ -450,11 +559,13 @@ const UI = (() => {
                     e.preventDefault();
                     AudioEngine.setVolume(Math.min(1, AudioEngine.getVolume() + 0.05));
                     document.getElementById('vol-bar').value = AudioEngine.getVolume() * 100;
+                    if (_volDisplay) _volDisplay.textContent = `${Math.round(AudioEngine.getVolume() * 100)}%`;
                     break;
                 case 'ArrowDown':
                     e.preventDefault();
                     AudioEngine.setVolume(Math.max(0, AudioEngine.getVolume() - 0.05));
                     document.getElementById('vol-bar').value = AudioEngine.getVolume() * 100;
+                    if (_volDisplay) _volDisplay.textContent = `${Math.round(AudioEngine.getVolume() * 100)}%`;
                     break;
                 case 'BracketRight':
                     VisualEngine.nextMode();
@@ -465,6 +576,10 @@ const UI = (() => {
                     VisualEngine.prevMode();
                     updateModeList();
                     buildParamsUI();
+                    break;
+                case 'KeyT':
+                    // T = tap BPM
+                    if (typeof AudioEngine !== 'undefined' && AudioEngine.tapBPM) AudioEngine.tapBPM();
                     break;
             }
 
@@ -479,6 +594,75 @@ const UI = (() => {
                 }
             }
         });
+    }
+
+    // 5.7: Screenshot
+    function screenshot() {
+        const canvas = document.getElementById('aura-canvas');
+        if (!canvas) return;
+        const link = document.createElement('a');
+        link.download = `aura_${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+
+    // 5.9: Create debug HUD overlay
+    function createDebugHUD() {
+        _debugHUD = document.createElement('div');
+        _debugHUD.id = 'debug-hud';
+        _debugHUD.style.cssText = `position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:200;font-family:var(--mono);font-size:11px;color:#0f0;background:rgba(0,0,0,0.7);padding:8px 14px;border-radius:8px;pointer-events:none;display:none;white-space:pre;line-height:1.6;border:1px solid rgba(0,255,0,0.2);`;
+        document.body.appendChild(_debugHUD);
+    }
+
+    function updateDebugHUD(bus) {
+        const now = performance.now();
+        _fpsHistory.push(1000 / (now - _lastFpsTime));
+        _lastFpsTime = now;
+        if (_fpsHistory.length > 60) _fpsHistory.shift();
+        const avgFps = _fpsHistory.length > 0 ? (_fpsHistory.reduce((a, b) => a + b) / _fpsHistory.length).toFixed(0) : '—';
+
+        const renderer = VisualEngine.renderer;
+        const info = renderer ? renderer.info.render : {};
+
+        // 7-band ASCII spectrum bar
+        const bandKeys = ['sub', 'bass', 'lowMid', 'mid', 'highMid', 'treble', 'brilliance'];
+        const bandLabels = ['SUB', 'BAS', 'LMD', 'MID', 'HMD', 'TRE', 'BRI'];
+        let specBar = '';
+        for (let i = 0; i < bandKeys.length; i++) {
+            const v = bus.smoothBands?.[bandKeys[i]] ?? 0;
+            const bars = Math.min(8, Math.round(v * 8));
+            specBar += bandLabels[i] + ' ' + '█'.repeat(bars) + '░'.repeat(8 - bars) + (i < 6 ? '  ' : '');
+        }
+
+        // Tearout detector states
+        const gunState = bus.gunShotDetected ? `🔫 GUN ✦ ${bus.gunShotIntensity?.toFixed(2) || ''}` : '🔫 —';
+        const sirenState = (bus.sirenIntensity || 0) > 0.1 ? `🚨 SIREN ${bus.sirenRising > bus.sirenFalling ? '↑' : '↓'} ${bus.sirenIntensity.toFixed(2)}` : '🚨 —';
+        const screechState = bus.screechDetected ? `⚡ SCREECH ${bus.screechIntensity?.toFixed(2) || ''}` : '⚡ —';
+        const subState = bus.hasSustainedBass ? `🔉 SUB ${bus.subSustain?.toFixed(2) || ''}` : '🔉 —';
+        const wobbleState = (bus.wobbleIntensity || 0) > 0.15 ? `🌊 WOB ${bus.wobbleRateHz?.toFixed(1) || '?'}Hz LFO:${bus.wobbleLFO?.toFixed(2) || ''}` : '🌊 —';
+
+        _debugHUD.textContent =
+            `FPS: ${avgFps}  Mode: ${VisualEngine.activeModeKey || '—'}  BPM: ${bus.bpm}\n` +
+            `RMS: ${bus.rms.toFixed(3)}  Section: ${bus.sectionType || '—'}  ColorT: ${bus.colorTemp || '—'}\n` +
+            `${specBar}\n` +
+            `${gunState}  ${sirenState}  ${screechState}\n` +
+            `${subState}  ${wobbleState}\n` +
+            `Draws: ${info.calls || 0}  Triangles: ${info.triangles || 0}  Drop: ${bus.dropDecay?.toFixed(2) || '0'}`;
+    }
+
+    // 4.10: REC overlay on canvas
+    function createRecOverlay() {
+        _recOverlay = document.createElement('div');
+        _recOverlay.id = 'rec-overlay';
+        _recOverlay.style.cssText = `position:fixed;top:16px;right:70px;z-index:200;font-family:var(--mono);font-size:13px;font-weight:700;color:#ef4444;background:rgba(0,0,0,0.6);padding:4px 12px;border-radius:8px;border:1px solid rgba(239,68,68,0.4);display:none;animation:recPulse 1s ease-in-out infinite;`;
+        _recOverlay.textContent = '● REC 0:00';
+        document.body.appendChild(_recOverlay);
+    }
+
+    function updateRecOverlay() {
+        if (_recOverlay) {
+            _recOverlay.style.display = Recorder.isRecording ? 'block' : 'none';
+        }
     }
 
     // ── Helpers ────────────────────────────────────────────
@@ -505,10 +689,26 @@ const UI = (() => {
             addBtn.addEventListener('click', () => addMarkerAtCurrentTime());
         }
 
+        // 4.6: 2-step confirmation for Clear Markers
         if (clearBtn) {
             clearBtn.addEventListener('click', () => {
-                MarkerSystem.clearAll();
-                renderMarkers();
+                if (clearMarkersConfirm) {
+                    MarkerSystem.clearAll();
+                    renderMarkers();
+                    clearMarkersConfirm = false;
+                    clearBtn.textContent = '🗑️';
+                    clearBtn.title = 'Clear All Markers';
+                    if (clearMarkersTimer) { clearTimeout(clearMarkersTimer); clearMarkersTimer = null; }
+                } else {
+                    clearMarkersConfirm = true;
+                    clearBtn.textContent = '⚠️';
+                    clearBtn.title = 'Click again to confirm';
+                    clearMarkersTimer = setTimeout(() => {
+                        clearMarkersConfirm = false;
+                        clearBtn.textContent = '🗑️';
+                        clearBtn.title = 'Clear All Markers';
+                    }, 2000);
+                }
             });
         }
 
@@ -614,12 +814,115 @@ const UI = (() => {
         }
     }
 
+    // ── Shortcuts Modal (4.11) ──────────────────────────────
+    function setupShortcutsModal() {
+        const openBtn = document.getElementById('btn-shortcuts');
+        const modal = document.getElementById('shortcuts-modal');
+        const closeBtn = document.getElementById('shortcuts-close');
+        if (!openBtn || !modal || !closeBtn) return;
+
+        openBtn.addEventListener('click', () => modal.classList.toggle('open'));
+        closeBtn.addEventListener('click', () => modal.classList.remove('open'));
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('open');
+        });
+
+        // Screenshot button
+        const screenshotBtn = document.getElementById('btn-screenshot');
+        if (screenshotBtn) {
+            screenshotBtn.addEventListener('click', () => screenshot());
+        }
+    }
+
+    // ── Preset System (5.1) ─────────────────────────────────
+    function setupPresets() {
+        const saveBtn = document.getElementById('btn-save-preset');
+        const loadBtn = document.getElementById('btn-load-preset');
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                const name = prompt('Preset name:');
+                if (!name) return;
+                const data = {
+                    name,
+                    mode: VisualEngine.activeModeKey,
+                    global: ParamSystem.getAllGlobal(),
+                    mode_params: ParamSystem.getAllMode()
+                };
+                // Save to localStorage
+                const presets = JSON.parse(localStorage.getItem('aura_presets') || '[]');
+                presets.push(data);
+                localStorage.setItem('aura_presets', JSON.stringify(presets));
+                renderPresetList();
+            });
+        }
+
+        if (loadBtn) {
+            loadBtn.addEventListener('click', () => {
+                renderPresetList();
+                document.getElementById('preset-list')?.classList.toggle('open');
+            });
+        }
+    }
+
+    function renderPresetList() {
+        const container = document.getElementById('preset-list');
+        if (!container) return;
+
+        const presets = JSON.parse(localStorage.getItem('aura_presets') || '[]');
+        if (presets.length === 0) {
+            container.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:var(--text-dim);">No presets saved</div>';
+            return;
+        }
+
+        container.innerHTML = presets.map((p, idx) => `
+            <div class="preset-item" data-idx="${idx}">
+                <span class="preset-name">${p.name}</span>
+                <button class="preset-delete" data-delete="${idx}" title="Delete">✕</button>
+            </div>
+        `).join('');
+
+        // Load on click
+        container.querySelectorAll('.preset-item').forEach(el => {
+            el.addEventListener('click', (e) => {
+                if (e.target.classList.contains('preset-delete')) return;
+                const idx = parseInt(el.dataset.idx);
+                const p = presets[idx];
+                if (!p) return;
+                // Apply mode
+                if (p.mode && VisualEngine.getModeKeys().includes(p.mode)) {
+                    VisualEngine.setMode(p.mode);
+                    updateModeList();
+                }
+                // Apply global params
+                if (p.global) Object.entries(p.global).forEach(([k, v]) => ParamSystem.set(k, v));
+                // Apply mode params
+                if (p.mode_params) Object.entries(p.mode_params).forEach(([k, v]) => ParamSystem.set(k, v));
+                buildParamsUI();
+                container.classList.remove('open');
+            });
+        });
+
+        // Delete
+        container.querySelectorAll('.preset-delete').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.delete);
+                presets.splice(idx, 1);
+                localStorage.setItem('aura_presets', JSON.stringify(presets));
+                renderPresetList();
+            });
+        });
+    }
+
     return {
         init,
         update,
         buildParamsUI,
         updateModeList,
         toggleModesPanel,
-        toggleParamsPanel
+        toggleParamsPanel,
+        refreshParamValues,
+        screenshot
     };
 })();

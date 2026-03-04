@@ -207,6 +207,14 @@ const MathModeMode = {
         return pts;
     },
 
+    init(scene, camera) {
+        this.group = new THREE.Group();
+        scene.add(this.group);
+        camera.position.set(0, 0, 80);
+        camera.lookAt(0, 0, 0);
+        this.time = 0;
+    },
+
     update(audio, params, dt) {
         if (!this.group) return;
         this.time += dt;
@@ -326,6 +334,13 @@ const MathModeMode = {
     },
 
     destroy(scene) {
-        if (this.group) scene.remove(this.group);
+        if (this.group) {
+            this.group.traverse(c => {
+                if (c.geometry) c.geometry.dispose();
+                if (c.material) c.material.dispose();
+            });
+            scene.remove(this.group);
+            this.group = null;
+        }
     }
 };

@@ -23,7 +23,8 @@
             <div class="drop-icon">🎵</div>
             <h1 class="drop-title">AURA</h1>
             <p class="drop-subtitle">Drop your music file here or click import</p>
-            <button id="btn-import">Import Audio</button>
+            <button id="btn-import" aria-label="Import Audio File">Import Audio</button>
+            <p class="drop-formats">Supports MP3, WAV, FLAC, OGG, M4A, AAC</p>
             <p id="loading-text"></p>
         </div>
     </div>
@@ -40,6 +41,9 @@
         <div class="panel-header">
             <span class="panel-title">Visual Modes</span>
         </div>
+        <div class="mode-search-wrap">
+            <input type="text" id="mode-search" placeholder="🔍 Search modes..." autocomplete="off">
+        </div>
         <div id="mode-list"></div>
     </div>
 
@@ -50,35 +54,41 @@
         </div>
         <div class="panel-actions">
             <button class="panel-action-btn" id="btn-randomize">🎲 Randomize</button>
+            <button class="panel-action-btn" id="btn-save-preset">💾 Save</button>
+            <button class="panel-action-btn" id="btn-load-preset">📂 Load</button>
         </div>
+        <div id="preset-list" class="preset-list"></div>
         <div id="params-content"></div>
     </div>
 
     <!-- TRANSPORT BAR -->
     <div id="transport-bar">
-        <button class="transport-btn" id="btn-play" title="Play/Pause (Space)">▶</button>
-        <button class="transport-btn loop-btn" id="btn-loop" title="Loop (L)">🔁</button>
+        <button class="transport-btn" id="btn-play" aria-label="Play or Pause" title="Play/Pause (Space)">▶</button>
+        <button class="transport-btn loop-btn" id="btn-loop" aria-label="Toggle Loop" title="Loop (L)">🔁</button>
         <span id="track-name">No track loaded</span>
         <div class="seek-container">
-            <input type="range" id="seek-bar" min="0" max="1000" value="0" title="Seek (← →)">
+            <input type="range" id="seek-bar" min="0" max="1000" value="0" aria-label="Seek position" title="Seek (← →)">
             <!-- MARKER TRACK -->
             <div id="marker-track">
                 <div id="marker-dots"></div>
             </div>
             <span id="time-display">0:00 / 0:00</span>
         </div>
+        <!-- BPM DISPLAY (3.3) -->
+        <span id="bpm-display" class="bpm-badge">-- BPM</span>
         <!-- CURRENT SECTION INDICATOR -->
         <div id="section-indicator" class="section-hidden"></div>
         <div class="volume-container">
             <span class="volume-icon">🔊</span>
-            <input type="range" id="vol-bar" min="0" max="100" value="80" title="Volume (↑ ↓)">
+            <input type="range" id="vol-bar" min="0" max="100" value="80" aria-label="Volume" title="Volume (↑ ↓)">
+            <span id="vol-display" class="vol-display">80%</span>
         </div>
         <div class="level-meter">
             <div id="level-fill"></div>
         </div>
         <!-- MARKER CONTROLS -->
         <div class="marker-controls">
-            <select id="marker-type-select" title="Section Type">
+            <select id="marker-type-select" aria-label="Section Type" title="Section Type">
                 <option value="intro">🎵 Intro</option>
                 <option value="verse">🎤 Verse</option>
                 <option value="buildup" selected>📈 Build-up</option>
@@ -90,15 +100,39 @@
                 <option value="climax">⚡ Climax</option>
                 <option value="outro">🎬 Outro</option>
             </select>
-            <button class="transport-btn marker-btn" id="btn-add-marker" title="Add Marker (M)">📌</button>
-            <button class="transport-btn marker-btn" id="btn-clear-markers" title="Clear All Markers">🗑️</button>
+            <button class="transport-btn marker-btn" id="btn-add-marker" aria-label="Add Marker" title="Add Marker (M)">📌</button>
+            <button class="transport-btn marker-btn" id="btn-clear-markers" aria-label="Clear All Markers" title="Clear All Markers">🗑️</button>
         </div>
-        <button class="transport-btn" id="btn-record" title="Record (R)">⏺</button>
-        <button class="transport-btn" id="btn-flash" title="Toggle Beat Flash (F)" style="font-size:13px; opacity:1;">⚡</button>
+        <button class="transport-btn" id="btn-record" aria-label="Record" title="Record (R)">⏺</button>
+        <button class="transport-btn" id="btn-flash" aria-label="Toggle Beat Flash" title="Toggle Beat Flash (F)" style="font-size:13px; opacity:1;">⚡</button>
+        <button class="transport-btn" id="btn-screenshot" aria-label="Screenshot" title="Screenshot (Ctrl+S)" style="font-size:13px;">📸</button>
     </div>
 
-    <div class="shortcuts-hint">
-        Space: Play · Tab: Modes · P: Params · R: Record · F: Flash · G: Fullscreen · [ ]: Prev/Next Mode · ←→: Seek · M: Marker
+    <!-- KEYBOARD SHORTCUTS (4.11: ? button + modal) -->
+    <button class="shortcuts-btn" id="btn-shortcuts" aria-label="Keyboard Shortcuts" title="Keyboard Shortcuts (?)">?</button>
+    <div id="shortcuts-modal" class="shortcuts-modal">
+        <div class="shortcuts-modal-content">
+            <div class="shortcuts-modal-header">
+                <h2>⌨️ Keyboard Shortcuts</h2>
+                <button class="shortcuts-close" id="shortcuts-close">✕</button>
+            </div>
+            <div class="shortcuts-grid">
+                <div class="shortcut-item"><kbd>Space</kbd><span>Play / Pause</span></div>
+                <div class="shortcut-item"><kbd>Tab</kbd><span>Toggle Modes Panel</span></div>
+                <div class="shortcut-item"><kbd>P</kbd><span>Toggle Params Panel</span></div>
+                <div class="shortcut-item"><kbd>1-9</kbd><span>Quick Mode Switch</span></div>
+                <div class="shortcut-item"><kbd>[ ]</kbd><span>Prev / Next Mode</span></div>
+                <div class="shortcut-item"><kbd>← →</kbd><span>Seek ±5 seconds</span></div>
+                <div class="shortcut-item"><kbd>↑ ↓</kbd><span>Volume Up / Down</span></div>
+                <div class="shortcut-item"><kbd>L</kbd><span>Toggle Loop</span></div>
+                <div class="shortcut-item"><kbd>M</kbd><span>Add Marker</span></div>
+                <div class="shortcut-item"><kbd>R</kbd><span>Start/Stop Recording</span></div>
+                <div class="shortcut-item"><kbd>F</kbd><span>Toggle Beat Flash</span></div>
+                <div class="shortcut-item"><kbd>G</kbd><span>Toggle Fullscreen</span></div>
+                <div class="shortcut-item"><kbd>D</kbd><span>Toggle Debug HUD</span></div>
+                <div class="shortcut-item"><kbd>Ctrl+S</kbd><span>Screenshot</span></div>
+            </div>
+        </div>
     </div>
 
     <!-- THREE.JS + POST-PROCESSING FROM CDN -->

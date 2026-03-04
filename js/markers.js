@@ -208,7 +208,7 @@ const MarkerSystem = (() => {
     // Distance in seconds to next section
     function timeToNextSection(currentTime) {
         const next = getNextSection(currentTime);
-        return next ? next.time - currentTime : Infinity;
+        return next ? next.time - currentTime : 9999;
     }
 
     function exportMarkers() {

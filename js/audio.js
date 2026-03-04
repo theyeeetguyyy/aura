@@ -40,6 +40,26 @@ const AudioEngine = (() => {
     let wobbleZeroCrossings = 0;
     let wobbleWindowCounter = 0;
     const WOBBLE_WINDOW = 30;
+    let _wobblePeakTimes = [];
+    let _wobbleRateSmooth = 0;
+    let _wobblePeakState = false;
+
+    // Tearout detectors — state
+    let _gunPeakSub = 0;
+    let _gunPeakHeld = 0;
+    const GUN_THRESHOLD = 0.58;
+    const GUN_DECAY_FRAMES = 10;
+    let _gunDecayCounter = 0;
+
+    let _prevFundamental = 0;
+    let _sirenRiseScore = 0;
+    let _sirenFallScore = 0;
+
+    let _screechSustain = 0;
+
+    let _subSustainFrames = 0;
+
+    let _tapTimes = [];
 
     // ── v3: Structure analysis state ──
     let volumeLevel = 1.0;
@@ -93,6 +113,14 @@ const AudioEngine = (() => {
     let modulationHistory = [];
     const MODULATION_HISTORY_SIZE = 30;
     let prevFrameEnergy = 0;
+
+    // 1.6/1.7: Pre-allocated buffers for hot-path analysis
+    const _entropyBins = new Uint32Array(32);
+    const _windowRMS = new Float32Array(16);
+    const _bandValues = new Float32Array(7);
+
+    // 2.3: Frame counter for analysis throttling
+    let _analysisFrame = 0;
 
     // Audio data bus — THE data all modes consume
     const audioBus = {
@@ -153,6 +181,8 @@ const AudioEngine = (() => {
         // ── Wobble detection ──
         wobblePhase: 0,
         wobbleIntensity: 0,
+        wobbleRateHz: 0,
+        wobbleLFO: 0,
 
         // ── v4: Transient / onset detection ──
         onsetDetected: false,     // true on every attack/transient
@@ -215,7 +245,28 @@ const AudioEngine = (() => {
         isPlaying: false,
         currentTime: 0,
         duration: 0,
-        loaded: false
+        loaded: false,
+
+        // Section effects from markers (populated by updateSectionAwareness)
+        sectionEffects: { shake: 1, flash: 1, zoom: 1, bloom: 1, speed: 1, particleScale: 1, displacementScale: 1 },
+        colorTemp: 'neutral',
+        sectionChanged: false,
+        prevSectionType: null,
+
+        // Tearout-specific detectors
+        gunShotDetected: false,
+        gunShotIntensity: 0,
+        gunShotDecay: 0,
+        sirenRising: 0,
+        sirenFalling: 0,
+        sirenIntensity: 0,
+        sirenFrequency: 0,
+        screechDetected: false,
+        screechIntensity: 0,
+        screechPitch: 0,
+        subSustain: 0,
+        hasSustainedBass: false,
+        subSustainPeak: 0
     };
 
     // Band ranges (fftSize=4096, sampleRate=44100, bin ≈ 10.77 Hz)
@@ -697,21 +748,160 @@ const AudioEngine = (() => {
     }
 
     function detectWobble() {
-        const bassVal = audioBus.rawBands.bass + audioBus.rawBands.lowMid;
-        const mean = (bassVal + prevBassVal) / 2;
-        if ((bassVal - mean) * (prevBassVal - mean) < 0) {
-            wobbleZeroCrossings++;
+        const now = performance.now();
+        const bassVal = audioBus.smoothBands.bass + audioBus.smoothBands.lowMid * 0.7;
+        const threshold = 0.3;
+
+        // Peak detection: rising above threshold
+        if (bassVal > threshold && !_wobblePeakState) {
+            _wobblePeakState = true;
+            _wobblePeakTimes.push(now);
+            if (_wobblePeakTimes.length > 16) _wobblePeakTimes.shift();
+        } else if (bassVal < threshold * 0.7) {
+            _wobblePeakState = false;
         }
 
+        // Estimate rate from inter-peak intervals
+        if (_wobblePeakTimes.length >= 3) {
+            const intervals = [];
+            for (let i = 1; i < _wobblePeakTimes.length; i++) {
+                const interval = _wobblePeakTimes[i] - _wobblePeakTimes[i - 1];
+                if (interval > 40 && interval < 1000) intervals.push(interval);
+            }
+            if (intervals.length >= 2) {
+                const avgInterval = intervals.reduce((a, b) => a + b) / intervals.length;
+                const rawRate = 1000 / avgInterval;
+                _wobbleRateSmooth += (rawRate - _wobbleRateSmooth) * 0.08;
+            }
+        }
+
+        audioBus.wobbleRateHz = _wobbleRateSmooth;
+
+        // Advance wobble phase at detected rate, accumulate
+        const wobbleIncrement = (_wobbleRateSmooth > 0.5 ? _wobbleRateSmooth : 4.0) / 60;
+        audioBus.wobblePhase = (audioBus.wobblePhase + wobbleIncrement) % 1;
+        audioBus.wobbleLFO = Math.sin(audioBus.wobblePhase * Math.PI * 2);
+
+        // Keep intensity from zero-crossing method for compatibility
+        const mean = (bassVal + prevBassVal) / 2;
+        if ((bassVal - mean) * (prevBassVal - mean) < 0) wobbleZeroCrossings++;
         wobbleWindowCounter++;
         if (wobbleWindowCounter >= WOBBLE_WINDOW) {
             const rate = wobbleZeroCrossings / WOBBLE_WINDOW;
             audioBus.wobbleIntensity = Math.min(1, rate * 5);
-            audioBus.wobblePhase += rate * 0.3;
             wobbleZeroCrossings = 0;
             wobbleWindowCounter = 0;
         }
         prevBassVal = bassVal;
+    }
+
+    // ── Tearout Detector: Gun Shot / 808 Transient ──
+    function detectGunShot() {
+        const sub = audioBus.rawBands.sub;
+        if (sub > _gunPeakSub) {
+            _gunPeakSub = sub;
+            _gunPeakHeld = 0;
+        } else {
+            _gunPeakHeld++;
+        }
+        const collapsed = sub < _gunPeakSub * 0.35;
+        const wasLoud = _gunPeakSub > GUN_THRESHOLD;
+        const recentOnset = audioBus.onsetStrength > 0.2;
+        const notSustained = _gunPeakHeld > 2;
+        if (wasLoud && collapsed && recentOnset && notSustained && _gunDecayCounter === 0) {
+            audioBus.gunShotDetected = true;
+            audioBus.gunShotIntensity = Math.min(1, _gunPeakSub);
+            _gunDecayCounter = GUN_DECAY_FRAMES;
+            _gunPeakSub = 0;
+            _gunPeakHeld = 0;
+        } else {
+            audioBus.gunShotDetected = false;
+        }
+        if (_gunDecayCounter > 0) _gunDecayCounter--;
+        audioBus.gunShotDecay = _gunDecayCounter / GUN_DECAY_FRAMES;
+        if (_gunPeakHeld > 15) _gunPeakSub *= 0.97;
+    }
+
+    // ── Tearout Detector: Siren / Pitch Sweep ──
+    function detectSiren() {
+        const freq = audioBus.fundamentalFreq;
+        if (freq < 100 || freq > 8000) {
+            _sirenRiseScore *= 0.93;
+            _sirenFallScore *= 0.93;
+            _prevFundamental = freq;
+            audioBus.sirenRising = _sirenRiseScore;
+            audioBus.sirenFalling = _sirenFallScore;
+            audioBus.sirenIntensity = Math.max(_sirenRiseScore, _sirenFallScore);
+            return;
+        }
+        const delta = freq - _prevFundamental;
+        const isTonal = audioBus.harmonicRatio > 0.35;
+        const hasMidEnergy = audioBus.smoothBands.mid + audioBus.smoothBands.highMid > 0.3;
+        if (isTonal && hasMidEnergy) {
+            if (delta > 5) {
+                _sirenRiseScore = Math.min(1, _sirenRiseScore + Math.min(0.1, delta / 200));
+                _sirenFallScore *= 0.90;
+            } else if (delta < -5) {
+                _sirenFallScore = Math.min(1, _sirenFallScore + Math.min(0.1, -delta / 200));
+                _sirenRiseScore *= 0.90;
+            } else {
+                _sirenRiseScore *= 0.96;
+                _sirenFallScore *= 0.96;
+            }
+        } else {
+            _sirenRiseScore *= 0.92;
+            _sirenFallScore *= 0.92;
+        }
+        audioBus.sirenRising = _sirenRiseScore;
+        audioBus.sirenFalling = _sirenFallScore;
+        audioBus.sirenIntensity = Math.max(_sirenRiseScore, _sirenFallScore);
+        audioBus.sirenFrequency = freq;
+        _prevFundamental = freq;
+    }
+
+    // ── Tearout Detector: Screech / Scream Bass ──
+    function detectScreech() {
+        const highBandEnergy = audioBus.smoothBands.highMid * 1.5 + audioBus.smoothBands.treble;
+        const isTonal = audioBus.harmonicRatio > 0.3;
+        const isSustained = audioBus.sustainLevel > 0.4;
+        const notJustNoise = audioBus.spectralFlatness < 0.6;
+        if (highBandEnergy > 0.45 && isTonal && isSustained && notJustNoise) {
+            _screechSustain = Math.min(1, _screechSustain + 0.04);
+        } else {
+            _screechSustain = Math.max(0, _screechSustain - 0.025);
+        }
+        audioBus.screechDetected = _screechSustain > 0.25;
+        audioBus.screechIntensity = _screechSustain;
+        audioBus.screechPitch = audioBus.fundamentalFreq > 0
+            ? Math.min(1, (audioBus.fundamentalFreq - 500) / 3000) : 0;
+    }
+
+    // ── Tearout Detector: Sustained Sub / Reese Bass ──
+    function detectSubSustain() {
+        const subLevel = audioBus.smoothBands.sub + audioBus.smoothBands.bass * 0.5;
+        if (subLevel > 0.25 && audioBus.rms > 0.08) {
+            _subSustainFrames = Math.min(150, _subSustainFrames + 1);
+            audioBus.subSustainPeak = Math.max(audioBus.subSustainPeak, subLevel);
+        } else {
+            _subSustainFrames = Math.max(0, _subSustainFrames - 4);
+            if (_subSustainFrames === 0) audioBus.subSustainPeak = 0;
+        }
+        audioBus.subSustain = _subSustainFrames / 150;
+        audioBus.hasSustainedBass = _subSustainFrames > 15;
+    }
+
+    // ── Tap BPM (T key) ──
+    function tapBPM() {
+        const now = performance.now();
+        _tapTimes.push(now);
+        if (_tapTimes.length > 8) _tapTimes.shift();
+        if (_tapTimes.length >= 2) {
+            const intervals = [];
+            for (let i = 1; i < _tapTimes.length; i++) intervals.push(_tapTimes[i] - _tapTimes[i - 1]);
+            const avg = intervals.reduce((a, b) => a + b) / intervals.length;
+            audioBus.bpm = Math.max(60, Math.min(220, Math.round(60000 / avg)));
+            lastBeatTime = now;
+        }
     }
 
     function computeWaveformPoints() {
@@ -904,14 +1094,14 @@ const AudioEngine = (() => {
         audioBus.spectralContrast = bandCount > 0 ? (peakSum - valleySum) / bandCount : 0;
 
         // Spectral tilt: linear regression slope of energy across bands
-        // Negative = bass-heavy, Positive = bright
-        const bandValues = BAND_NAMES.map(b => audioBus.smoothBands[b]);
-        const n = bandValues.length;
+        // 1.7: Use pre-allocated _bandValues instead of allocating every frame
+        const n = BAND_NAMES.length;
+        for (let i = 0; i < n; i++) _bandValues[i] = audioBus.smoothBands[BAND_NAMES[i]];
         let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
         for (let i = 0; i < n; i++) {
             sumX += i;
-            sumY += bandValues[i];
-            sumXY += i * bandValues[i];
+            sumY += _bandValues[i];
+            sumXY += i * _bandValues[i];
             sumXX += i * i;
         }
         const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX + 0.001);
@@ -922,7 +1112,7 @@ const AudioEngine = (() => {
         const meanBand = sumY / n;
         let variance = 0;
         for (let i = 0; i < n; i++) {
-            const diff = bandValues[i] - meanBand;
+            const diff = _bandValues[i] - meanBand;
             variance += diff * diff;
         }
         audioBus.spectralSpread = Math.min(1, Math.sqrt(variance / n) * 5);
@@ -941,28 +1131,25 @@ const AudioEngine = (() => {
         }
         audioBus.zeroCrossingRate = Math.min(1, crossings / (timeData.length * 0.5));
 
-        // Signal entropy (sample distribution entropy)
-        // Quantize samples into bins and compute Shannon entropy
-        const ENTROPY_BINS = 32;
-        const bins = new Array(ENTROPY_BINS).fill(0);
+        // Signal entropy — 1.6: Use pre-allocated _entropyBins
+        _entropyBins.fill(0);
         for (let i = 0; i < timeData.length; i++) {
-            const bin = Math.min(ENTROPY_BINS - 1, Math.floor(timeData[i] / 256 * ENTROPY_BINS));
-            bins[bin]++;
+            const bin = Math.min(31, Math.floor(timeData[i] / 256 * 32));
+            _entropyBins[bin]++;
         }
         let entropy = 0;
-        for (const b of bins) {
-            if (b > 0) {
-                const p = b / timeData.length;
+        for (let b = 0; b < 32; b++) {
+            if (_entropyBins[b] > 0) {
+                const p = _entropyBins[b] / timeData.length;
                 entropy -= p * Math.log2(p);
             }
         }
         // Normalize: max entropy = log2(32) ≈ 5
         audioBus.signalEntropy = Math.min(1, entropy / 5);
 
-        // Modulation depth (amplitude modulation detection)
-        // Look for periodic variations in RMS computed in short windows
+        // Modulation depth — 1.6: Use pre-allocated _windowRMS, avoid spread operator
         const windowSize = Math.floor(timeData.length / 16);
-        const windowRMS = [];
+        let rmsMax = 0, rmsMin = Infinity;
         for (let w = 0; w < 16; w++) {
             let sum = 0;
             const start = w * windowSize;
@@ -970,10 +1157,10 @@ const AudioEngine = (() => {
                 const v = (timeData[i] - 128) / 128;
                 sum += v * v;
             }
-            windowRMS.push(Math.sqrt(sum / windowSize));
+            _windowRMS[w] = Math.sqrt(sum / windowSize);
+            if (_windowRMS[w] > rmsMax) rmsMax = _windowRMS[w];
+            if (_windowRMS[w] < rmsMin) rmsMin = _windowRMS[w];
         }
-        const rmsMax = Math.max(...windowRMS);
-        const rmsMin = Math.min(...windowRMS);
         const rmsRange = rmsMax + rmsMin;
         audioBus.modulationDepth = rmsRange > 0.001 ? Math.min(1, (rmsMax - rmsMin) / rmsRange * 2) : 0;
 
@@ -1013,14 +1200,24 @@ const AudioEngine = (() => {
         audioBus.isBuildingUp = section ? section.type === 'buildup' : false;
         audioBus.isBreakdown = section ? section.type === 'breakdown' : false;
 
-        // Track section changes
+        // Track section changes + one-shot sectionChanged flag
         const currentType = section ? section.type : null;
         if (currentType !== prevSectionType) {
+            audioBus.sectionChanged = true;
+            audioBus.prevSectionType = prevSectionType;
             prevSectionType = currentType;
             sectionStartTime = audioBus.currentTime;
             sectionTransitionTime = 0;
             transitionFade = 0;
+        } else {
+            audioBus.sectionChanged = false;
         }
+
+        // Expose section effects on audioBus so modes can read them directly
+        audioBus.sectionEffects = (typeof MarkerSystem !== 'undefined' && MarkerSystem.getSmoothedEffects)
+            ? MarkerSystem.getSmoothedEffects()
+            : { shake: 1, flash: 1, zoom: 1, bloom: 1, speed: 1, particleScale: 1, displacementScale: 1 };
+        audioBus.colorTemp = section ? (section.colorTemp || 'neutral') : 'neutral';
 
         // Transition fade (smooth blend over ~0.5s)
         sectionTransitionTime += 1 / 60;
@@ -1085,7 +1282,7 @@ const AudioEngine = (() => {
         analyser.getByteFrequencyData(freqData);
         analyser.getByteTimeDomainData(timeData);
 
-        // Core analysis (v3)
+        // Core analysis (v3) — runs every frame
         computeBands();
         computeRMS();
         computePeak();
@@ -1097,14 +1294,25 @@ const AudioEngine = (() => {
         computeSpectralFeatures();
         updateSectionAwareness();
 
-        // v4: Enhanced analysis
+        // v4: Enhanced analysis — 2.3: Throttled for performance
+        _analysisFrame = (_analysisFrame + 1) % 60;
         computeBandDynamics();
         computeLoudness();
         detectOnsets();
-        computeHarmonicAnalysis();
-        computeRhythmAnalysis();
-        computeSpectralDynamics();
-        computeMicroDynamics();
+
+        // Tearout detectors — unthrottled (use raw band data)
+        detectGunShot();
+        detectSubSustain();
+
+        // Throttled with harmonic analysis (depend on fundamentalFreq/harmonicRatio)
+        if (_analysisFrame % 3 === 0) {
+            computeHarmonicAnalysis();
+            detectSiren();
+            detectScreech();
+        }
+        if (_analysisFrame % 5 === 0) computeRhythmAnalysis();
+        if (_analysisFrame % 2 === 0) computeSpectralDynamics();
+        if (_analysisFrame % 2 === 0) computeMicroDynamics();
 
         audioBus.currentTime = audioElement ? audioElement.currentTime : 0;
         audioBus.isPlaying = audioElement ? !audioElement.paused : false;
@@ -1134,6 +1342,7 @@ const AudioEngine = (() => {
         toggleLoop,
         isLooping,
         update,
+        tapBPM,
         audioBus,
         get audioElement() { return audioElement; },
         get context() { return ctx; }

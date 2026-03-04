@@ -19,7 +19,7 @@ const ParamSystem = (() => {
         backgroundColor: { type: 'color', default: '#000000', label: 'Background' },
         colorPalette: {
             type: 'select',
-            options: ['rainbow', 'fire', 'ocean', 'neon', 'pastel', 'monochrome', 'cyberpunk', 'aurora', 'sunset', 'custom'],
+            options: ['rainbow', 'fire', 'ocean', 'neon', 'pastel', 'monochrome', 'cyberpunk', 'aurora', 'sunset', 'synthwave'],
             default: 'cyberpunk',
             label: 'Color Palette'
         }
@@ -29,6 +29,9 @@ const ParamSystem = (() => {
     let globalValues = {};
     let modeValues = {};
     let currentModeSchema = {};
+
+    // 2.2: Pre-allocated color cache for hot-path getColorThreeHSL
+    let _cachedColor = null; // initialized lazily after THREE is available
 
     // Palette definitions (HSL arrays)
     const palettes = {
@@ -41,7 +44,7 @@ const ParamSystem = (() => {
         cyberpunk: (t) => `hsl(${280 + t * 100}, 100%, ${40 + t * 30}%)`,
         aurora: (t) => `hsl(${120 + t * 120}, 80%, ${40 + t * 30}%)`,
         sunset: (t) => `hsl(${t * 40 + 10}, 90%, ${45 + t * 25}%)`,
-        custom: (t) => `hsl(${t * 360}, 90%, 55%)`
+        synthwave: (t) => `hsl(${300 + t * 60}, 100%, ${35 + t * 35}%)`  // 1.8: Distinct purple-pink gradient
     };
 
     function getColor(t, palette) {
@@ -62,14 +65,17 @@ const ParamSystem = (() => {
             cyberpunk: 280 + t * 100,
             aurora: 120 + t * 120,
             sunset: t * 40 + 10,
-            custom: t * 360
+            synthwave: 300 + t * 60
         };
         return { h: hueMap[p] || t * 360, s: 0.85, l: 0.55 };
     }
 
+    // 2.2: Reuse cached THREE.Color to avoid GC pressure
     function getColorThreeHSL(t, palette) {
         const hsl = getColorHSL(t, palette);
-        return new THREE.Color().setHSL(hsl.h / 360, hsl.s, hsl.l);
+        if (!_cachedColor) _cachedColor = new THREE.Color();
+        _cachedColor.setHSL(hsl.h / 360, hsl.s, hsl.l);
+        return _cachedColor; // Caller must clone if storing: color.clone()
     }
 
     function getColorThree(t, palette) {
