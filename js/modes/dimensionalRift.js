@@ -371,7 +371,7 @@ const DimensionalRiftMode = {
             this.tearPhase = Math.min(5, this.tearPhase + audio.bassBeatIntensity * (params.beatTear || 2) * 0.7);
         }
         // Drop collapse — beat-synced
-        if (params.dropCollapse && audio.isDrop && audio.bassBeat) {
+        if (params.dropCollapse && audio.isDropSection && audio.bassBeat) {
             this.collapsePhase = Math.min(5, this.collapsePhase + 2);
             this.tearPhase = Math.min(5, this.tearPhase + 2);
         }

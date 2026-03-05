@@ -86,7 +86,7 @@ const LissajousMode = {
         }
 
         // Drop reset
-        if (params.dropReset && audio.isDrop) {
+        if (params.dropReset && audio.isDropSection) {
             phase = 0;
         }
 

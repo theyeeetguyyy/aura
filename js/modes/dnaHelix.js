@@ -81,7 +81,7 @@ const DnaHelixMode = {
         if (params.unwindOnBeat && audio.beat) {
             this.unwindPhase = Math.min(3, this.unwindPhase + audio.beatIntensity * (params.unwindSpeed || 1));
         }
-        if (params.dropUnzip && audio.isDrop) {
+        if (params.dropUnzip && audio.isDropSection) {
             this.unwindPhase = 3;
         }
         this.unwindPhase *= 0.97;

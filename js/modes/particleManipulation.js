@@ -153,7 +153,7 @@ const ParticleManipulationMode = {
         }
 
         // Drop scatter
-        if (params.dropScatter && audio.isDrop) {
+        if (params.dropScatter && audio.isDropSection) {
             for (let i = 0; i < this.maxCount; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const force = audio.dropIntensity * 3;

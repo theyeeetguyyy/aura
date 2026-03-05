@@ -394,7 +394,7 @@ const HyperforgeMode = {
 
         // Drop — beat-synced: shape-shift only on bass beats
         // Responds to BOTH marker-set drops AND auto-detected energy drops
-        const isDropping = audio.isDropSection || audio.isDrop;
+        const isDropping = audio.isDropSection;
         const dropLevel = (audio.dropSectionIntensity || 1) * (params.dropIntensityMult || 1.5);
         if (isDropping && audio.bassBeat) {
             const react2 = params.dropReaction || 'all';

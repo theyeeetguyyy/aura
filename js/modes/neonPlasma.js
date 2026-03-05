@@ -125,7 +125,7 @@ const NeonPlasmaMode = {
 
         // Shockwave
         if (params.beatShockwave && audio.beat) this.shockPhase = Math.max(this.shockPhase, audio.beatIntensity * 2);
-        if (params.dropDischarge && audio.isDrop) this.shockPhase = 3;
+        if (params.dropDischarge && audio.isDropSection) this.shockPhase = 3;
         this.shockPhase *= 0.93;
 
         if (this.tendrils.length !== Math.floor(params.tendrilCount || 8)) {
@@ -273,7 +273,7 @@ const NeonPlasmaMode = {
         const toRemove = this.group.children.filter(c => c.userData._temp);
         toRemove.forEach(c => { this.group.remove(c); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
 
-        if (params.dropReaction && audio.isDrop) this.group.rotation.z += 0.3;
+        if (params.dropReaction && audio.isDropSection) this.group.rotation.z += 0.3;
         this.group.rotation.y += 0.002 * (1 + rms);
     },
 

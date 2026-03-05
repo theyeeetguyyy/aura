@@ -122,7 +122,7 @@ const PolyhedronExplodeMode = {
         if (audio.beat) {
             this.explodePhase = Math.min(this.explodePhase + audio.beatIntensity * explodeForce, 3);
         }
-        if (params.dropShatter && audio.isDrop) {
+        if (params.dropShatter && audio.isDropSection) {
             this.explodePhase = 3;
         }
         if (params.autoExplode) {

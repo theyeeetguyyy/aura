@@ -127,7 +127,7 @@ const AuroraMode = {
         const altLayers = params.altitudeLayers || 2;
         const depthSpacing = params.curtainDepth || 5;
 
-        if (params.dropSurge && audio.isDrop) this.surgePhase = 3;
+        if (params.dropSurge && audio.isDropSection) this.surgePhase = 3;
         this.surgePhase *= 0.95;
 
         if (this.curtains.length !== Math.floor(params.curtainCount || 6)) {

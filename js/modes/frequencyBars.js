@@ -147,7 +147,7 @@ const FrequencyBarsMode = {
         const step = Math.max(1, Math.floor(freqData.length / count));
 
         // Drop shatter logic
-        if (params.dropShatter && audio.isDrop) {
+        if (params.dropShatter && audio.isDropSection) {
             this.isShattered = true;
             this.shatterTimer = 2.0;
             for (let i = 0; i < count; i++) {

@@ -363,7 +363,7 @@ const RhythmicGeometryMode = {
         this.sectionScale += (this.targetSectionScale - this.sectionScale) * 0.05;
 
         // ── DROP REACTIONS ──
-        const isDropping = audio.isDropSection || audio.isDrop;
+        const isDropping = audio.isDropSection;
         const dropLevel = (audio.dropSectionIntensity || 1) * (params.dropIntensityMult || 1.5);
         if (isDropping && audio.bassBeat) {
             const rx = params.dropReaction || 'all';

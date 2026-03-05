@@ -441,7 +441,7 @@ const HyperforgeMode2 = {
         if (Math.floor(params.flowCount || 3000) !== this.maxFlowParts)           this.initFlow(Math.floor(params.flowCount || 3000));
 
         // ── DROP EFFECTS ──
-        const isDropping = audio.isDropSection || audio.isDrop;
+        const isDropping = audio.isDropSection;
         const dropLevel  = (audio.dropSectionIntensity || 1) * (params.dropIntensityMult || 1.5);
         if (isDropping && audio.bassBeat && !this._dropTriggeredThisDrop) {
             this._dropTriggeredThisDrop = true;

@@ -170,7 +170,7 @@ const SpectrogramMode = {
                 // Beat highlight
                 let beatMod = 1;
                 if (params.beatHighlight && audio.beat) beatMod = 1.3;
-                if (params.dropFlash && audio.isDrop) beatMod = 2;
+                if (params.dropFlash && audio.isDropSection) beatMod = 2;
 
                 const heatColor = this.getHeatmapColor(v * beatMod, palette);
                 if (heatColor) {

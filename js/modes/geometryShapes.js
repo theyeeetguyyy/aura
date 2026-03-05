@@ -457,7 +457,7 @@ const GeometryForgeMode = {
 
         // Drop effects — only trigger ONCE per drop, not on every bass beat
         // Responds to BOTH marker-set drops AND auto-detected energy drops
-        const isDropping = audio.isDropSection || audio.isDrop;
+        const isDropping = audio.isDropSection;
         const dropLevel = (audio.dropSectionIntensity || 1) * (params.dropIntensityMult || 1.5);
         if (isDropping && audio.bassBeat && !this._dropTriggeredThisDrop) {
             this._dropTriggeredThisDrop = true;
@@ -883,7 +883,7 @@ const GeometryForgeMode = {
         if (!this.meshSolid || !this.particleSystem) return;
         const solidPos = this.meshSolid.geometry.attributes.position.array;
         const vertCount = solidPos.length / 3;
-        const emitCount = audio.isDrop ? 80 : (audio.bassBeat ? 40 : (audio.beat ? 15 : 3));
+        const emitCount = audio.isDropSection ? 80 : (audio.bassBeat ? 40 : (audio.beat ? 15 : 3));
         const gravity = params.gravity ?? 0;
         this.group.updateMatrixWorld();
         const vec = this._tempVec3 || (this._tempVec3 = new THREE.Vector3());

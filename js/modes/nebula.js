@@ -146,7 +146,7 @@ const NebulaMode = {
         const beatExpand = params.beatExpansion || 1;
 
         // Shockwave
-        if (params.shockwaveOnDrop && audio.isDrop) {
+        if (params.shockwaveOnDrop && audio.isDropSection) {
             this.shockwavePhase = 3;
         }
         this.shockwavePhase *= 0.95;

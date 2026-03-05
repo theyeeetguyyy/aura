@@ -702,7 +702,7 @@ const GeometryForgeMode2 = {
         if (!this.sharedGeo || !this.particleSystem) return;
         const solidPos = this.sharedGeo.attributes.position.array;
         const vertCount = solidPos.length / 3;
-        const emitBase = audio.isDrop ? 80 : (audio.bassBeat ? 40 : (audio.beat ? 15 : 3));
+        const emitBase = audio.isDropSection ? 80 : (audio.bassBeat ? 40 : (audio.beat ? 15 : 3));
         const emitCount = Math.floor(emitBase * (SE.particleEmissionRate ?? 1));
         const gravity = params.gravity ?? 0;
         this.group.updateMatrixWorld();
@@ -756,7 +756,7 @@ const GeometryForgeMode2 = {
         }
 
         // ── DROP EFFECTS ──
-        const isDropping = audio.isDropSection || audio.isDrop;
+        const isDropping = audio.isDropSection;
         const dropLevel  = (audio.dropSectionIntensity || 1) * (params.dropIntensityMult || 1.5);
         if (isDropping && audio.bassBeat && !this._dropTriggeredThisDrop) {
             this._dropTriggeredThisDrop = true;

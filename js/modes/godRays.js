@@ -262,7 +262,7 @@ const GodRaysMode = {
             }
 
             // Drop burst
-            if (params.dropBurst && audio.isDrop) {
+            if (params.dropBurst && audio.isDropSection) {
                 ray.mesh.material.opacity = Math.min(1, opacity + audio.dropIntensity * 0.5);
             }
         }

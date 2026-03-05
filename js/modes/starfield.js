@@ -102,7 +102,7 @@ const StarfieldMode = {
         if (beatWarp > 0 && audio.beat) {
             this.warpPhase = Math.min(5, this.warpPhase + audio.beatIntensity * beatWarp);
         }
-        if (params.dropHyperspace && audio.isDrop) {
+        if (params.dropHyperspace && audio.isDropSection) {
             this.warpPhase = 5;
         }
         this.warpPhase *= 0.95;

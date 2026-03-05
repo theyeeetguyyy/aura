@@ -142,7 +142,7 @@ const RadialBloomMode = {
         }
 
         // Drop reaction
-        if (params.dropReaction !== 'none' && audio.isDrop) {
+        if (params.dropReaction !== 'none' && audio.isDropSection) {
             if (params.dropReaction === 'explode') {
                 for (let i = 0; i < this.rings.length; i++) {
                     this.rings[i].burstOffset = (i + 1) * 5 * audio.dropIntensity;

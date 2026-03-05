@@ -69,7 +69,7 @@ const GridDistortionMode = {
         const glowInt = params.glowIntensity || 0.5;
         const gridType = params.gridType || 'square';
 
-        if (params.dropShockwave && audio.isDrop) {
+        if (params.dropShockwave && audio.isDropSection) {
             this.shockwaveTime = this.time;
         }
 

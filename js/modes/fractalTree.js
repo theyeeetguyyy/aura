@@ -220,7 +220,7 @@ const FractalTreeMode = {
         }
 
         // Drop shed - reset growth
-        if (params.dropShed && audio.isDrop) {
+        if (params.dropShed && audio.isDropSection) {
             this.growthProgress = 0.3;
         }
     },

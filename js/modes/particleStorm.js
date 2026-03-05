@@ -187,7 +187,7 @@ const ParticleStormMode = {
         this.particles.material.opacity = opacityParam;
 
         // Drop reaction
-        if (audio.isDrop) {
+        if (audio.isDropSection) {
             if (dropReaction === 'explode') {
                 for (let i = 0; i < this.maxParticles; i++) {
                     const angle = Math.random() * Math.PI * 2;

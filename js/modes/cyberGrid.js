@@ -143,7 +143,7 @@ const CyberGridMode = {
         const scrollSpeed = params.scrollSpeed || 3;
 
         // Portal
-        if (params.dropPortal && audio.isDrop) this.portalPhase = 3;
+        if (params.dropPortal && audio.isDropSection) this.portalPhase = 3;
         this.portalPhase *= 0.95;
 
         // Grid
