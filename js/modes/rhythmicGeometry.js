@@ -1,9 +1,9 @@
 // ============================================================
 // AURA Mode — RHYTHMIC GEOMETRY
-// Beat-locked controlled geometrical madness.
-// Every visual effect is quantized to musical timing:
-// BPM-synced rotation, beatPhase displacement, impact waves,
-// synchronized particle bursts, section-aware intensity.
+// Pure geometry manipulation chaos.
+// Beat-locked shape morphing, extreme vertex displacement,
+// kaleidoscopic copies, fractal folding, geometry explosions.
+// No particles, no rings, no satellites — ONLY geometry.
 // ============================================================
 
 const RhythmicGeometryMode = {
@@ -15,89 +15,101 @@ const RhythmicGeometryMode = {
     coreGroup: null,
     coreMesh: null,
     coreWire: null,
+    corePoints: null,
     coreBasePos: null,
     coreNormals: null,
     currentShape: '',
     currentDetail: -1,
 
-    // Outer rings
-    ringMeshes: [],
-    ringCount: 3,
+    // Morphing state
+    morphing: false,
+    morphTargetBase: null,
+    morphProgress: 0,
+    lastMorphShape: '',
 
-    // Satellite shapes
-    satellites: [],
-    satelliteCount: 6,
+    // Mirror copies
+    mirrorCopies: [],
 
-    // Impact wave system
-    impactWaves: [],
-    maxWaves: 8,
-
-    // Beat-synced particles
-    particleSystem: null,
-    particlePositions: null,
-    particleColors: null,
-    particleVelocities: [],
-    maxParticles: 4000,
-
-    // State tracking
-    lastBeatCount: 0,
-    lastBassBeatTime: 0,
-    shapeIndex: 0,
+    // Effect phases
+    explodePhase: 0,
+    crumplePhase: 0,
+    twistPhase: 0,
+    invertPhase: 0,
+    foldPhase: 0,
+    shatterPhase: 0,
     colorShiftPhase: 0,
+
+    // State
     sectionScale: 1,
     targetSectionScale: 1,
+    _rotWrapCounter: 0,
 
     params: {
         // ── Core Shape ──
         coreShape: {
             type: 'select', options: [
-                'icosahedron', 'dodecahedron', 'octahedron', 'torusKnot',
-                'torus', 'sphere', 'cube', 'crystal', 'star'
+                'icosahedron', 'dodecahedron', 'octahedron', 'tetrahedron',
+                'torusKnot', 'torus', 'sphere', 'cube',
+                'superformula', 'trefoilKnot', 'kleinBottle', 'gyroid',
+                'mobiusStrip', 'romanSurface', 'boysSurface', 'crystal'
             ], default: 'icosahedron', label: '🔷 Core Shape'
         },
         coreDetail: { type: 'range', min: 1, max: 5, default: 3, step: 1, label: 'Detail' },
-        coreSize: { type: 'range', min: 8, max: 40, default: 18, step: 1, label: 'Core Size' },
+        coreSize: { type: 'range', min: 8, max: 40, default: 20, step: 1, label: 'Core Size' },
 
-        // ── Rhythmic Controls ──
-        bpmSync: { type: 'toggle', default: true, label: '🎵 BPM Sync' },
-        beatPulseAmount: { type: 'range', min: 0, max: 5, default: 2.5, step: 0.1, label: '💓 Beat Pulse' },
-        beatRotation: { type: 'range', min: 0, max: 3, default: 1.5, step: 0.1, label: '🔄 Beat Rotation' },
-        impactIntensity: { type: 'range', min: 0, max: 5, default: 3, step: 0.1, label: '💥 Impact Waves' },
-        rhythmicDisplace: { type: 'range', min: 0, max: 15, default: 6, step: 0.5, label: '🌊 Rhythmic Displace' },
-
-        // ── Displacement Style ──
-        displaceStyle: {
+        // ── Displacement ──
+        displaceMode: {
             type: 'select', options: [
-                'pulse', 'ripple', 'spike', 'breathe', 'harmonic', 'shockwave'
-            ], default: 'pulse', label: '🌊 Displace Style'
+                'beatPulse', 'fractal', 'vortex', 'magnetic', 'crystallize',
+                'shatter', 'tentacle', 'interference', 'harmonics', 'voronoi',
+                'gravitational', 'twist', 'melt', 'glitch', 'flow'
+            ], default: 'beatPulse', label: '🌊 Displace Mode'
         },
+        displaceAmount: { type: 'range', min: 0, max: 25, default: 10, step: 0.5, label: 'Displace Amt' },
+        displaceFreq: { type: 'range', min: 0.5, max: 10, default: 3, step: 0.1, label: 'Displace Freq' },
 
-        // ── Rings & Satellites ──
-        showRings: { type: 'toggle', default: true, label: '⭕ Outer Rings' },
-        ringStyle: { type: 'select', options: ['solid', 'dashed', 'pulsing'], default: 'pulsing', label: 'Ring Style' },
-        showSatellites: { type: 'toggle', default: true, label: '🛰️ Satellites' },
-        satelliteCount: { type: 'range', min: 2, max: 12, default: 6, step: 1, label: 'Satellite Count' },
+        // ── Geometry Manipulation ──
+        beatMorph: { type: 'toggle', default: true, label: '🔄 Beat Morph' },
+        morphSpeed: { type: 'range', min: 0.5, max: 5, default: 2.5, step: 0.1, label: 'Morph Speed' },
+        beatExplode: { type: 'range', min: 0, max: 5, default: 2, step: 0.1, label: '💥 Beat Explode' },
+        symmetryMode: { type: 'select', options: ['off', 'x', 'y', 'z', 'xy', 'xyz'], default: 'off', label: '🔀 Symmetry' },
 
-        // ── Particles ──
-        burstParticles: { type: 'toggle', default: true, label: '✨ Beat Bursts' },
-        burstCount: { type: 'range', min: 10, max: 100, default: 40, step: 5, label: 'Burst Size' },
-        particleTrail: { type: 'range', min: 0.9, max: 1, default: 0.97, step: 0.005, label: 'Trail Length' },
+        // ── Mirror/Kaleidoscope ──
+        mirrorCount: { type: 'range', min: 0, max: 8, default: 0, step: 1, label: '🪞 Mirror Copies' },
+        mirrorSpacing: { type: 'range', min: 1, max: 3, default: 1.5, step: 0.1, label: 'Mirror Spread' },
+
+        // ── Rotation ──
+        rotMode: {
+            type: 'select', options: [
+                'smooth', 'beatLock', 'tumble', 'chaotic', 'orbit', 'wobble'
+            ], default: 'smooth', label: '🔄 Rotation'
+        },
+        rotSpeed: { type: 'range', min: 0, max: 3, default: 0.6, step: 0.05, label: 'Rot Speed' },
+        beatSpinBurst: { type: 'range', min: 0, max: 2, default: 0.5, step: 0.05, label: '🔄 Beat Spin' },
+
+        // ── Drop Reactions ──
+        dropReaction: {
+            type: 'select', options: [
+                'morph', 'explode', 'shatter', 'invert', 'crumple', 'fold', 'all'
+            ], default: 'all', label: '🔥 Drop React'
+        },
 
         // ── Visuals ──
-        colorPalette: {
+        colorMode: {
             type: 'select', options: [
-                'neon', 'fire', 'ice', 'cosmic', 'void', 'rainbow', 'sunset', 'electric'
-            ], default: 'neon', label: '🎨 Palette'
+                'frequency', 'displacement', 'height', 'rainbow', 'velocity',
+                'plasma', 'thermal', 'void', 'holographic'
+            ], default: 'frequency', label: '🎨 Color Mode'
         },
-        beatColorShift: { type: 'toggle', default: true, label: '🎨 Beat Color Shift' },
         wireOpacity: { type: 'range', min: 0, max: 1, default: 0.85, step: 0.05, label: 'Wire Opacity' },
-        solidOpacity: { type: 'range', min: 0, max: 0.5, default: 0.2, step: 0.05, label: 'Solid Opacity' },
-        glowIntensity: { type: 'range', min: 0, max: 3, default: 1.5, step: 0.1, label: '✨ Glow' },
+        solidOpacity: { type: 'range', min: 0, max: 0.5, default: 0.15, step: 0.05, label: 'Solid Opacity' },
+        showPoints: { type: 'toggle', default: true, label: '✨ Vertex Points' },
+        pointSize: { type: 'range', min: 0.5, max: 5, default: 2, step: 0.5, label: 'Point Size' },
 
         // ── Section Behavior ──
         sectionAware: { type: 'toggle', default: true, label: '📊 Section Aware' },
-        dropExpansion: { type: 'range', min: 1, max: 3, default: 1.8, step: 0.1, label: '🔥 Drop Expansion' },
-        calmTightness: { type: 'range', min: 0.3, max: 1, default: 0.6, step: 0.05, label: '🌙 Calm Scale' }
+        dropExpansion: { type: 'range', min: 1, max: 3, default: 1.8, step: 0.1, label: '🔥 Drop Scale' },
+        bassBreath: { type: 'range', min: 0, max: 5, default: 2, step: 0.1, label: '🔊 Bass Breath' }
     },
 
     // ── NOISE ──
@@ -105,21 +117,17 @@ const RhythmicGeometryMode = {
         const n = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453;
         return (n - Math.floor(n)) * 2 - 1;
     },
+    fbm(x, y, z, oct) {
+        let v = 0, a = 1, f = 1, t = 0;
+        for (let i = 0; i < oct; i++) { v += this.noise3D(x * f, y * f, z * f) * a; t += a; a *= 0.5; f *= 2.1; }
+        return v / t;
+    },
 
-    // ── PALETTE ──
-    getPaletteColor(palette, t, energy) {
-        t = ((t % 1) + 1) % 1; // normalize 0-1
-        switch (palette) {
-            case 'fire': return new THREE.Color().setHSL(0.02 + t * 0.08, 1, 0.3 + t * 0.35 + energy * 0.15);
-            case 'ice': return new THREE.Color().setHSL(0.55 + t * 0.12, 0.8, 0.35 + t * 0.3 + energy * 0.15);
-            case 'cosmic': return new THREE.Color().setHSL(0.6 + t * 0.3, 0.9, 0.25 + t * 0.4 + energy * 0.15);
-            case 'void': return new THREE.Color().setHSL(0.75 + t * 0.1, 0.3, 0.08 + t * 0.2 + energy * 0.1);
-            case 'rainbow': return new THREE.Color().setHSL(t, 0.95, 0.5 + energy * 0.2);
-            case 'sunset': return new THREE.Color().setHSL(0.95 + t * 0.12, 1, 0.35 + t * 0.3 + energy * 0.15);
-            case 'electric': return new THREE.Color().setHSL(0.55 + t * 0.2, 1, 0.4 + t * 0.3 + energy * 0.2);
-            default: // neon
-                return new THREE.Color().setHSL(0.75 + t * 0.25, 1, 0.4 + t * 0.3 + energy * 0.2);
-        }
+    // ── SUPERFORMULA ──
+    superformula(angle, m, n1, n2, n3) {
+        const t1 = Math.abs(Math.cos(m * angle / 4)), t2 = Math.abs(Math.sin(m * angle / 4));
+        const r = Math.pow(Math.pow(t1, n2) + Math.pow(t2, n3), -1 / n1);
+        return isFinite(r) ? r : 0;
     },
 
     // ── GEOMETRY FACTORY ──
@@ -128,32 +136,68 @@ const RhythmicGeometryMode = {
         switch (shape) {
             case 'dodecahedron': return new THREE.DodecahedronGeometry(size, d);
             case 'octahedron': return new THREE.OctahedronGeometry(size, d);
+            case 'tetrahedron': return new THREE.TetrahedronGeometry(size, d);
             case 'torusKnot': return new THREE.TorusKnotGeometry(size * 0.6, size * 0.2, s * 16, s * 4);
             case 'torus': return new THREE.TorusGeometry(size, size * 0.35, s * 4, s * 8);
             case 'sphere': return new THREE.SphereGeometry(size, s * 8, s * 6);
             case 'cube': return new THREE.BoxGeometry(size * 1.4, size * 1.4, size * 1.4, s * 2, s * 2, s * 2);
+            case 'superformula': return this._grid(s * 10, (u, v) => {
+                const theta = u * Math.PI * 2 - Math.PI, phi = v * Math.PI - Math.PI / 2;
+                const m = 6 + Math.sin(this.time * 0.3) * 2;
+                const r1 = this.superformula(theta, m, 1, 1, 1), r2 = this.superformula(phi, m, 1, 1, 1);
+                return [r1 * Math.cos(theta) * r2 * Math.cos(phi) * size, r1 * Math.sin(theta) * r2 * Math.cos(phi) * size, r2 * Math.sin(phi) * size];
+            });
+            case 'trefoilKnot': return this._grid(s * 10, (u, v) => {
+                const t2 = u * Math.PI * 2, w2 = (v - 0.5) * size * 0.12, r2 = Math.cos(3 * t2) + 2;
+                return [(r2 * Math.cos(2 * t2) + w2 * Math.cos(2 * t2) * Math.cos(3 * t2)) * size * 0.25,
+                (r2 * Math.sin(2 * t2) + w2 * Math.sin(2 * t2) * Math.cos(3 * t2)) * size * 0.25,
+                (Math.sin(3 * t2) + w2 * Math.sin(3 * t2)) * size * 0.25];
+            });
+            case 'kleinBottle': return this._grid(s * 10, (u, v) => {
+                const a = u * Math.PI * 2, b = v * Math.PI * 2, sc = size * 0.15;
+                let x, y;
+                if (a < Math.PI) { x = (2.5 - 1.5 * Math.cos(a)) * sc * Math.cos(b) * 6; y = (2.5 - 1.5 * Math.cos(a)) * sc * Math.sin(b) * 6; }
+                else { x = (-2 + (2 + Math.cos(b)) * Math.cos(a)) * sc * 6; y = (2 + Math.cos(b)) * Math.sin(a) * sc * 6; }
+                return [x, y, -Math.sin(b) * (2.5 - 1.5 * Math.cos(a)) * sc * 3];
+            });
+            case 'gyroid': return this._grid(s * 10, (u, v) => {
+                const a = (u - 0.5) * Math.PI * 2, b = (v - 0.5) * Math.PI * 2;
+                const r = size * 0.4 * (Math.cos(a) * Math.sin(b) + Math.cos(b) * Math.sin(a) + Math.cos(a) * Math.cos(b)) * 0.3 + size * 0.5;
+                return [Math.cos(a) * r * 0.5, Math.sin(b) * r * 0.5, (Math.sin(a) + Math.cos(b)) * size * 0.3];
+            });
+            case 'mobiusStrip': return this._grid(s * 10, (u, v) => {
+                const a = u * Math.PI * 2, w = (v - 0.5) * size * 0.3;
+                return [(size + w * Math.cos(a / 2)) * Math.cos(a), (size + w * Math.cos(a / 2)) * Math.sin(a), w * Math.sin(a / 2)];
+            });
+            case 'romanSurface': return this._grid(s * 10, (u, v) => {
+                const a = u * Math.PI, b = v * Math.PI * 2, sc = size * 0.5;
+                return [sc * Math.sin(2 * a) * Math.cos(b) ** 2, sc * Math.sin(a) * Math.sin(2 * b) / 2, sc * Math.cos(a) * Math.sin(2 * b) / 2];
+            });
+            case 'boysSurface': return this._grid(s * 10, (u, v) => {
+                const a = u * Math.PI, b = v * Math.PI * 2, sc = size * 0.5;
+                const sq2 = Math.SQRT2, ca = Math.cos(a);
+                const denom = 2 - sq2 * Math.sin(3 * b) * Math.sin(2 * a) || 1;
+                return [sc * (sq2 * ca * ca * Math.cos(2 * b) + ca * Math.sin(b)) / denom,
+                sc * (sq2 * ca * ca * Math.sin(2 * b) - ca * Math.cos(b)) / denom,
+                sc * 3 * ca * ca / denom];
+            });
             case 'crystal': {
                 const geo = new THREE.OctahedronGeometry(size, d);
                 const p = geo.attributes.position.array;
-                for (let i = 0; i < p.length; i += 3) {
-                    p[i + 1] *= 1.8; // elongate Y
-                }
-                geo.computeVertexNormals();
-                return geo;
-            }
-            case 'star': {
-                const geo = new THREE.IcosahedronGeometry(size, d);
-                const p = geo.attributes.position.array;
-                for (let i = 0; i < p.length; i += 3) {
-                    const len = Math.sqrt(p[i] ** 2 + p[i + 1] ** 2 + p[i + 2] ** 2) || 1;
-                    const spikeFactor = 1 + Math.abs(Math.sin(Math.atan2(p[i + 1], p[i]) * 5)) * 0.4;
-                    p[i] *= spikeFactor; p[i + 1] *= spikeFactor; p[i + 2] *= spikeFactor;
-                }
-                geo.computeVertexNormals();
-                return geo;
+                for (let i = 0; i < p.length; i += 3) p[i + 1] *= 1.8;
+                geo.computeVertexNormals(); return geo;
             }
             default: return new THREE.IcosahedronGeometry(size, d);
         }
+    },
+
+    _grid(seg, fn) {
+        const verts = [], indices = [];
+        for (let i = 0; i <= seg; i++) for (let j = 0; j <= seg; j++) { const p = fn(i / seg, j / seg); verts.push(p[0], p[1], p[2]); }
+        for (let i = 0; i < seg; i++) for (let j = 0; j < seg; j++) { const a = i * (seg + 1) + j; indices.push(a, a + 1, a + seg + 1, a + 1, a + seg + 2, a + seg + 1); }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        geo.setIndex(indices); geo.computeVertexNormals(); return geo;
     },
 
     // ── INIT ──
@@ -164,35 +208,32 @@ const RhythmicGeometryMode = {
         camera.lookAt(0, 0, 0);
 
         this.time = 0;
-        this.lastBeatCount = 0;
-        this.shapeIndex = 0;
         this.colorShiftPhase = 0;
-        this.impactWaves = [];
         this.sectionScale = 1;
         this.targetSectionScale = 1;
+        this.morphing = false;
+        this.morphTargetBase = null;
+        this.explodePhase = 0;
+        this.crumplePhase = 0;
+        this.twistPhase = 0;
+        this.invertPhase = 0;
+        this.foldPhase = 0;
+        this.shatterPhase = 0;
+        this.mirrorCopies = [];
+        this._rotWrapCounter = 0;
+        this._prevPositions = null;
 
-        // Core shape group
         this.coreGroup = new THREE.Group();
         this.group.add(this.coreGroup);
 
-        this.buildCore('icosahedron', 3, 18);
-        this.buildRings(3);
-        this.buildSatellites(6);
-        this.initParticles();
-        this.initImpactWaves();
+        this.buildCore('icosahedron', 3, 20);
     },
 
     buildCore(shape, detail, size) {
-        if (this.coreMesh) {
-            this.coreGroup.remove(this.coreMesh);
-            this.coreMesh.geometry.dispose();
-            this.coreMesh.material.dispose();
-        }
-        if (this.coreWire) {
-            this.coreGroup.remove(this.coreWire);
-            this.coreWire.geometry.dispose();
-            this.coreWire.material.dispose();
-        }
+        if (this.coreMesh) { this.coreGroup.remove(this.coreMesh); this.coreMesh.geometry.dispose(); this.coreMesh.material.dispose(); }
+        if (this.coreWire) { this.coreGroup.remove(this.coreWire); this.coreWire.geometry.dispose(); this.coreWire.material.dispose(); }
+        if (this.corePoints) { this.coreGroup.remove(this.corePoints); this.corePoints.geometry.dispose(); this.corePoints.material.dispose(); }
+
         this.currentShape = shape;
         this.currentDetail = detail;
 
@@ -201,13 +242,12 @@ const RhythmicGeometryMode = {
         geo.computeVertexNormals();
         this.coreNormals = new Float32Array(geo.attributes.normal.array);
 
-        // Vertex colors
         const vc = geo.attributes.position.count;
         const cols = new Float32Array(vc * 3).fill(1);
         geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
 
         this.coreMesh = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({
-            vertexColors: true, transparent: true, opacity: 0.2,
+            vertexColors: true, transparent: true, opacity: 0.15,
             side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
         }));
         this.coreMesh.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(cols), 3));
@@ -215,169 +255,53 @@ const RhythmicGeometryMode = {
 
         this.coreWire = new THREE.LineSegments(
             new THREE.WireframeGeometry(geo),
-            new THREE.LineBasicMaterial({
-                color: 0x8b5cf6, transparent: true, opacity: 0.85,
-                blending: THREE.AdditiveBlending
-            })
+            new THREE.LineBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending })
         );
         this.coreGroup.add(this.coreWire);
+
+        this.corePoints = new THREE.Points(geo.clone(), new THREE.PointsMaterial({
+            size: 2, vertexColors: true, transparent: true, opacity: 0.8,
+            blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+        }));
+        this.corePoints.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(cols), 3));
+        this.coreGroup.add(this.corePoints);
+
         geo.dispose();
     },
 
-    buildRings(count) {
-        this.ringMeshes.forEach(r => {
-            this.group.remove(r);
-            r.geometry.dispose();
-            r.material.dispose();
-        });
-        this.ringMeshes = [];
-        this.ringCount = count;
-
-        for (let i = 0; i < count; i++) {
-            const radius = 25 + i * 8;
-            const geo = new THREE.TorusGeometry(radius, 0.15 + i * 0.05, 8, 128);
-            const mat = new THREE.MeshBasicMaterial({
-                color: 0x8b5cf6, transparent: true, opacity: 0.4,
-                blending: THREE.AdditiveBlending, depthWrite: false
-            });
-            const ring = new THREE.Mesh(geo, mat);
-            ring.userData = { baseRadius: radius, index: i };
-            this.group.add(ring);
-            this.ringMeshes.push(ring);
-        }
+    // ── MORPH ──
+    triggerMorph() {
+        const shapes = [
+            'icosahedron', 'dodecahedron', 'octahedron', 'tetrahedron', 'torusKnot',
+            'torus', 'sphere', 'cube', 'superformula', 'trefoilKnot', 'kleinBottle',
+            'gyroid', 'mobiusStrip', 'romanSurface', 'boysSurface', 'crystal'
+        ];
+        let next;
+        do { next = shapes[Math.floor(Math.random() * shapes.length)]; } while (next === this.currentShape);
+        const tGeo = this.getCoreGeometry(next, this.currentDetail, 20);
+        this.morphTargetBase = new Float32Array(tGeo.attributes.position.array);
+        tGeo.dispose();
+        this.morphProgress = 0;
+        this.morphing = true;
+        this.lastMorphShape = next;
     },
 
-    buildSatellites(count) {
-        this.satellites.forEach(s => {
-            this.group.remove(s.mesh);
-            s.mesh.geometry.dispose();
-            s.mesh.material.dispose();
-            if (s.wire) {
-                this.group.remove(s.wire);
-                s.wire.geometry.dispose();
-                s.wire.material.dispose();
-            }
-        });
-        this.satellites = [];
-        this.satelliteCount = count;
-
-        const shapes = ['octahedron', 'tetrahedron', 'icosahedron', 'dodecahedron'];
-        for (let i = 0; i < count; i++) {
-            const size = 2 + Math.random() * 3;
-            const geoType = shapes[i % shapes.length];
-            let geo;
-            switch (geoType) {
-                case 'tetrahedron': geo = new THREE.TetrahedronGeometry(size, 1); break;
-                case 'dodecahedron': geo = new THREE.DodecahedronGeometry(size, 0); break;
-                case 'icosahedron': geo = new THREE.IcosahedronGeometry(size, 1); break;
-                default: geo = new THREE.OctahedronGeometry(size, 1);
-            }
-            const mat = new THREE.MeshBasicMaterial({
-                color: 0x5cf6f6, transparent: true, opacity: 0.3,
-                blending: THREE.AdditiveBlending, depthWrite: false,
-                wireframe: true
-            });
-            const mesh = new THREE.Mesh(geo, mat);
-
-            const orbitRadius = 30 + Math.random() * 15;
-            const orbitSpeed = 0.3 + Math.random() * 0.4;
-            const orbitPhase = (i / count) * Math.PI * 2;
-            const orbitTilt = (Math.random() - 0.5) * Math.PI * 0.5;
-
-            mesh.userData = { orbitRadius, orbitSpeed, orbitPhase, orbitTilt, size };
-            this.group.add(mesh);
-
-            this.satellites.push({ mesh, wire: null });
+    // ── MIRROR SYSTEM ──
+    updateMirrors(count, spacing) {
+        // Clean excess
+        while (this.mirrorCopies.length > count) {
+            const m = this.mirrorCopies.pop();
+            this.group.remove(m);
+            m.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
         }
-    },
-
-    initParticles() {
-        if (this.particleSystem) {
-            this.group.remove(this.particleSystem);
-            this.particleSystem.geometry.dispose();
-            this.particleSystem.material.dispose();
-        }
-        const c = this.maxParticles;
-        this.particlePositions = new Float32Array(c * 3);
-        this.particleColors = new Float32Array(c * 3);
-        this.particleVelocities = [];
-        for (let i = 0; i < c; i++) {
-            this.particleVelocities.push({ x: 0, y: 0, z: 0, life: 0 });
-        }
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.Float32BufferAttribute(this.particlePositions, 3));
-        geo.setAttribute('color', new THREE.Float32BufferAttribute(this.particleColors, 3));
-        this.particleSystem = new THREE.Points(geo, new THREE.PointsMaterial({
-            size: 1.5, vertexColors: true, transparent: true, opacity: 0.8,
-            blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
-        }));
-        this.group.add(this.particleSystem);
-    },
-
-    initImpactWaves() {
-        this.impactWaves.forEach(w => {
-            if (w.mesh) { this.group.remove(w.mesh); w.mesh.geometry.dispose(); w.mesh.material.dispose(); }
-        });
-        this.impactWaves = [];
-        for (let i = 0; i < this.maxWaves; i++) {
-            const geo = new THREE.TorusGeometry(1, 0.08, 8, 64);
-            const mat = new THREE.MeshBasicMaterial({
-                color: 0xffffff, transparent: true, opacity: 0,
-                blending: THREE.AdditiveBlending, depthWrite: false
-            });
-            const mesh = new THREE.Mesh(geo, mat);
-            mesh.visible = false;
-            this.group.add(mesh);
-            this.impactWaves.push({ mesh, radius: 0, life: 0, maxRadius: 60 });
-        }
-    },
-
-    spawnImpactWave(intensity) {
-        // Find inactive wave
-        for (const wave of this.impactWaves) {
-            if (wave.life <= 0) {
-                wave.radius = 2;
-                wave.life = 1;
-                wave.maxRadius = 40 + intensity * 30;
-                wave.mesh.visible = true;
-                wave.mesh.material.opacity = 0.6 * intensity;
-                break;
-            }
-        }
-    },
-
-    spawnBeatBurst(audio, params) {
-        const count = Math.floor(params.burstCount || 40);
-        const palette = params.colorPalette || 'neon';
-        const beatPhase = audio.beatPhase || 0;
-
-        for (let e = 0; e < count; e++) {
-            let idx = -1;
-            for (let i = 0; i < this.maxParticles; i++) {
-                if (this.particleVelocities[i].life <= 0) { idx = i; break; }
-            }
-            if (idx === -1) break;
-
-            // Spawn in a ring pattern for rhythmic feel
-            const angle = (e / count) * Math.PI * 2 + beatPhase * Math.PI;
-            const r = 5 + Math.random() * 10;
-            const speed = 0.5 + audio.bassBeatIntensity * 2;
-
-            this.particlePositions[idx * 3] = Math.cos(angle) * r;
-            this.particlePositions[idx * 3 + 1] = (Math.random() - 0.5) * r * 0.5;
-            this.particlePositions[idx * 3 + 2] = Math.sin(angle) * r;
-
-            this.particleVelocities[idx] = {
-                x: Math.cos(angle) * speed,
-                y: (Math.random() - 0.5) * speed * 0.5,
-                z: Math.sin(angle) * speed,
-                life: 1
-            };
-
-            const c = this.getPaletteColor(palette, e / count + this.colorShiftPhase, audio.rms);
-            this.particleColors[idx * 3] = c.r;
-            this.particleColors[idx * 3 + 1] = c.g;
-            this.particleColors[idx * 3 + 2] = c.b;
+        // Add missing
+        while (this.mirrorCopies.length < count) {
+            const copy = new THREE.Group();
+            const wireMat = new THREE.LineBasicMaterial({ color: 0x5cf6f6, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending });
+            const wireCopy = new THREE.LineSegments(this.coreWire.geometry.clone(), wireMat);
+            copy.add(wireCopy);
+            this.group.add(copy);
+            this.mirrorCopies.push(copy);
         }
     },
 
@@ -393,61 +317,87 @@ const RhythmicGeometryMode = {
         const treble = audio.smoothBands.treble || 0;
         const rms = audio.rms || 0;
         const beatPhase = audio.beatPhase || 0;
-        const bpm = audio.bpm || 140;
-        const palette = params.colorPalette || 'neon';
+        const coreSize = params.coreSize || 20;
 
-        // Shape rebuild check
+        // Rebuild shape
         const shape = params.coreShape || 'icosahedron';
         const detail = Math.floor(params.coreDetail || 3);
         if (shape !== this.currentShape || detail !== this.currentDetail) {
-            this.buildCore(shape, detail, params.coreSize || 18);
-        }
-
-        // Satellite count check
-        const satCount = Math.floor(params.satelliteCount || 6);
-        if (satCount !== this.satelliteCount) {
-            this.buildSatellites(satCount);
+            this.buildCore(shape, detail, coreSize);
         }
 
         // ── SECTION AWARENESS ──
         if (params.sectionAware) {
-            if (audio.isHighEnergy) {
-                this.targetSectionScale = params.dropExpansion || 1.8;
-            } else if (audio.isCalm) {
-                this.targetSectionScale = params.calmTightness || 0.6;
-            } else if (audio.isBuildingUp) {
-                // Buildup: gradually increase
-                this.targetSectionScale = 0.8 + (audio.sectionProgress || 0) * 0.8;
-            } else {
-                this.targetSectionScale = 1;
-            }
+            if (audio.isHighEnergy) this.targetSectionScale = params.dropExpansion || 1.8;
+            else if (audio.isCalm) this.targetSectionScale = 0.6;
+            else if (audio.isBuildingUp) this.targetSectionScale = 0.8 + (audio.sectionProgress || 0) * 0.8;
+            else this.targetSectionScale = 1;
         } else {
             this.targetSectionScale = 1;
         }
         this.sectionScale += (this.targetSectionScale - this.sectionScale) * 0.05;
 
-        // ── BPM-SYNCED ROTATION ──
-        const bpmRotRate = params.bpmSync ? (bpm / 60) * (params.beatRotation || 1.5) : (params.beatRotation || 1.5);
-        // Smooth rotation locked to BPM
-        const rotAngle = this.time * bpmRotRate * 0.5;
-        this.coreGroup.rotation.y = rotAngle;
-        this.coreGroup.rotation.x = Math.sin(rotAngle * 0.3) * 0.15;
-        this.coreGroup.rotation.z = Math.cos(rotAngle * 0.2) * 0.1;
+        // ── DROP REACTIONS ──
+        const isDropping = audio.isDropSection || audio.isDrop;
+        const dropLevel = audio.dropSectionIntensity || 1;
+        if (isDropping && audio.bassBeat) {
+            const rx = params.dropReaction || 'all';
+            if ((rx === 'morph' || rx === 'all') && params.beatMorph && !this.morphing) this.triggerMorph();
+            if (rx === 'explode' || rx === 'all') this.explodePhase = Math.min(this.explodePhase + 1.5 * dropLevel, 3);
+            if (rx === 'shatter' || rx === 'all') this.shatterPhase = Math.min(1.5, dropLevel);
+            if (rx === 'invert' || rx === 'all') this.invertPhase = Math.min(1.0, dropLevel);
+            if (rx === 'crumple' || rx === 'all') this.crumplePhase = Math.min(1.5, dropLevel);
+            if (rx === 'fold' || rx === 'all') this.foldPhase = Math.min(1.0, dropLevel);
+        }
 
-        // ── BEAT-PHASE DISPLACEMENT ──
-        const beatPulse = Math.sin(beatPhase * Math.PI * 2); // -1 to 1
-        const beatPulsePos = beatPulse * 0.5 + 0.5; // 0 to 1
-        const displaceAmt = (params.rhythmicDisplace || 6) * react * this.sectionScale;
-        const displaceStyle = params.displaceStyle || 'pulse';
-        const coreSize = params.coreSize || 18;
+        // Beat morph (non-drop)
+        if (params.beatMorph && audio.bassBeat && !this.morphing && !isDropping && Math.random() < 0.1) {
+            this.triggerMorph();
+        }
+
+        // Beat explode
+        if (audio.bassBeat && params.beatExplode > 0) {
+            this.explodePhase += audio.bassBeatIntensity * params.beatExplode * 0.15;
+        }
+        // Decay all effect phases
+        this.explodePhase = Math.min(this.explodePhase, 3);
+        this.explodePhase *= 0.90;
+        this.crumplePhase *= 0.92;
+        this.twistPhase *= 0.93;
+        this.invertPhase *= 0.90;
+        this.foldPhase *= 0.92;
+        this.shatterPhase *= 0.90;
+
+        // Color shift on beat
+        if (audio.beat) this.colorShiftPhase += 0.06;
+
+        // ── VERTEX DISPLACEMENT ──
+        const dMode = params.displaceMode || 'beatPulse';
+        const dAmt = (params.displaceAmount || 10) * react * this.sectionScale;
+        const dFreq = params.displaceFreq || 3;
+        const beatPulse = Math.sin(beatPhase * Math.PI * 2) * 0.5 + 0.5;
+        const breathScale = 1 + (sub + bass) * (params.bassBreath || 2) * 0.2;
+        const sym = params.symmetryMode || 'off';
 
         const pos = this.coreMesh.geometry.attributes.position.array;
         const col = this.coreMesh.geometry.attributes.color.array;
         const vertCount = this.coreBasePos.length / 3;
+        const colorMode = params.colorMode || 'frequency';
 
         for (let i = 0; i < vertCount; i++) {
             const i3 = i * 3;
-            const bx = this.coreBasePos[i3], by = this.coreBasePos[i3 + 1], bz = this.coreBasePos[i3 + 2];
+            let bx = this.coreBasePos[i3], by = this.coreBasePos[i3 + 1], bz = this.coreBasePos[i3 + 2];
+
+            // Morphing
+            if (this.morphing && this.morphTargetBase) {
+                const mi3 = i3 % this.morphTargetBase.length;
+                const mt = Math.min(1, this.morphProgress);
+                const sm = mt * mt * (3 - 2 * mt); // hermite smoothstep
+                bx = bx * (1 - sm) + (this.morphTargetBase[mi3] || 0) * sm;
+                by = by * (1 - sm) + (this.morphTargetBase[mi3 + 1] || 0) * sm;
+                bz = bz * (1 - sm) + (this.morphTargetBase[mi3 + 2] || 0) * sm;
+            }
+
             let nx = this.coreNormals[i3] || 0, ny = this.coreNormals[i3 + 1] || 0, nz = this.coreNormals[i3 + 2] || 0;
             const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
             nx /= nl; ny /= nl; nz /= nl;
@@ -456,56 +406,250 @@ const RhythmicGeometryMode = {
             const fIdx = Math.floor(t * audio.frequencyData.length * 0.5);
             const freq = (audio.frequencyData[fIdx] || 0) / 255;
 
+            // Symmetry
+            let sx = bx, sy = by, sz = bz;
+            if (sym.includes('x')) sx = Math.abs(bx);
+            if (sym.includes('y')) sy = Math.abs(by);
+            if (sym.includes('z')) sz = Math.abs(bz);
+
             let disp = 0;
-            switch (displaceStyle) {
-                case 'pulse':
-                    // Clean beat-phase pulse — expands on beat, contracts between
-                    disp = beatPulsePos * displaceAmt * (0.3 + bass * 2) + freq * displaceAmt * 0.2;
+            switch (dMode) {
+                case 'beatPulse':
+                    disp = beatPulse * dAmt * (0.3 + bass * 2) + freq * dAmt * 0.2;
                     break;
-                case 'ripple': {
-                    const d2 = Math.sqrt(bx * bx + by * by + bz * bz) / coreSize;
-                    disp = Math.sin(d2 * 6 - beatPhase * Math.PI * 2) * displaceAmt * 0.5 * (0.3 + bass * 2);
+                case 'fractal': {
+                    const f1 = this.fbm(sx * 0.03 + this.time * 0.2, sy * 0.03, sz * 0.03, 4);
+                    const f2 = this.fbm(sx * 0.06, sy * 0.06 + this.time * 0.3, sz * 0.06, 3);
+                    disp = f1 * f2 * 4 * dAmt * (0.3 + bass * 2);
                     break;
                 }
-                case 'spike':
-                    disp = Math.pow(beatPulsePos, 3) * displaceAmt * (0.5 + freq * 2) * (1 + audio.bassBeatIntensity * 2);
+                case 'vortex': {
+                    const a = Math.atan2(sz, sx) + this.time * dFreq * 0.5;
+                    const r = Math.sqrt(sx * sx + sz * sz);
+                    disp = Math.sin(a * 3 + r * 0.2) * dAmt * freq;
                     break;
-                case 'breathe':
-                    disp = beatPulsePos * displaceAmt * 0.6 * (0.5 + (sub + bass) * 2);
+                }
+                case 'magnetic': {
+                    disp = (Math.sin(sy * 0.3 + this.time) * nx + Math.cos(sx * 0.3 + this.time * 0.7) * nz) * dAmt * (0.5 + bass * 2);
                     break;
-                case 'harmonic': {
+                }
+                case 'crystallize': {
+                    const cs = 5;
+                    const fx = Math.round(sx / cs) * cs, fy = Math.round(sy / cs) * cs, fz = Math.round(sz / cs) * cs;
+                    const facetDist = Math.sqrt((sx - fx) ** 2 + (sy - fy) ** 2 + (sz - fz) ** 2);
+                    disp = facetDist * dAmt * 0.3 * (1 + bass * 3 + audio.bassBeatIntensity * 4);
+                    bx = bx * 0.7 + fx * 0.3;
+                    by = by * 0.7 + fy * 0.3;
+                    bz = bz * 0.7 + fz * 0.3;
+                    break;
+                }
+                case 'shatter':
+                    disp = this.noise3D(sx + this.time * 2, sy + this.time, sz) * dAmt * (0.2 + freq * 2 + audio.bassBeatIntensity * 5);
+                    break;
+                case 'tentacle': {
+                    const phi = Math.atan2(sz, sx);
+                    let tentForce = 0;
+                    for (let ti = 0; ti < 6; ti++) {
+                        const ta = (ti / 6) * Math.PI * 2 + this.time * 0.3;
+                        const diff = Math.abs(((phi - ta + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+                        tentForce += Math.max(0, 1 - diff * 1.5) * (0.5 + bass * 2);
+                    }
+                    disp = tentForce * dAmt * 0.4 * (sy / coreSize + 1) * freq;
+                    break;
+                }
+                case 'interference': {
+                    const w1 = Math.sin(sx * 0.3 + this.time * 2) * Math.sin(sy * 0.35 - this.time * 1.5);
+                    const w2 = Math.sin(sz * 0.25 + this.time * 1.8) * Math.cos(sx * 0.2 + this.time);
+                    const w3 = Math.cos(sy * 0.4 + this.time * 2.5) * Math.sin(sz * 0.3 - this.time * 0.7);
+                    disp = (w1 + w2 + w3) * dAmt * 0.4 * (0.3 + freq * 1.5 + bass);
+                    break;
+                }
+                case 'harmonics': {
                     let h = 0;
-                    for (let n = 1; n <= 4; n++) {
+                    for (let n = 1; n <= 5; n++) {
                         const bv = (audio.frequencyData[Math.floor(n * 25)] || 0) / 255;
                         h += bv * Math.sin(n * beatPhase * Math.PI * 2 + t * n * 3);
                     }
-                    disp = h * displaceAmt * 0.4;
+                    disp = h * dAmt * 0.4;
                     break;
                 }
-                case 'shockwave': {
-                    // Shockwave expands from center on each beat
-                    const d3 = Math.sqrt(bx * bx + by * by + bz * bz) / coreSize;
-                    const wave = Math.sin((d3 * 5 - beatPhase * 2) * Math.PI);
-                    disp = Math.max(0, wave) * displaceAmt * (0.3 + bass * 2.5) * beatPulsePos;
+                case 'voronoi': {
+                    let minD = 999, minD2 = 999;
+                    for (let ci = 0; ci < 6; ci++) {
+                        const cx = Math.sin(ci * 1.618 + this.time * 0.4) * coreSize * 0.6;
+                        const cy = Math.cos(ci * 2.618 + this.time * 0.3) * coreSize * 0.6;
+                        const cz = Math.sin(ci * 0.618 + this.time * 0.5) * coreSize * 0.6;
+                        const dd = Math.sqrt((sx - cx) ** 2 + (sy - cy) ** 2 + (sz - cz) ** 2);
+                        if (dd < minD) { minD2 = minD; minD = dd; } else if (dd < minD2) { minD2 = dd; }
+                    }
+                    disp = (minD2 - minD) * dAmt * 0.15 * (0.5 + bass * 2);
+                    break;
+                }
+                case 'gravitational': {
+                    let totalForce = 0;
+                    for (let wi = 0; wi < 3; wi++) {
+                        const wa = (wi / 3) * Math.PI * 2 + this.time * 0.3;
+                        const wx = Math.cos(wa) * coreSize * 0.5, wz = Math.sin(wa) * coreSize * 0.5;
+                        const dx = sx - wx, dz = sz - wz;
+                        const d2 = Math.sqrt(dx * dx + sy * sy + dz * dz) + 0.5;
+                        totalForce += bass * 20 / (d2 * d2 + 1);
+                    }
+                    disp = totalForce * dAmt * 0.15;
+                    break;
+                }
+                case 'twist': {
+                    const a = sy * dFreq * 0.1 + this.time * 2;
+                    const tw = (bass + mid) * dAmt * 0.1 * react;
+                    bx += Math.cos(a) * tw;
+                    bz += Math.sin(a) * tw;
+                    break;
+                }
+                case 'melt': {
+                    const mf = (sub + bass) * dAmt * 0.3 * react;
+                    by -= Math.max(0, (1 - (by / coreSize + 0.5)) * mf);
+                    disp = this.fbm(sx * 0.1, sy * 0.1, this.time, 2) * mf * 0.3;
+                    break;
+                }
+                case 'glitch': {
+                    if (Math.random() < (audio.beat ? 0.3 : 0.02)) disp = (Math.random() - 0.5) * dAmt * 4;
+                    break;
+                }
+                case 'flow': {
+                    const curl_x = this.fbm(sy * 0.08, sz * 0.08 + this.time * 0.5, sx * 0.08, 3);
+                    const curl_y = this.fbm(sz * 0.08 + this.time * 0.3, sx * 0.08, sy * 0.08, 3);
+                    const curl_z = this.fbm(sx * 0.08 + this.time * 0.4, sy * 0.08, sz * 0.08, 3);
+                    bx += curl_x * dAmt * 0.15 * (0.5 + mid * 2);
+                    by += curl_y * dAmt * 0.15 * (0.5 + mid * 2);
+                    bz += curl_z * dAmt * 0.15 * (0.5 + mid * 2);
+                    disp = freq * dAmt * 0.3;
                     break;
                 }
             }
 
-            // Scale with section
-            const scale = this.sectionScale;
+            // === GEOMETRY EFFECT PHASES ===
+            // Explode
+            if (this.explodePhase > 0.01) disp += this.explodePhase * 3;
+
+            // Shatter: chaotic per-vertex jitter
+            if (this.shatterPhase > 0.01) {
+                const sh = this.shatterPhase;
+                bx += this.noise3D(bx + this.time * 10, by, bz) * sh * coreSize * 0.6;
+                by += this.noise3D(by, bz + this.time * 10, bx) * sh * coreSize * 0.6;
+                bz += this.noise3D(bz, bx, by + this.time * 10) * sh * coreSize * 0.6;
+            }
+
+            // Invert: displacement direction flips
+            if (this.invertPhase > 0.05) disp *= (1 - this.invertPhase * 2);
+
+            // Crumple: vertices collapse toward center
+            if (this.crumplePhase > 0.01) {
+                const cp = this.crumplePhase;
+                bx *= 1 - cp * 0.6;
+                by *= 1 - cp * 0.6;
+                bz *= 1 - cp * 0.6;
+                disp += this.noise3D(bx * 3, by * 3, bz * 3 + this.time) * cp * coreSize * 0.3;
+            }
+
+            // Fold: vertex mirroring along axes
+            if (this.foldPhase > 0.01) {
+                const fp = this.foldPhase;
+                bx = bx * (1 - fp) + Math.abs(bx) * fp * Math.sign(Math.sin(this.time * 3));
+                by = by * (1 - fp) + Math.abs(by) * fp * Math.sign(Math.cos(this.time * 2.3));
+            }
+
+            const scale = breathScale * this.sectionScale;
             pos[i3] = (bx + nx * disp) * scale;
             pos[i3 + 1] = (by + ny * disp) * scale;
             pos[i3 + 2] = (bz + nz * disp) * scale;
 
-            // Beat-locked color — shifts on beats
-            const colorT = t + this.colorShiftPhase + freq * 0.3;
-            const c = this.getPaletteColor(palette, colorT, rms);
-            col[i3] = c.r; col[i3 + 1] = c.g; col[i3 + 2] = c.b;
+            // ── VERTEX COLORS ──
+            let cr = 1, cg = 1, cb = 1;
+            switch (colorMode) {
+                case 'frequency': {
+                    const c = ParamSystem.getColorThreeHSL(freq + t * 0.2 + this.colorShiftPhase);
+                    cr = c.r; cg = c.g; cb = c.b; break;
+                }
+                case 'displacement': {
+                    const dn = Math.min(1, Math.abs(disp) / (dAmt + 0.01));
+                    const c = ParamSystem.getColorThreeHSL(dn + this.colorShiftPhase);
+                    cr = c.r; cg = c.g; cb = c.b; break;
+                }
+                case 'height': {
+                    const h = (pos[i3 + 1] / (coreSize * 2) + 0.5);
+                    const c = ParamSystem.getColorThreeHSL(h + this.colorShiftPhase);
+                    cr = c.r; cg = c.g; cb = c.b; break;
+                }
+                case 'rainbow': {
+                    const hue = (t + this.time * 0.1 + this.colorShiftPhase) % 1;
+                    cr = Math.sin(hue * 6.28) * 0.5 + 0.5;
+                    cg = Math.sin(hue * 6.28 + 2.09) * 0.5 + 0.5;
+                    cb = Math.sin(hue * 6.28 + 4.19) * 0.5 + 0.5;
+                    break;
+                }
+                case 'velocity': {
+                    if (this._prevPositions) {
+                        const dx = pos[i3] - this._prevPositions[i3];
+                        const dy = pos[i3 + 1] - this._prevPositions[i3 + 1];
+                        const dz = pos[i3 + 2] - this._prevPositions[i3 + 2];
+                        const vel = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        const c = ParamSystem.getColorThreeHSL(Math.min(1, vel * 2));
+                        cr = c.r; cg = c.g; cb = c.b;
+                    }
+                    break;
+                }
+                case 'plasma': {
+                    cr = Math.sin(t * 10 + this.time) * 0.5 + 0.5;
+                    cg = Math.sin(t * 10 + this.time * 1.3 + 2.1) * 0.5 + 0.5;
+                    cb = Math.sin(t * 10 + this.time * 0.7 + 4.2) * 0.5 + 0.5;
+                    break;
+                }
+                case 'thermal': {
+                    const th = freq * 0.6 + rms * 0.4;
+                    cr = Math.min(1, th * 2); cg = th * 0.6; cb = th * 0.1;
+                    break;
+                }
+                case 'void': {
+                    const edge = Math.abs(disp) / (dAmt + 0.01);
+                    cr = edge * 0.3; cg = edge * 0.1; cb = edge * 0.5 + 0.05;
+                    break;
+                }
+                case 'holographic': {
+                    const angle = Math.atan2(pos[i3 + 2], pos[i3]) / Math.PI;
+                    const hue2 = (angle + t + this.time * 0.05 + this.colorShiftPhase) % 1;
+                    cr = Math.sin(hue2 * 6.28) * 0.4 + 0.5;
+                    cg = Math.sin(hue2 * 6.28 + 2.09) * 0.4 + 0.5;
+                    cb = Math.sin(hue2 * 6.28 + 4.19) * 0.4 + 0.5;
+                    break;
+                }
+            }
+            col[i3] = cr; col[i3 + 1] = cg; col[i3 + 2] = cb;
         }
 
+        // Store for velocity color
+        if (!this._prevPositions || this._prevPositions.length !== pos.length) {
+            this._prevPositions = new Float32Array(pos.length);
+        }
+        this._prevPositions.set(pos);
+
+        // Morph progress
+        if (this.morphing) {
+            this.morphProgress += dt * (params.morphSpeed || 2.5);
+            if (this.morphProgress >= 1) {
+                this.morphing = false;
+                this.basePositions = new Float32Array(this.morphTargetBase);
+                this.coreBasePos = new Float32Array(this.morphTargetBase);
+                this.morphTargetBase = null;
+                const geo = this.coreMesh.geometry;
+                geo.attributes.position.array.set(this.coreBasePos);
+                geo.attributes.position.needsUpdate = true;
+                geo.computeVertexNormals();
+                this.coreNormals = new Float32Array(geo.attributes.normal.array);
+            }
+        }
+
+        // Update GPU buffers
         this.coreMesh.geometry.attributes.position.needsUpdate = true;
         this.coreMesh.geometry.attributes.color.needsUpdate = true;
-        this.coreMesh.geometry.computeVertexNormals();
 
         // Sync wireframe
         if (this.coreWire) {
@@ -514,147 +658,99 @@ const RhythmicGeometryMode = {
             this.coreWire.geometry = wg;
         }
 
+        // Sync points
+        if (this.corePoints) {
+            this.corePoints.geometry.attributes.position.array.set(pos);
+            this.corePoints.geometry.attributes.position.needsUpdate = true;
+            this.corePoints.geometry.attributes.color.array.set(col);
+            this.corePoints.geometry.attributes.color.needsUpdate = true;
+            this.corePoints.visible = params.showPoints;
+            this.corePoints.material.size = (params.pointSize || 2) * (1 + bass * 2);
+        }
+
         // Materials
-        this.coreMesh.material.opacity = (params.solidOpacity || 0.2) * (0.5 + bass * 0.5);
-        const wireColor = this.getPaletteColor(palette, this.colorShiftPhase + rms, rms);
-        this.coreWire.material.color.copy(wireColor);
-        this.coreWire.material.opacity = (params.wireOpacity || 0.85) * (0.5 + rms * 0.5 + beatPulsePos * 0.2);
+        this.coreMesh.material.opacity = (params.solidOpacity || 0.15) * (0.5 + bass * 0.5);
+        this.coreWire.material.color = ParamSystem.getColorThree(rms + this.time * 0.1 + this.colorShiftPhase);
+        this.coreWire.material.opacity = (params.wireOpacity || 0.85) * (0.5 + rms * 0.5 + beatPulse * 0.2);
 
-        // ── BEAT-TRIGGERED EVENTS ──
-        if (audio.beatCount > this.lastBeatCount) {
-            this.lastBeatCount = audio.beatCount;
-
-            // Color shift on beat
-            if (params.beatColorShift) {
-                this.colorShiftPhase += 0.08;
+        // ── ROTATION ──
+        const rotMode = params.rotMode || 'smooth';
+        const rotSpeed = (params.rotSpeed || 0.6) * (1 + mid * react * 0.3);
+        switch (rotMode) {
+            case 'smooth':
+                this.coreGroup.rotation.x += rotSpeed * 0.3 * dt;
+                this.coreGroup.rotation.y += rotSpeed * dt;
+                this.coreGroup.rotation.z += rotSpeed * 0.1 * dt;
+                break;
+            case 'beatLock': {
+                const targetY = Math.floor(beatPhase * 4) * Math.PI / 2;
+                this.coreGroup.rotation.y += (targetY - this.coreGroup.rotation.y) * 0.12;
+                this.coreGroup.rotation.x += rotSpeed * dt * 0.3;
+                this.coreGroup.rotation.z = Math.sin(this.time * 0.3) * 0.15;
+                break;
             }
+            case 'tumble':
+                this.coreGroup.rotation.x += rotSpeed * dt + Math.sin(this.time * 1.5) * 0.01;
+                this.coreGroup.rotation.y += rotSpeed * dt + Math.cos(this.time * 1.2) * 0.01;
+                this.coreGroup.rotation.z += rotSpeed * 0.5 * dt + Math.sin(this.time * 0.8) * 0.02;
+                break;
+            case 'chaotic': {
+                const lx = Math.sin(this.time * 0.7) * Math.cos(this.time * 0.3);
+                const ly = Math.cos(this.time * 0.5) * Math.sin(this.time * 0.4);
+                const lz = Math.sin(this.time * 0.6) * Math.cos(this.time * 0.8);
+                this.coreGroup.rotation.x += (lx * rotSpeed + bass * 0.1) * dt;
+                this.coreGroup.rotation.y += (ly * rotSpeed + mid * 0.1) * dt;
+                this.coreGroup.rotation.z += (lz * rotSpeed * 0.5 + treble * 0.05) * dt;
+                break;
+            }
+            case 'orbit':
+                this.coreGroup.rotation.y += rotSpeed * dt;
+                this.coreGroup.rotation.x = Math.sin(this.time * 0.5) * 0.3;
+                this.coreGroup.rotation.z = Math.cos(this.time * 0.3) * 0.2;
+                break;
+            case 'wobble':
+                this.coreGroup.rotation.x = Math.sin(this.time * rotSpeed) * 0.5;
+                this.coreGroup.rotation.y += rotSpeed * dt;
+                this.coreGroup.rotation.z = Math.cos(this.time * rotSpeed * 0.5) * 0.3;
+                break;
         }
 
-        // Bass beat events — impact waves & particle bursts
-        if (audio.bassBeat) {
-            // Impact wave
-            if ((params.impactIntensity || 3) > 0) {
-                this.spawnImpactWave(audio.bassBeatIntensity * (params.impactIntensity || 3) / 3);
-            }
-
-            // Particle burst
-            if (params.burstParticles) {
-                this.spawnBeatBurst(audio, params);
-            }
+        // Beat spin burst
+        if (audio.bassBeat && params.beatSpinBurst > 0) {
+            this.coreGroup.rotation.y += Math.min(0.08, audio.bassBeatIntensity * 0.1 * params.beatSpinBurst);
         }
 
-        // ── OUTER RINGS ──
-        if (params.showRings) {
-            for (let i = 0; i < this.ringMeshes.length; i++) {
-                const ring = this.ringMeshes[i];
-                ring.visible = true;
-                const data = ring.userData;
-                // Rings pulse with beat phase — each ring on a different phase
-                const ringPulse = Math.sin(beatPhase * Math.PI * 2 + i * Math.PI / this.ringMeshes.length);
-                const ringScale = this.sectionScale * (1 + ringPulse * 0.08 * (params.beatPulseAmount || 2.5));
-                ring.scale.setScalar(ringScale);
-
-                // Tilt rings rhythmically
-                ring.rotation.x = Math.sin(this.time * 0.5 + i * 1.2) * 0.3 + Math.PI / 2;
-                ring.rotation.y = Math.cos(this.time * 0.3 + i * 0.8) * 0.2;
-
-                // Pulsing opacity
-                const ringOpacity = params.ringStyle === 'pulsing'
-                    ? 0.2 + beatPulsePos * 0.3 + bass * 0.2
-                    : 0.4;
-                ring.material.opacity = ringOpacity;
-                ring.material.color.copy(this.getPaletteColor(palette, i / this.ringMeshes.length + this.colorShiftPhase, rms));
-            }
-        } else {
-            this.ringMeshes.forEach(r => r.visible = false);
+        // Wrap rotations
+        this._rotWrapCounter++;
+        if (this._rotWrapCounter > 600) {
+            this._rotWrapCounter = 0;
+            const TWO_PI = Math.PI * 2;
+            this.coreGroup.rotation.x %= TWO_PI;
+            this.coreGroup.rotation.y %= TWO_PI;
+            this.coreGroup.rotation.z %= TWO_PI;
         }
 
-        // ── SATELLITES ──
-        if (params.showSatellites) {
-            const bpmFactor = params.bpmSync ? bpm / 140 : 1;
-            for (let i = 0; i < this.satellites.length; i++) {
-                const sat = this.satellites[i];
-                const d = sat.mesh.userData;
-                sat.mesh.visible = true;
+        // ── MIRROR COPIES ──
+        const mirrorCount = Math.floor(params.mirrorCount || 0);
+        const mirrorSpacing = params.mirrorSpacing || 1.5;
+        this.updateMirrors(mirrorCount, mirrorSpacing);
 
-                // Orbit locked to BPM
-                const orbitAngle = this.time * d.orbitSpeed * bpmFactor + d.orbitPhase;
-                const orbitR = d.orbitRadius * this.sectionScale;
-                sat.mesh.position.x = Math.cos(orbitAngle) * orbitR;
-                sat.mesh.position.y = Math.sin(orbitAngle * 0.5 + d.orbitTilt) * orbitR * 0.3;
-                sat.mesh.position.z = Math.sin(orbitAngle) * orbitR;
+        for (let i = 0; i < this.mirrorCopies.length; i++) {
+            const copy = this.mirrorCopies[i];
+            const angle = ((i + 1) / (mirrorCount + 1)) * Math.PI * 2;
+            copy.rotation.y = angle;
+            copy.scale.setScalar(mirrorSpacing * 0.8);
+            copy.position.x = Math.cos(angle) * coreSize * mirrorSpacing * 0.3;
+            copy.position.z = Math.sin(angle) * coreSize * mirrorSpacing * 0.3;
 
-                // Scale pulse on beat
-                const satPulse = 1 + beatPulsePos * 0.3 * bass;
-                sat.mesh.scale.setScalar(satPulse);
-
-                // Rotate
-                sat.mesh.rotation.x += dt * 1.5;
-                sat.mesh.rotation.y += dt * 2;
-
-                // Color
-                sat.mesh.material.color.copy(
-                    this.getPaletteColor(palette, i / this.satellites.length + this.colorShiftPhase + 0.3, rms)
-                );
-                sat.mesh.material.opacity = 0.2 + bass * 0.2 + beatPulsePos * 0.1;
+            // Update mirror wireframe geometry
+            const wireChild = copy.children[0];
+            if (wireChild && this.coreWire) {
+                wireChild.geometry.dispose();
+                wireChild.geometry = this.coreWire.geometry.clone();
+                wireChild.material.opacity = 0.2 + bass * 0.15;
+                wireChild.material.color = ParamSystem.getColorThree(rms + this.time * 0.1 + i * 0.15);
             }
-        } else {
-            this.satellites.forEach(s => s.mesh.visible = false);
-        }
-
-        // ── IMPACT WAVES ──
-        for (const wave of this.impactWaves) {
-            if (wave.life <= 0) { wave.mesh.visible = false; continue; }
-            wave.mesh.visible = true;
-            wave.life -= dt * 1.5;
-            wave.radius += dt * 40 * (0.5 + wave.life); // Decelerating expansion
-
-            wave.mesh.scale.setScalar(wave.radius);
-            wave.mesh.material.opacity = wave.life * 0.5;
-            wave.mesh.material.color.copy(this.getPaletteColor(palette, 1 - wave.life + this.colorShiftPhase, rms));
-
-            // Random tilt for variety
-            if (wave.life > 0.95) {
-                wave.mesh.rotation.x = Math.random() * Math.PI;
-                wave.mesh.rotation.y = Math.random() * Math.PI;
-            }
-        }
-
-        // ── PARTICLES ──
-        if (params.burstParticles) {
-            const trail = params.particleTrail || 0.97;
-            for (let i = 0; i < this.maxParticles; i++) {
-                const v = this.particleVelocities[i];
-                if (v.life <= 0) continue;
-                v.life -= dt * 0.8;
-                v.x *= trail; v.y *= trail; v.z *= trail;
-                this.particlePositions[i * 3] += v.x;
-                this.particlePositions[i * 3 + 1] += v.y;
-                this.particlePositions[i * 3 + 2] += v.z;
-
-                // Fade color
-                this.particleColors[i * 3] *= trail;
-                this.particleColors[i * 3 + 1] *= trail;
-                this.particleColors[i * 3 + 2] *= trail;
-
-                if (v.life <= 0) {
-                    this.particlePositions[i * 3] = 0;
-                    this.particlePositions[i * 3 + 1] = 0;
-                    this.particlePositions[i * 3 + 2] = 0;
-                }
-            }
-            this.particleSystem.geometry.attributes.position.needsUpdate = true;
-            this.particleSystem.geometry.attributes.color.needsUpdate = true;
-            this.particleSystem.material.size = (params.glowIntensity || 1.5) * (1 + bass);
-            this.particleSystem.visible = true;
-        } else if (this.particleSystem) {
-            this.particleSystem.visible = false;
-        }
-
-        // ── DROP SPECIAL: bass beat rotation kick ──
-        if (audio.bassBeat && audio.isHighEnergy) {
-            // Controlled kick — not chaotic
-            this.coreGroup.rotation.y += Math.min(0.1, audio.bassBeatIntensity * 0.08);
         }
     },
 
@@ -668,9 +764,7 @@ const RhythmicGeometryMode = {
         }
         this.coreMesh = null;
         this.coreWire = null;
-        this.ringMeshes = [];
-        this.satellites = [];
-        this.impactWaves = [];
-        this.particleSystem = null;
+        this.corePoints = null;
+        this.mirrorCopies = [];
     }
 };

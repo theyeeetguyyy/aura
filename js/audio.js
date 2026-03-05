@@ -253,6 +253,10 @@ const AudioEngine = (() => {
         sectionChanged: false,
         prevSectionType: null,
 
+        // Drop chaos state (from markers)
+        isDropSection: false,
+        dropSectionIntensity: 0,
+
         // Tearout-specific detectors
         gunShotDetected: false,
         gunShotIntensity: 0,
@@ -1218,6 +1222,12 @@ const AudioEngine = (() => {
             ? MarkerSystem.getSmoothedEffects()
             : { shake: 1, flash: 1, zoom: 1, bloom: 1, speed: 1, particleScale: 1, displacementScale: 1 };
         audioBus.colorTemp = section ? (section.colorTemp || 'neutral') : 'neutral';
+
+        // Drop chaos state — linked to timeline markers
+        audioBus.isDropSection = (typeof MarkerSystem !== 'undefined' && MarkerSystem.isDropActive)
+            ? MarkerSystem.isDropActive() : false;
+        audioBus.dropSectionIntensity = (typeof MarkerSystem !== 'undefined' && MarkerSystem.getDropIntensity)
+            ? MarkerSystem.getDropIntensity() : 0;
 
         // Transition fade (smooth blend over ~0.5s)
         sectionTransitionTime += 1 / 60;

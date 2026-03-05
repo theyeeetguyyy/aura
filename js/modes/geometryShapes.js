@@ -429,17 +429,20 @@ const GeometryForgeMode = {
         }
 
         // Drop effects — only trigger ONCE per drop, not on every bass beat
-        if (audio.isDrop && audio.bassBeat && !this._dropTriggeredThisDrop) {
+        // Responds to BOTH marker-set drops AND auto-detected energy drops
+        const isDropping = audio.isDropSection || audio.isDrop;
+        const dropLevel = audio.dropSectionIntensity || 1;
+        if (isDropping && audio.bassBeat && !this._dropTriggeredThisDrop) {
             this._dropTriggeredThisDrop = true;
             const eff = params.dropEffect || 'morph';
             if ((eff === 'morph' || eff === 'all') && !this.morphing) this.triggerMorph();
-            if (eff === 'explode' || eff === 'all') this.explodePhase = Math.min(this.explodePhase + 1, 1.5);
-            if (eff === 'glitch' || eff === 'all') this.group.rotation.z += 0.05;
-            if (eff === 'scatter' || eff === 'all') this._scatterPhase = 1.0;
-            if (eff === 'invertSpace' || eff === 'all') this._invertSpacePhase = 1.0;
+            if (eff === 'explode' || eff === 'all') this.explodePhase = Math.min(this.explodePhase + 1 * dropLevel, 1.5);
+            if (eff === 'glitch' || eff === 'all') this.group.rotation.z += 0.05 * dropLevel;
+            if (eff === 'scatter' || eff === 'all') this._scatterPhase = Math.min(1.0, dropLevel);
+            if (eff === 'invertSpace' || eff === 'all') this._invertSpacePhase = Math.min(1.0, dropLevel);
             this._emissivePulse = 1.0; // flash on any drop
         }
-        if (!audio.isDrop) this._dropTriggeredThisDrop = false;
+        if (!isDropping) this._dropTriggeredThisDrop = false;
         // Decay scatter and invertSpace phases
         if (this._scatterPhase > 0) this._scatterPhase *= 0.94;
         if (this._invertSpacePhase > 0) this._invertSpacePhase *= 0.92;

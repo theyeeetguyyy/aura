@@ -372,14 +372,17 @@ const HyperforgeMode = {
         this.explodePhase *= 0.88;
 
         // Drop — beat-synced: shape-shift only on bass beats
-        if (audio.isDrop && audio.bassBeat) {
+        // Responds to BOTH marker-set drops AND auto-detected energy drops
+        const isDropping = audio.isDropSection || audio.isDrop;
+        const dropLevel = audio.dropSectionIntensity || 1;
+        if (isDropping && audio.bassBeat) {
             const react2 = params.dropReaction || 'all';
             if ((react2 === 'shapeShift' || react2 === 'all') && (params.morphEnabled !== false)) {
                 const shapes = ['superformula', 'catenoid', 'helicoid', 'enneperSurface', 'crossCap', 'boysSurface', 'trefoilKnot', 'algebraicHorn'];
                 const next = shapes[Math.floor(Math.random() * shapes.length)];
                 if (next !== this.currentShape) this.buildOuter(next, seg, size, m, n1, n2, n3);
             }
-            if (react2 === 'particleBurst' || react2 === 'all') this.explodePhase = Math.min(this.explodePhase + 2, 5);
+            if (react2 === 'particleBurst' || react2 === 'all') this.explodePhase = Math.min(this.explodePhase + 2 * dropLevel, 5);
         }
 
         // Inner pulsing

@@ -10,11 +10,11 @@ const SECTION_BEHAVIORS = {
     verse: { displaceModeHint: 'frequency', rotationMultiplier: 0.6, particleEmissionRate: 0.5, colorSaturationMult: 0.85, beatReactivity: 0.5, bloomGlowMult: 0.7, halfTimeMode: false, trailLength: 'short' },
     buildup: { displaceModeHint: 'spike', rotationMultiplier: 1.0, particleEmissionRate: 0.8, colorSaturationMult: 1.1, beatReactivity: 0.8, bloomGlowMult: 1.0, halfTimeMode: false, trailLength: 'medium', useSectionProgressRamp: true },
     fakeout: { displaceModeHint: 'breathe', rotationMultiplier: 0.1, particleEmissionRate: 0.05, colorSaturationMult: 0.4, beatReactivity: 0.0, bloomGlowMult: 0.2, halfTimeMode: false, trailLength: 'none', onEnter: 'hard-cut-to-minimal' },
-    drop: { displaceModeHint: 'shatter', rotationMultiplier: 1.8, particleEmissionRate: 1.5, colorSaturationMult: 1.5, beatReactivity: 1.4, bloomGlowMult: 1.8, halfTimeMode: true, trailLength: 'long', onEnter: 'morph-explode', gunShotReaction: 'spike-max', screechReaction: 'chromatic', sirenReaction: 'stretch-up' },
-    drop2: { displaceModeHint: 'glitch', rotationMultiplier: 2.2, particleEmissionRate: 2.0, colorSaturationMult: 1.8, beatReactivity: 1.8, bloomGlowMult: 2.5, halfTimeMode: true, trailLength: 'long', onEnter: 'morph-explode', gunShotReaction: 'spike-max' },
+    drop: { displaceModeHint: 'shatter', rotationMultiplier: 3.5, particleEmissionRate: 3.0, colorSaturationMult: 2.5, beatReactivity: 3.0, bloomGlowMult: 3.5, halfTimeMode: true, trailLength: 'long', onEnter: 'morph-explode', gunShotReaction: 'spike-max', screechReaction: 'chromatic', sirenReaction: 'stretch-up' },
+    drop2: { displaceModeHint: 'glitch', rotationMultiplier: 5.0, particleEmissionRate: 4.0, colorSaturationMult: 3.0, beatReactivity: 4.0, bloomGlowMult: 5.0, halfTimeMode: true, trailLength: 'long', onEnter: 'morph-explode', gunShotReaction: 'spike-max' },
     breakdown: { displaceModeHint: 'melt', rotationMultiplier: 0.5, particleEmissionRate: 0.4, colorSaturationMult: 1.0, beatReactivity: 0.3, bloomGlowMult: 1.4, halfTimeMode: false, trailLength: 'long', wobbleReaction: 'displace-lfo' },
     bridge: { displaceModeHint: 'ripple', rotationMultiplier: 0.5, particleEmissionRate: 0.4, beatReactivity: 0.4, bloomGlowMult: 0.8, halfTimeMode: false, trailLength: 'medium' },
-    climax: { displaceModeHint: 'harmonics', rotationMultiplier: 2.5, particleEmissionRate: 2.5, colorSaturationMult: 2.0, beatReactivity: 2.0, bloomGlowMult: 3.0, halfTimeMode: false, trailLength: 'long', onEnter: 'morph-explode', screechReaction: 'chromatic', sirenReaction: 'stretch-up' },
+    climax: { displaceModeHint: 'harmonics', rotationMultiplier: 6.0, particleEmissionRate: 5.0, colorSaturationMult: 3.5, beatReactivity: 5.0, bloomGlowMult: 6.0, halfTimeMode: false, trailLength: 'long', onEnter: 'morph-explode', screechReaction: 'chromatic', sirenReaction: 'stretch-up' },
     outro: { displaceModeHint: 'breathe', rotationMultiplier: 0.2, particleEmissionRate: 0.1, colorSaturationMult: 0.5, beatReactivity: 0.1, bloomGlowMult: 0.3, halfTimeMode: false, trailLength: 'long' },
 };
 
@@ -93,6 +93,15 @@ const VisualEngine = (() => {
     let lastMouseX = 0;
     let lastMouseY = 0;
     let orbitDirty = false;  // true if user has manually orbited
+
+    // === DROP CHAOS STATE ===
+    let dropChaosActive = false;
+    let dropChaosIntensity = 0;   // 0 = calm, 1 = full chaos
+    let chaosTime = 0;            // accumulated time for chaos animations
+    let preChaosExposure = 1.2;
+    let preChaosBaseFOV = 75;
+    const CHAOS_ATTACK = 6.0;     // fast ramp in (reach 1.0 in ~0.15s)
+    const CHAOS_RELEASE = 1.2;    // slow ramp out (~0.8s)
 
     function init(canvas) {
         clock = new THREE.Clock();
@@ -212,6 +221,11 @@ const VisualEngine = (() => {
         orbitRadius = 100;
         orbitTheta = 0;
         orbitPhi = Math.PI / 2;
+
+        // Reset chaos state on mode switch
+        dropChaosActive = false;
+        dropChaosIntensity = 0;
+        chaosTime = 0;
 
         // 7.5: Error boundary around mode init
         try {
@@ -356,6 +370,37 @@ const VisualEngine = (() => {
         const masterInt = audio.masterIntensity || 1.0;
         const sectionInt = audio.sectionIntensity || 1.0;
 
+        // ═══════════════════════════════════════════════════════
+        // DROP CHAOS MODE — triggered by timeline drop markers
+        // ═══════════════════════════════════════════════════════
+        const isDropNow = audio.isDropSection || false;
+        const dropLevel = audio.dropSectionIntensity || 0;
+
+        if (isDropNow && !dropChaosActive) {
+            // === ENTER CHAOS ===
+            dropChaosActive = true;
+            preChaosExposure = renderer.toneMappingExposure;
+            preChaosBaseFOV = baseFOV;
+        } else if (!isDropNow && dropChaosActive && dropChaosIntensity < 0.01) {
+            // === EXIT CHAOS (fully faded out) ===
+            dropChaosActive = false;
+            dropChaosIntensity = 0;
+            chaosTime = 0;
+        }
+
+        // Smooth ramp chaos intensity
+        if (isDropNow) {
+            dropChaosIntensity += (1 - dropChaosIntensity) * CHAOS_ATTACK * dt;
+            dropChaosIntensity = Math.min(1, dropChaosIntensity);
+        } else {
+            dropChaosIntensity -= dropChaosIntensity * CHAOS_RELEASE * dt;
+            if (dropChaosIntensity < 0.005) dropChaosIntensity = 0;
+        }
+
+        if (dropChaosActive) {
+            chaosTime += dt;
+        }
+
         // Use marker-specific multipliers for each effect
         const shakeAmount = (params.screenShake || 1) * effects.shake * masterInt;
         const flashAmount = (params.beatFlash || 0.5) * effects.flash * masterInt;
@@ -364,7 +409,11 @@ const VisualEngine = (() => {
 
         // === AUTO ROTATE (section-speed-aware) ===
         if (params.cameraAutoRotate && !isDragging) {
-            const speed = (params.cameraRotateSpeed || 0.5) * effects.speed * (1 + audio.energySmooth * 2);
+            let speed = (params.cameraRotateSpeed || 0.5) * effects.speed * (1 + audio.energySmooth * 2);
+            // Chaos: erratic rotation
+            if (dropChaosActive && dropChaosIntensity > 0) {
+                speed *= 1 + dropChaosIntensity * dropLevel * 3 * Math.sin(chaosTime * 7.3);
+            }
             orbitTheta += speed * dt;
             orbitDirty = true;
         }
@@ -377,10 +426,35 @@ const VisualEngine = (() => {
             cameraShake.intensity = audio.bassBeatIntensity * shakeAmount * 4 * reactivity;
         }
         cameraShake.intensity *= 0.88;
+
+        // CHAOS SHAKE: layered multi-frequency overdrive
+        let chaosShakeX = 0, chaosShakeY = 0, chaosShakeZ = 0;
+        if (dropChaosActive && dropChaosIntensity > 0) {
+            const ci = dropChaosIntensity * dropLevel;
+            const t = chaosTime;
+            // Multi-frequency layered shake — gets wilder with higher dropLevel
+            chaosShakeX = (
+                Math.sin(t * 17.3) * 2.5 +
+                Math.sin(t * 31.7) * 1.8 +
+                Math.sin(t * 53.1) * 0.9 +
+                Math.cos(t * 11.3 + Math.sin(t * 7.1)) * 1.5
+            ) * ci;
+            chaosShakeY = (
+                Math.sin(t * 13.7) * 2.2 +
+                Math.sin(t * 41.3) * 1.6 +
+                Math.cos(t * 29.7) * 1.0 +
+                Math.sin(t * 67.1 + Math.cos(t * 5.3)) * 0.7
+            ) * ci;
+            chaosShakeZ = (
+                Math.sin(t * 9.1) * 1.5 +
+                Math.cos(t * 23.3) * 0.8
+            ) * ci * 0.4;
+        }
+
         shakeTime += dt * 28;
-        cameraShake.x = (Math.sin(shakeTime * 1.0) * 0.6 + Math.sin(shakeTime * 2.3) * 0.4) * cameraShake.intensity;
-        cameraShake.y = (Math.sin(shakeTime * 1.7) * 0.6 + Math.sin(shakeTime * 3.1) * 0.4) * cameraShake.intensity;
-        cameraShake.z = Math.sin(shakeTime * 0.9) * cameraShake.intensity * 0.2;
+        cameraShake.x = (Math.sin(shakeTime * 1.0) * 0.6 + Math.sin(shakeTime * 2.3) * 0.4) * cameraShake.intensity + chaosShakeX;
+        cameraShake.y = (Math.sin(shakeTime * 1.7) * 0.6 + Math.sin(shakeTime * 3.1) * 0.4) * cameraShake.intensity + chaosShakeY;
+        cameraShake.z = Math.sin(shakeTime * 0.9) * cameraShake.intensity * 0.2 + chaosShakeZ;
 
         camera.position.x = baseCameraPos.x + cameraShake.x;
         camera.position.y = baseCameraPos.y + cameraShake.y;
@@ -399,7 +473,23 @@ const VisualEngine = (() => {
             anticipationZoom = audio.anticipation * 8;
         }
 
-        camera.fov = Math.max(10, baseFOV - cameraZoomPunch - anticipationZoom);
+        // CHAOS FOV: rapid oscillations between fish-eye and telephoto
+        let chaosFOV = 0;
+        if (dropChaosActive && dropChaosIntensity > 0) {
+            const ci = dropChaosIntensity * dropLevel;
+            const t = chaosTime;
+            chaosFOV = (
+                Math.sin(t * 8.7) * 12 +
+                Math.sin(t * 19.3) * 6 +
+                Math.sin(t * 3.1) * 8
+            ) * ci;
+            // Beat-sync FOV slam
+            if (audio.beat) {
+                chaosFOV += audio.beatIntensity * 20 * ci;
+            }
+        }
+
+        camera.fov = Math.max(10, Math.min(160, baseFOV - cameraZoomPunch - anticipationZoom + chaosFOV));
         camera.updateProjectionMatrix();
 
         // === BEAT FLASH — inside WebGL scene, visible in recording ===
@@ -410,14 +500,34 @@ const VisualEngine = (() => {
                 flashIntensity = Math.max(flashIntensity, audio.bassBeatIntensity * flashAmount * 0.35);
             }
         }
-        flashIntensity *= 0.8;
+
+        // CHAOS FLASH: aggressive strobing with color cycling
+        if (dropChaosActive && dropChaosIntensity > 0 && flashEnabled) {
+            const ci = dropChaosIntensity * dropLevel;
+            const t = chaosTime;
+            // Fast strobe pattern
+            const strobeWave = Math.pow(Math.abs(Math.sin(t * 15)), 0.3);
+            flashIntensity = Math.max(flashIntensity, strobeWave * ci * 0.7);
+            // On beat: massive flash spike
+            if (audio.beat) {
+                flashIntensity = Math.max(flashIntensity, audio.beatIntensity * ci * 1.5);
+            }
+        }
+
+        flashIntensity *= dropChaosActive ? 0.85 : 0.8; // Slightly slower decay during chaos
 
         if (flashOverlay) {
             flashOverlay.visible = flashEnabled;
-            flashOverlay.material.opacity = flashEnabled ? Math.min(0.5, flashIntensity) : 0;
+            flashOverlay.material.opacity = flashEnabled ? Math.min(0.7, flashIntensity) : 0;
             if (flashEnabled && flashIntensity > 0.05) {
                 const c = ParamSystem.getColorThree(audio.rms + clock.elapsedTime * 0.2);
                 flashOverlay.material.color.lerp(c, 0.3);
+            }
+            // CHAOS COLOR: rapid hue cycling on flash
+            if (dropChaosActive && dropChaosIntensity > 0 && flashEnabled) {
+                const chaosHue = (chaosTime * 2.5) % 1; // full cycle every ~0.4s
+                _tempColor.setHSL(chaosHue, 1.0, 0.6);
+                flashOverlay.material.color.lerp(_tempColor, dropChaosIntensity * 0.5);
             }
             // 6.1: Color temperature → flash color
             const tempHue = _colorTempHue[audio.colorTemp] ?? 280;
@@ -425,7 +535,7 @@ const VisualEngine = (() => {
             if (flashEnabled) flashOverlay.material.color.lerp(_tempColor, 0.05);
         }
 
-        // === EXPOSURE — section-aware ===
+        // === EXPOSURE — section-aware + chaos ===
         let targetExposure = 1.2;
         if (audio.dropDecay > 0.1) {
             targetExposure = 1.2 + audio.dropDecay * 1.5 * effects.flash;
@@ -436,11 +546,26 @@ const VisualEngine = (() => {
         if (audio.isCalm) {
             targetExposure *= 0.85;
         }
-        renderer.toneMappingExposure += (targetExposure - renderer.toneMappingExposure) * 0.1;
+        // CHAOS EXPOSURE: massive spikes on beat, oscillating baseline
+        if (dropChaosActive && dropChaosIntensity > 0) {
+            const ci = dropChaosIntensity * dropLevel;
+            targetExposure += Math.sin(chaosTime * 6) * 0.8 * ci;
+            if (audio.beat) {
+                targetExposure += audio.beatIntensity * 3.0 * ci;
+            }
+            targetExposure = Math.max(0.3, targetExposure);
+        }
+        renderer.toneMappingExposure += (targetExposure - renderer.toneMappingExposure) * (dropChaosActive ? 0.2 : 0.1);
 
-        // === FOG — adapts to section energy + colorTemp ===
+        // === FOG — adapts to section energy + colorTemp + chaos ===
         if (scene.fog) {
-            const fogTarget = audio.isHighEnergy ? 0.0005 : (audio.isCalm ? 0.003 : 0.001);
+            let fogTarget = audio.isHighEnergy ? 0.0005 : (audio.isCalm ? 0.003 : 0.001);
+            // CHAOS FOG: pulsing density
+            if (dropChaosActive && dropChaosIntensity > 0) {
+                const ci = dropChaosIntensity * dropLevel;
+                fogTarget *= 1 + Math.sin(chaosTime * 4.3) * 2.0 * ci;
+                fogTarget = Math.max(0.0001, fogTarget);
+            }
             scene.fog.density += (fogTarget - scene.fog.density) * 0.05;
             // 6.2: Color temperature → fog color
             const targetFogColor = _fogColorMap[audio.colorTemp] || _fogColorMap.neutral;

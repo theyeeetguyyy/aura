@@ -36,17 +36,17 @@ const MarkerSystem = (() => {
         },
         drop: {
             label: 'DROP', color: '#f44336', icon: '💥', intensity: 1.5, glyph: 'D',
-            shake: 1.2, flash: 1.0, zoom: 1.2, bloom: 1.5, speed: 1.5,
+            shake: 3.0, flash: 2.5, zoom: 2.5, bloom: 3.0, speed: 2.5,
             colorTemp: 'hot', cameraPreset: 'shake-heavy',
-            particleScale: 1.4, displacementScale: 1.4,
-            beatSync: true, rhythmLock: true
+            particleScale: 2.0, displacementScale: 2.0,
+            beatSync: true, rhythmLock: true, chaosLevel: 1.0
         },
         drop2: {
             label: 'DROP 2', color: '#e91e63', icon: '🔥', intensity: 1.8, glyph: 'D2',
-            shake: 1.5, flash: 1.2, zoom: 1.5, bloom: 2.0, speed: 1.8,
+            shake: 4.0, flash: 3.5, zoom: 3.5, bloom: 4.0, speed: 3.0,
             colorTemp: 'extreme', cameraPreset: 'shake-insane',
-            particleScale: 1.6, displacementScale: 1.6,
-            beatSync: true, rhythmLock: true
+            particleScale: 2.5, displacementScale: 2.5,
+            beatSync: true, rhythmLock: true, chaosLevel: 1.5
         },
         breakdown: {
             label: 'Breakdown', color: '#ba68c8', icon: '🌀', intensity: 0.6, glyph: 'BD',
@@ -62,10 +62,10 @@ const MarkerSystem = (() => {
         },
         climax: {
             label: 'Climax', color: '#ff1744', icon: '⚡', intensity: 2.0, glyph: 'CL',
-            shake: 1.8, flash: 1.5, zoom: 1.8, bloom: 2.5, speed: 2.0,
+            shake: 5.0, flash: 4.0, zoom: 4.5, bloom: 5.0, speed: 3.5,
             colorTemp: 'extreme', cameraPreset: 'shake-insane',
-            particleScale: 1.8, displacementScale: 1.8,
-            beatSync: true, rhythmLock: true
+            particleScale: 3.0, displacementScale: 3.0,
+            beatSync: true, rhythmLock: true, chaosLevel: 2.0
         },
         outro: {
             label: 'Outro', color: '#90a4ae', icon: '🎬', intensity: 0.3, glyph: 'O',
@@ -195,6 +195,19 @@ const MarkerSystem = (() => {
         return currentSection.intensity <= 0.5;
     }
 
+    // ── DROP CHAOS helpers ──
+    const DROP_TYPES = new Set(['drop', 'drop2', 'climax']);
+
+    function isDropActive() {
+        if (!currentSection) return false;
+        return DROP_TYPES.has(currentSection.type);
+    }
+
+    function getDropIntensity() {
+        if (!currentSection || !DROP_TYPES.has(currentSection.type)) return 0;
+        return currentSection.chaosLevel || currentSection.intensity;
+    }
+
     // Get the next section marker (for anticipation)
     function getNextSection(currentTime) {
         for (let i = 0; i < markers.length; i++) {
@@ -242,6 +255,8 @@ const MarkerSystem = (() => {
         timeToNextSection,
         isHighEnergy,
         isCalm,
+        isDropActive,
+        getDropIntensity,
         exportMarkers,
         importMarkers
     };
