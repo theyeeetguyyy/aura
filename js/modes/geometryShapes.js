@@ -63,6 +63,28 @@ const GeometryForgeMode = {
         beatShrink: { type: 'toggle', default: false, label: 'Beat Shrink/Grow' },
         bassBreath: { type: 'range', min: 0, max: 5, default: 1.2, step: 0.1, label: '🔊 Bass Breath' },
         dropEffect: { type: 'select', options: ['morph', 'explode', 'invert', 'glitch', 'shatter', 'scatter', 'invertSpace', 'all'], default: 'morph', label: '🔥 Drop Effect' },
+        // ── DROP OVERRIDES ──
+        dropMorphTarget: {
+            type: 'select', options: [
+                'random', 'icosahedron', 'dodecahedron', 'octahedron', 'tetrahedron', 'torus', 'torusKnot',
+                'sphere', 'cube', 'heart', 'star', 'crystal', 'mobius', 'klein', 'trefoilKnot',
+                'gyroid', 'seashell', 'romanSurface', 'crossCap', 'boysSurface', 'menger', 'calabi'
+            ], default: 'random', label: '🎯 Drop Shape'
+        },
+        dropDisplaceOverride: {
+            type: 'select', options: [
+                'off', 'frequency', 'noise', 'spike', 'breathe', 'ripple', 'shatter', 'twist', 'melt',
+                'waveform', 'pulse', 'glitch', 'fractal', 'magnetic', 'voronoi', 'flow',
+                'tentacle', 'interference', 'crystallize', 'harmonics'
+            ], default: 'off', label: '🌊 Drop Displace'
+        },
+        dropColorOverride: {
+            type: 'select', options: [
+                'off', 'frequency', 'height', 'distance', 'rainbow', 'plasma',
+                'thermal', 'displacement', 'velocity', 'waveformColor', 'pattern'
+            ], default: 'off', label: '🎨 Drop Color'
+        },
+        dropIntensityMult: { type: 'range', min: 0.5, max: 5, default: 1.5, step: 0.1, label: '⚡ Drop Power' },
         ghostTrail: { type: 'toggle', default: true, label: '👻 Ghost Trail' },
         ghostCount: { type: 'range', min: 1, max: 8, default: 4, step: 1, label: 'Ghost Count' },
         ghostSpacing: { type: 'range', min: 1, max: 15, default: 5, step: 1, label: 'Ghost Spacing' },
@@ -372,7 +394,7 @@ const GeometryForgeMode = {
         this.mirrorMeshes = [];
     },
 
-    triggerMorph() {
+    triggerMorph(targetShape) {
         const shapes = [
             'icosahedron', 'dodecahedron', 'octahedron', 'tetrahedron', 'torus', 'torusKnot',
             'sphere', 'cube', 'cone', 'cylinder', 'heart', 'star', 'crystal', 'mobius', 'klein',
@@ -380,7 +402,12 @@ const GeometryForgeMode = {
             'stellatedOcta', 'romanSurface', 'crossCap', 'catenoid', 'helicoid',
             'diniSurface', 'boysSurface', 'astroid', 'menger', 'calabi'
         ];
-        let next; do { next = shapes[Math.floor(Math.random() * shapes.length)]; } while (next === this.currentShape);
+        let next;
+        if (targetShape && targetShape !== 'random') {
+            next = targetShape;
+        } else {
+            do { next = shapes[Math.floor(Math.random() * shapes.length)]; } while (next === this.currentShape);
+        }
         const tGeo = this.getGeometry(next, this.currentDetail, this.currentSize);
         this.morphTargetBase = new Float32Array(tGeo.attributes.position.array);
         tGeo.dispose();
@@ -431,11 +458,11 @@ const GeometryForgeMode = {
         // Drop effects — only trigger ONCE per drop, not on every bass beat
         // Responds to BOTH marker-set drops AND auto-detected energy drops
         const isDropping = audio.isDropSection || audio.isDrop;
-        const dropLevel = audio.dropSectionIntensity || 1;
+        const dropLevel = (audio.dropSectionIntensity || 1) * (params.dropIntensityMult || 1.5);
         if (isDropping && audio.bassBeat && !this._dropTriggeredThisDrop) {
             this._dropTriggeredThisDrop = true;
             const eff = params.dropEffect || 'morph';
-            if ((eff === 'morph' || eff === 'all') && !this.morphing) this.triggerMorph();
+            if ((eff === 'morph' || eff === 'all') && !this.morphing) this.triggerMorph(params.dropMorphTarget || 'random');
             if (eff === 'explode' || eff === 'all') this.explodePhase = Math.min(this.explodePhase + 1 * dropLevel, 1.5);
             if (eff === 'glitch' || eff === 'all') this.group.rotation.z += 0.05 * dropLevel;
             if (eff === 'scatter' || eff === 'all') this._scatterPhase = Math.min(1.0, dropLevel);
@@ -443,13 +470,18 @@ const GeometryForgeMode = {
             this._emissivePulse = 1.0; // flash on any drop
         }
         if (!isDropping) this._dropTriggeredThisDrop = false;
+
+        // Drop displacement/color override flags
+        const _dropDisplaceActive = (isDropping && params.dropDisplaceOverride && params.dropDisplaceOverride !== 'off') ? params.dropDisplaceOverride : null;
+        const _dropColorActive = (isDropping && params.dropColorOverride && params.dropColorOverride !== 'off') ? params.dropColorOverride : null;
         // Decay scatter and invertSpace phases
         if (this._scatterPhase > 0) this._scatterPhase *= 0.94;
         if (this._invertSpacePhase > 0) this._invertSpacePhase *= 0.92;
         if (this._emissivePulse > 0) this._emissivePulse *= 0.93;
 
-        // Displacement
-        const dMode = params.displaceMode ?? 'frequency', dAmt = (params.displaceAmount ?? 12) * react;
+        // Displacement (drop override supported)
+        const dMode = _dropDisplaceActive || (params.displaceMode ?? 'frequency');
+        const dAmt = (params.displaceAmount ?? 12) * react * (_dropDisplaceActive ? (params.dropIntensityMult || 1.5) : 1);
         const dFreq = params.displaceFreq ?? 3, nScale = params.noiseScale ?? 2, oct = Math.floor(params.noiseOctaves ?? 3);
         const bass = audio.smoothBands.bass, sub = audio.smoothBands.sub, mid = audio.smoothBands.mid;
         const treble = audio.smoothBands.treble, rms = audio.rms;
@@ -471,7 +503,7 @@ const GeometryForgeMode = {
         const solidPos = this.meshSolid.geometry.attributes.position.array;
         const solidCol = this.meshSolid.geometry.attributes.color.array;
         const vertCount = this.basePositions.length / 3;
-        const vcMode = params.vertexColorMode ?? 'frequency';
+        const vcMode = _dropColorActive || (params.vertexColorMode ?? 'frequency');
 
         for (let i = 0; i < vertCount; i++) {
             const i3 = i * 3;

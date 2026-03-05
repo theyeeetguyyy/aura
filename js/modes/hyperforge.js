@@ -1,4 +1,5 @@
 // ============================================================
+// ============================================================
 // AURA Mode — HYPERFORGE 3.0
 // 17 math surfaces, 8 strange attractors, 11 displacement modes
 // 12 color modes, attractor blending, flow patterns, morphing
@@ -82,7 +83,27 @@ const HyperforgeMode = {
         bassBreath: { type: 'range', min: 0, max: 5, default: 2.5, step: 0.1, label: '🔊 Bass Breath' },
         morphEnabled: { type: 'toggle', default: true, label: '🔄 Drop Morph' },
         morphSpeed: { type: 'range', min: 0.5, max: 5, default: 2, step: 0.1, label: 'Morph Speed' },
-        dropReaction: { type: 'select', options: ['shapeShift', 'colorStorm', 'particleBurst', 'invert', 'all'], default: 'all', label: '🔥 Drop React' }
+        dropReaction: { type: 'select', options: ['shapeShift', 'colorStorm', 'particleBurst', 'invert', 'all'], default: 'all', label: '🔥 Drop React' },
+        // ── DROP OVERRIDES ──
+        dropMorphTarget: {
+            type: 'select', options: [
+                'random', 'superformula', 'lorenzSurface', 'kleinBottle', 'catenoid', 'helicoid',
+                'diniSurface', 'enneperSurface', 'crossCap', 'boysSurface', 'trefoilKnot', 'algebraicHorn'
+            ], default: 'random', label: '🎯 Drop Shape'
+        },
+        dropDisplaceOverride: {
+            type: 'select', options: [
+                'off', 'fourier', 'forceField', 'vortex', 'magnetic', 'superposition',
+                'turbulence', 'audioSculpt', 'reaction', 'gravitationalWell', 'stringTheory', 'fluidSim'
+            ], default: 'off', label: '🌊 Drop Displace'
+        },
+        dropColorOverride: {
+            type: 'select', options: [
+                'off', 'reactionDiffusion', 'curvature', 'audioFreq', 'rainbow',
+                'fire', 'plasma', 'thermal', 'void', 'holographic'
+            ], default: 'off', label: '🎨 Drop Color'
+        },
+        dropIntensityMult: { type: 'range', min: 0.5, max: 5, default: 1.5, step: 0.1, label: '⚡ Drop Power' }
     },
 
     // ── NOISE ──
@@ -374,15 +395,35 @@ const HyperforgeMode = {
         // Drop — beat-synced: shape-shift only on bass beats
         // Responds to BOTH marker-set drops AND auto-detected energy drops
         const isDropping = audio.isDropSection || audio.isDrop;
-        const dropLevel = audio.dropSectionIntensity || 1;
+        const dropLevel = (audio.dropSectionIntensity || 1) * (params.dropIntensityMult || 1.5);
         if (isDropping && audio.bassBeat) {
             const react2 = params.dropReaction || 'all';
             if ((react2 === 'shapeShift' || react2 === 'all') && (params.morphEnabled !== false)) {
-                const shapes = ['superformula', 'catenoid', 'helicoid', 'enneperSurface', 'crossCap', 'boysSurface', 'trefoilKnot', 'algebraicHorn'];
-                const next = shapes[Math.floor(Math.random() * shapes.length)];
+                const target = params.dropMorphTarget || 'random';
+                let next;
+                if (target === 'random') {
+                    const shapes = ['superformula', 'catenoid', 'helicoid', 'enneperSurface', 'crossCap', 'boysSurface', 'trefoilKnot', 'algebraicHorn'];
+                    next = shapes[Math.floor(Math.random() * shapes.length)];
+                } else {
+                    next = target;
+                }
                 if (next !== this.currentShape) this.buildOuter(next, seg, size, m, n1, n2, n3);
             }
             if (react2 === 'particleBurst' || react2 === 'all') this.explodePhase = Math.min(this.explodePhase + 2 * dropLevel, 5);
+        }
+
+        // Drop displacement override — switch displacement mode during drop sections
+        if (isDropping && params.dropDisplaceOverride && params.dropDisplaceOverride !== 'off') {
+            this._dropDisplaceActive = params.dropDisplaceOverride;
+        } else {
+            this._dropDisplaceActive = null;
+        }
+
+        // Drop color override — switch color mode during drop sections
+        if (isDropping && params.dropColorOverride && params.dropColorOverride !== 'off') {
+            this._dropColorActive = params.dropColorOverride;
+        } else {
+            this._dropColorActive = null;
         }
 
         // Inner pulsing
@@ -391,11 +432,13 @@ const HyperforgeMode = {
 
     displaceSurface(audio, params, dt) {
         const SE = audio.sectionEffects || { displacementScale: 1, speed: 1 };
-        const mode = params.displaceMode || 'fourier', amt = (params.displaceAmt || 8) * (params.reactivity || 1.5) * SE.displacementScale;
+        // Drop overrides: swap displacement mode and color during drop sections
+        const mode = this._dropDisplaceActive || params.displaceMode || 'fourier';
+        const amt = (params.displaceAmt || 8) * (params.reactivity || 1.5) * SE.displacementScale * (this._dropDisplaceActive ? (params.dropIntensityMult || 1.5) : 1);
         const speed = (params.displaceSpeed || 1.5) * SE.speed;
         const bass = audio.smoothBands.bass || 0, sub = audio.smoothBands.sub || 0, rms = audio.rms || 0;
         const breathScale = 1 + (sub + bass) * (params.bassBreath || 2.5) * 0.2;
-        const colorMode = params.colorMode || 'reactionDiffusion';
+        const colorMode = this._dropColorActive || params.colorMode || 'reactionDiffusion';
         const sym = params.symmetryAxis || 'off';
         const wells = Math.floor(params.gravWellCount || 2);
         const pos = this.mainMesh.geometry.attributes.position.array;

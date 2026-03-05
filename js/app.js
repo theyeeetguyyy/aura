@@ -47,6 +47,7 @@ const AuraApp = (() => {
         VisualEngine.registerMode('geometryForge', GeometryForgeMode);
         VisualEngine.registerMode('geometryForge2', GeometryForgeMode2);
         VisualEngine.registerMode('hyperforge', HyperforgeMode);
+        VisualEngine.registerMode('hyperforge2', HyperforgeMode2);
         VisualEngine.registerMode('godRays', GodRaysMode);
         VisualEngine.registerMode('particleManipulation', ParticleManipulationMode);
         VisualEngine.registerMode('mathMode', MathModeMode);

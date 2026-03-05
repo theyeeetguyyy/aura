@@ -93,6 +93,27 @@ const RhythmicGeometryMode = {
                 'morph', 'explode', 'shatter', 'invert', 'crumple', 'fold', 'all'
             ], default: 'all', label: '🔥 Drop React'
         },
+        dropMorphTarget: {
+            type: 'select', options: [
+                'random', 'icosahedron', 'dodecahedron', 'octahedron', 'tetrahedron',
+                'torusKnot', 'torus', 'sphere', 'cube', 'superformula', 'trefoilKnot',
+                'kleinBottle', 'gyroid', 'mobiusStrip', 'romanSurface', 'boysSurface', 'crystal'
+            ], default: 'random', label: '🎯 Drop Shape'
+        },
+        dropDisplaceOverride: {
+            type: 'select', options: [
+                'off', 'beatPulse', 'fractal', 'vortex', 'magnetic', 'crystallize',
+                'shatter', 'tentacle', 'interference', 'harmonics', 'voronoi',
+                'gravitational', 'twist', 'melt', 'glitch', 'flow'
+            ], default: 'off', label: '🌊 Drop Displace'
+        },
+        dropColorOverride: {
+            type: 'select', options: [
+                'off', 'frequency', 'displacement', 'height', 'rainbow', 'velocity',
+                'plasma', 'thermal', 'void', 'holographic'
+            ], default: 'off', label: '🎨 Drop Color'
+        },
+        dropIntensityMult: { type: 'range', min: 0.5, max: 5, default: 1.5, step: 0.1, label: '⚡ Drop Power' },
 
         // ── Visuals ──
         colorMode: {
@@ -270,14 +291,18 @@ const RhythmicGeometryMode = {
     },
 
     // ── MORPH ──
-    triggerMorph() {
+    triggerMorph(targetShape) {
         const shapes = [
             'icosahedron', 'dodecahedron', 'octahedron', 'tetrahedron', 'torusKnot',
             'torus', 'sphere', 'cube', 'superformula', 'trefoilKnot', 'kleinBottle',
             'gyroid', 'mobiusStrip', 'romanSurface', 'boysSurface', 'crystal'
         ];
         let next;
-        do { next = shapes[Math.floor(Math.random() * shapes.length)]; } while (next === this.currentShape);
+        if (targetShape && targetShape !== 'random') {
+            next = targetShape;
+        } else {
+            do { next = shapes[Math.floor(Math.random() * shapes.length)]; } while (next === this.currentShape);
+        }
         const tGeo = this.getCoreGeometry(next, this.currentDetail, 20);
         this.morphTargetBase = new Float32Array(tGeo.attributes.position.array);
         tGeo.dispose();
@@ -339,10 +364,10 @@ const RhythmicGeometryMode = {
 
         // ── DROP REACTIONS ──
         const isDropping = audio.isDropSection || audio.isDrop;
-        const dropLevel = audio.dropSectionIntensity || 1;
+        const dropLevel = (audio.dropSectionIntensity || 1) * (params.dropIntensityMult || 1.5);
         if (isDropping && audio.bassBeat) {
             const rx = params.dropReaction || 'all';
-            if ((rx === 'morph' || rx === 'all') && params.beatMorph && !this.morphing) this.triggerMorph();
+            if ((rx === 'morph' || rx === 'all') && params.beatMorph && !this.morphing) this.triggerMorph(params.dropMorphTarget || 'random');
             if (rx === 'explode' || rx === 'all') this.explodePhase = Math.min(this.explodePhase + 1.5 * dropLevel, 3);
             if (rx === 'shatter' || rx === 'all') this.shatterPhase = Math.min(1.5, dropLevel);
             if (rx === 'invert' || rx === 'all') this.invertPhase = Math.min(1.0, dropLevel);
@@ -350,9 +375,13 @@ const RhythmicGeometryMode = {
             if (rx === 'fold' || rx === 'all') this.foldPhase = Math.min(1.0, dropLevel);
         }
 
+        // Drop displacement/color override flags
+        const _dropDisplaceActive = (isDropping && params.dropDisplaceOverride && params.dropDisplaceOverride !== 'off') ? params.dropDisplaceOverride : null;
+        const _dropColorActive = (isDropping && params.dropColorOverride && params.dropColorOverride !== 'off') ? params.dropColorOverride : null;
+
         // Beat morph (non-drop)
         if (params.beatMorph && audio.bassBeat && !this.morphing && !isDropping && Math.random() < 0.1) {
-            this.triggerMorph();
+            this.triggerMorph(params.dropMorphTarget || 'random');
         }
 
         // Beat explode
@@ -372,8 +401,8 @@ const RhythmicGeometryMode = {
         if (audio.beat) this.colorShiftPhase += 0.06;
 
         // ── VERTEX DISPLACEMENT ──
-        const dMode = params.displaceMode || 'beatPulse';
-        const dAmt = (params.displaceAmount || 10) * react * this.sectionScale;
+        const dMode = _dropDisplaceActive || (params.displaceMode || 'beatPulse');
+        const dAmt = (params.displaceAmount || 10) * react * this.sectionScale * (_dropDisplaceActive ? (params.dropIntensityMult || 1.5) : 1);
         const dFreq = params.displaceFreq || 3;
         const beatPulse = Math.sin(beatPhase * Math.PI * 2) * 0.5 + 0.5;
         const breathScale = 1 + (sub + bass) * (params.bassBreath || 2) * 0.2;
@@ -382,7 +411,7 @@ const RhythmicGeometryMode = {
         const pos = this.coreMesh.geometry.attributes.position.array;
         const col = this.coreMesh.geometry.attributes.color.array;
         const vertCount = this.coreBasePos.length / 3;
-        const colorMode = params.colorMode || 'frequency';
+        const colorMode = _dropColorActive || (params.colorMode || 'frequency');
 
         for (let i = 0; i < vertCount; i++) {
             const i3 = i * 3;
