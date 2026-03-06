@@ -347,7 +347,7 @@ const GeometryForgeMode = {
 
         this.meshSolid = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({
             vertexColors: true, transparent: true, opacity: 0.35, side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending, depthWrite: false
+            blending: THREE.NormalBlending, depthWrite: false
         }));
         this.meshSolid.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(cols), 3));
         this.group.add(this.meshSolid);

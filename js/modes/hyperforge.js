@@ -240,7 +240,7 @@ const HyperforgeMode = {
         const cols = new Float32Array(vc * 3).fill(1);
         geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
         this.vertexColors = cols;
-        this.mainMesh = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.2, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+        this.mainMesh = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.2, side: THREE.DoubleSide, blending: THREE.NormalBlending, depthWrite: false }));
         this.mainMesh.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(cols), 3));
         this.group.add(this.mainMesh);
         this.mainWire = new THREE.LineSegments(new THREE.WireframeGeometry(geo), new THREE.LineBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending }));
@@ -261,7 +261,7 @@ const HyperforgeMode = {
         this.innerBasePos = new Float32Array(geo.attributes.position.array);
         geo.computeVertexNormals();
         this.innerNormals = new Float32Array(geo.attributes.normal.array);
-        this.innerMesh = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ color: 0x22ccff, transparent: true, opacity: 0.15, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+        this.innerMesh = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ color: 0x22ccff, transparent: true, opacity: 0.15, side: THREE.DoubleSide, blending: THREE.NormalBlending, depthWrite: false }));
         this.group.add(this.innerMesh);
         this.innerWire = new THREE.LineSegments(new THREE.WireframeGeometry(geo), new THREE.LineBasicMaterial({ color: 0x22ccff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending }));
         this.group.add(this.innerWire);
