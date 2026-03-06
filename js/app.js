@@ -70,6 +70,7 @@ const AuraApp = (() => {
         VisualEngine.registerMode('gpgpuParticles', GPGPUParticlesMode);
         VisualEngine.registerMode('fractalShader', FractalShaderMode);
         VisualEngine.registerMode('voidEngine', VoidEngineMode);
+        VisualEngine.registerMode('laserShow', LaserShowMode);
     }
 
     function loop() {

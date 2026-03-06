@@ -486,59 +486,7 @@ particleGeometry.setDrawRange(0, params.particleCount);
 
 ## 3.1 Audio Engine Additions
 
----
 
-### FEAT-01 · Musical Key Detection & Chroma Vector
-**Priority:** `MED` | **Effort:** `Med` | **File:** `audio.js`
-
-Extend the harmonic analysis to detect the musical key using the Krumhansl-Schmuckler algorithm on a 12-bin chroma vector (pitch class distribution). Expose:
-- `audioBus.chromaVector` — `Float32Array(12)` one value per pitch class (C, C#, D... B)
-- `audioBus.musicalKey` — string e.g. `"C# minor"` or `"F major"`
-- `audioBus.dominantPitchClass` — 0–11 integer
-
-Modes can use `chromaVector` to generate harmonically correct color assignments per pitch class (e.g. each note maps to a hue in the color wheel).
-
----
-
-### FEAT-02 · Frequency Band Isolation (Solo / Mute)
-**Priority:** `MED` | **Effort:** `Med` | **File:** `audio.js` + `params.js`
-
-Add a `FrequencyIsolation` filter that can restrict the frequency data feeding visual modes. Add to global params:
-
-```js
-// params.js — globalDefaults
-isolationBand: {
-    type: 'select',
-    options: ['full', 'sub-only', 'bass-only', 'mid-only', 'treble-only', 'sub+bass', 'mid+treble'],
-    default: 'full',
-    label: '🎚️ Frequency Isolation'
-}
-```
-
-When not `'full'`, zero out the irrelevant band values on `audioBus.smoothBands` before modes read them. This focuses the visual reaction to a single spectral range.
-
----
-
-### FEAT-03 · Beat Grid Quantize
-**Priority:** `MED` | **Effort:** `Med` | **File:** `audio.js`
-
-Implement a beat grid quantizer. Expose:
-- `audioBus.quantizedBeatPhase` — `beatPhase` snapped to the nearest division
-- `audioBus.quantStep` — current division (`1/4`, `1/8`, `1/16`)
-
-Modes can subscribe to `quantizedBeatPhase` for locked, rhythmically precise animations. Especially powerful for geometry rotation snapping and particle burst timing.
-
-```js
-// Add to audioBus:
-quantizedBeatPhase: 0,
-quantStep: 0.25, // 1/4 note default
-
-// In update():
-const divisions = Math.round(1 / audioBus.quantStep);
-audioBus.quantizedBeatPhase = Math.round(audioBus.beatPhase * divisions) / divisions;
-```
-
----
 
 ### FEAT-04 · Tap Tempo Visual Feedback
 **Priority:** `HIGH` | **Effort:** `Low` | **File:** `ui.js`
@@ -695,7 +643,7 @@ Show a preview of detected markers before committing (allow user to review/disca
 
 ---
 
-### FEAT-13 · Marker Timeline Zoom
+### FEAT-13 · Marker Timeline Zoom and Movement of markers
 **Priority:** `LOW` | **Effort:** `Med` | **File:** `ui.js`
 
 The marker track becomes crowded with many markers. Add zoom functionality:
@@ -725,53 +673,6 @@ dot.addEventListener('contextmenu', (e) => {
     showMarkerContextMenu(e.clientX, e.clientY, m);
 });
 ```
-
----
-
-## 3.4 Recording System Additions
-
----
-
-### FEAT-15 · Scheduled Recording (Record N Seconds)
-**Priority:** `MED` | **Effort:** `Low` | **File:** `recorder.js` + `ui.js`
-
-Add "Record 30s / 60s / Custom" quick buttons. When clicked, recording starts immediately and auto-stops after the specified duration. Show a countdown in the REC overlay: `● REC 0:23 / 0:30`.
-
----
-
-### FEAT-16 · Recording Quality Presets
-**Priority:** `LOW` | **Effort:** `Low` | **File:** `recorder.js`
-
-The bitrate is hardcoded at 16 Mbps. Add quality presets as a global param:
-
-| Preset | Bitrate | Resolution |
-|--------|---------|------------|
-| Draft | 4 Mbps | 0.5× canvas |
-| Standard | 16 Mbps | 1× canvas |
-| Archive | 40 Mbps | 1× canvas |
-
-```js
-// recorder.js — use param to set bitrate
-const QUALITY_PRESETS = {
-    draft:    { videoBitsPerSecond: 4_000_000,  scale: 0.5 },
-    standard: { videoBitsPerSecond: 16_000_000, scale: 1.0 },
-    archive:  { videoBitsPerSecond: 40_000_000, scale: 1.0 },
-};
-```
-
----
-
-### FEAT-17 · Animated GIF Export
-**Priority:** `LOW` | **Effort:** `High` | **File:** `recorder.js`
-
-Add a GIF export mode using a pure-JS GIF encoder (e.g. `gif.js` from CDN). Capture a configurable duration (2–5 seconds) at 15–24fps, then encode and download. Cap resolution at 480p to keep file size manageable.
-
-```html
-<!-- Add to index.html -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
-```
-
----
 
 ---
 
@@ -1037,60 +938,6 @@ When hovering a mode in the list for > 500ms, show a small animated thumbnail (1
 
 ---
 
-### UI-08 · "Random on Drop" Mode
-**Priority:** `LOW` | **Effort:** `Low` | **File:** `ui.js` + `visuals.js`
-
-Add a toggle "🎲 Random on Drop" in the modes panel header. When enabled, every time a `DROP` or `CLIMAX` section starts (`audioBus.sectionChanged && audioBus.sectionType === 'drop'`), automatically switch to a random mode from the mode list. Creates surprise variety in live performances.
-
----
-
-## 5.3 Parameters Panel
-
----
-
-### UI-09 · Parameter Lock / Protect
-**Priority:** `MED` | **Effort:** `Low` | **File:** `ui.js` + `params.js`
-
-Add a 🔒 icon next to each parameter. When locked, the `Randomize` button skips that parameter. This lets users protect a carefully tuned base palette while randomizing everything else.
-
-```js
-// params.js — add lockedParams Set
-const lockedParams = new Set();
-function isLocked(key) { return lockedParams.has(key); }
-function toggleLock(key) {
-    if (lockedParams.has(key)) lockedParams.delete(key);
-    else lockedParams.add(key);
-}
-
-// In randomize():
-for (const [key, schema] of Object.entries(currentModeSchema)) {
-    if (isLocked(key)) continue; // skip locked params
-    // ... randomize
-}
-```
-
----
-
-### UI-10 · Preset Sharing via URL Hash
-**Priority:** `MED` | **Effort:** `Low` | **File:** `ui.js`
-
-Add an "🔗 Share" button that encodes the current preset as base64 JSON in the URL hash (`#preset=...`). On page load, check for this hash and auto-apply the preset. This requires no server — entirely client-side.
-
-```js
-// Export:
-const encoded = btoa(JSON.stringify({ mode, global, mode_params }));
-window.location.hash = `preset=${encoded}`;
-
-// On load:
-const hash = window.location.hash;
-if (hash.startsWith('#preset=')) {
-    const data = JSON.parse(atob(hash.slice(8)));
-    applyPreset(data);
-}
-```
-
----
-
 ### UI-11 · Param Animation Keyframes (Automation)
 **Priority:** `LOW` | **Effort:** `High` | **File:** `ui.js` + `params.js`
 
@@ -1136,19 +983,6 @@ const Toast = {
 
 ---
 
-### UI-13 · Onboarding Tour (First Visit)
-**Priority:** `LOW` | **Effort:** `Med` | **File:** `ui.js`
-
-On first visit (detected via `localStorage.getItem('aura_visited')`), show a 5-step guided tour:
-1. **Drop Zone** — "Drop a music file here or click Import"
-2. **Modes Panel** — "Browse 30+ visual modes here"
-3. **Params Panel** — "Fine-tune every parameter in real time"
-4. **Markers** — "Mark sections of your track for reactive effects"
-5. **Record** — "Record your session in HD"
-
-Each step highlights the relevant element with a pulsing glow ring overlay. Dismissible. Re-launchable via the `?` button secondary action.
-
----
 
 ### UI-14 · Mobile Layout Overhaul
 **Priority:** `MED` | **Effort:** `High` | **File:** `ui.js` + CSS
@@ -1186,71 +1020,6 @@ Current issues to fix:
 
 ## 6.1 Module System
 
----
-
-### ARCH-01 · Convert to ES Modules
-**Priority:** `LOW` | **Effort:** `High` | **All Files**
-
-All files rely on implicit globals loaded via ordered `<script>` tags. Wrong tag order crashes the app silently. Migrate to ES modules.
-
-```js
-// audio.js
-export const AudioEngine = (() => { ... })();
-
-// visuals.js
-import { AudioEngine } from './audio.js';
-export const VisualEngine = (() => { ... })();
-
-// index.html
-<script type="module" src="js/app.js"></script>
-```
-
-Benefits: explicit dependency graph, no global namespace pollution, enables tree-shaking, better IDE support.
-
----
-
-### ARCH-02 · Lazy Mode Loading via Dynamic Import
-**Priority:** `LOW` | **Effort:** `Med` | **File:** `app.js` + `visuals.js`
-
-Currently all 30+ mode files are parsed and executed on page load even if the user never uses them. Switch to dynamic `import()`:
-
-```js
-// app.js — register modes as lazy loaders
-VisualEngine.registerModeLazy('gravityWell', () => import('./modes/gravityWell.js'));
-
-// visuals.js — setMode() loads the module on first use
-async function setMode(key) {
-    if (lazyLoaders[key] && !modes[key]) {
-        const mod = await lazyLoaders[key]();
-        modes[key] = mod.default;
-    }
-    // ... activate mode
-}
-```
-
----
-
-### ARCH-03 · Event Bus for Cross-Module Communication
-**Priority:** `LOW` | **Effort:** `Med` | **New File:** `eventbus.js`
-
-Modules currently call each other directly. Create a lightweight EventBus to reduce coupling:
-
-```js
-// eventbus.js
-const EventBus = {
-    _listeners: {},
-    on(event, fn) { (this._listeners[event] = this._listeners[event] || []).push(fn); },
-    off(event, fn) { this._listeners[event] = (this._listeners[event] || []).filter(f => f !== fn); },
-    emit(event, data) { (this._listeners[event] || []).forEach(fn => fn(data)); }
-};
-
-// Usage:
-EventBus.on('beat', ({ intensity }) => { /* react */ });
-EventBus.emit('beat', { intensity: audioBus.beatIntensity });
-```
-
----
-
 ### ARCH-04 · WebWorker for Heavy Audio Analysis
 **Priority:** `LOW` | **Effort:** `High` | **New File:** `audio-worker.js`
 
@@ -1274,34 +1043,6 @@ Functions to move: `computeHarmonicAnalysis`, `computeRhythmAnalysis`, `computeS
 
 ---
 
-## 6.2 Code Quality
-
----
-
-### ARCH-05 · JSDoc AudioBus Type Definition
-**Priority:** `MED` | **Effort:** `Med` | **File:** `audio.js`
-
-The `audioBus` object has ~65 properties. Add `@typedef` JSDoc so any developer or AI assistant working on modes gets full autocomplete.
-
-```js
-/**
- * @typedef {Object} AudioBus
- * @property {Uint8Array} frequencyData - Raw FFT frequency data (0-255)
- * @property {Uint8Array} timeDomainData - Raw waveform data (0-255)
- * @property {{sub:number, bass:number, lowMid:number, mid:number, highMid:number, treble:number, brilliance:number}} smoothBands - Smoothed 0-1 band energies
- * @property {boolean} beat - True on beat detection frame
- * @property {number} beatIntensity - Beat strength 0-1
- * @property {number} beatPhase - 0-1 position within current beat cycle
- * @property {number} bpm - Estimated BPM
- * @property {number} rms - Overall loudness 0-1
- * @property {Float32Array} waveformPoints - 256-point waveform
- * @property {string|null} sectionType - Current marker section type
- * @property {number} masterIntensity - Combined intensity multiplier
- * ... etc
- */
-```
-
----
 
 ### ARCH-06 · Mode Interface Validation
 **Priority:** `LOW` | **Effort:** `Low` | **File:** `visuals.js`
@@ -1344,86 +1085,12 @@ Replace all `console.warn('Mode error...')` patterns in `visuals.js` with `Error
 
 ---
 
----
-
-# 07 · Creative Add-Ons & Wild Ideas
-
----
-
-## 7.1 AI-Powered Features
-
----
-
-### CREATIVE-01 · Generative Color Palette from Text
-**Priority:** `LOW` | **Effort:** `Med`
-
-Add a text field in the params panel: "Describe a color mood". Parse keywords to generate a palette:
-
-```js
-const moodPalettes = {
-    'sunset': (t) => `hsl(${t * 50 + 5}, 90%, ${45 + t * 30}%)`,
-    'deep ocean': (t) => `hsl(${200 + t * 30}, 80%, ${15 + t * 35}%)`,
-    'acid rain': (t) => `hsl(${80 + t * 60}, 100%, ${40 + t * 20}%)`,
-    'void': (t) => `hsl(${270 + t * 30}, 60%, ${5 + t * 25}%)`,
-    // ... more
-};
-// Map user input to closest keyword using simple word matching
-// Then inject the palette function into ParamSystem.palettes
-```
-
----
-
-### CREATIVE-02 · Genre-Aware Default Configuration
-**Priority:** `LOW` | **Effort:** `Med` | **File:** `audio.js` + `ui.js`
-
-Analyze the first 10 seconds of a loaded track to classify its genre. Use spectral features: bass-heavy with strong kick → EDM; mid-heavy with complex rhythm → Hip-Hop; wide dynamic range, sparse → Classical.
-
-Show a suggestion banner: *"Sounds like EDM — try Hyperforge with Drop markers?"* with a one-click "Apply Suggestion" button.
-
----
-
-## 7.2 Social & Sharing
-
----
 
 ### CREATIVE-03 · Visual Snapshot Gallery
 **Priority:** `LOW` | **Effort:** `Med` | **File:** `ui.js`
 
 Auto-capture a screenshot every time a `drop` or `climax` section starts (if markers are set). Store up to 12 in memory as a `<canvas>` grid. Access via a new `📸 Gallery` button in the transport bar. User can download any individual snapshot.
 
----
-
-### CREATIVE-04 · Streaming Mode (OBS-Ready)
-**Priority:** `MED` | **Effort:** `Low` | **File:** `ui.js`
-
-Add a "Streaming Mode" triggered via `?streaming=true` URL param or a keyboard shortcut (`Shift+S`). In streaming mode:
-- All UI panels are hidden
-- Transport bar is hidden
-- Background is pure black
-- Window maximizes
-- Canvas fills 100% viewport with no letterboxing
-
----
-
-## 7.3 Visual Novelties
-
----
-
-### CREATIVE-05 · Feedback Loop Effect (Infinite Mirror)
-**Priority:** `MED` | **Effort:** `Med` | **File:** `visuals.js`
-
-Implement a framebuffer feedback effect: each frame, the previous frame is blended back into the current render at reduced opacity, creating psychedelic trailing afterimages.
-
-```
-1. Render current scene → renderTargetA
-2. Blit renderTargetA to screen at 100% opacity
-3. On next frame, first blit renderTargetA at 0.88 opacity (the "echo")
-4. Then render current frame on top at 100%
-```
-
-Blend amount driven by `audioBus.energySmooth`. Add as a global toggle param `feedbackLoop` with a `feedbackDecay` slider (0.70–0.98).
-
----
 
 ### CREATIVE-06 · Screen Mirror / Kaleidoscope Overlay
 **Priority:** `LOW` | **Effort:** `Med` | **File:** `visuals.js`
@@ -1513,79 +1180,7 @@ void main() {
 }
 ```
 
----
 
-### CREATIVE-13 · Starfield: Deep Space Nebula Generator
-**Priority:** `LOW` | **Effort:** `Med` | **File:** `js/modes/starfield.js`
-
-Enhance the existing starfield mode:
-- Volumetric nebula clouds using layered billboard sprites with additive blending
-- Stars with spectral color classification (O-type = blue, G-type = yellow, M-type = red)
-- Audio energy drives nebula cloud density
-- Shooting stars emit on `gunShotDetected`
-- Pulsar flicker effect on bass beats (random star temporarily brightens 10×)
-- Black hole center that warps nearby stars on `isDrop`
-
----
-
----
-
-# 08 · Master Priority Table
-
-| # | Item | Priority | Effort | File(s) |
-|---|------|----------|--------|---------|
-| 01 | BUG-01: Double RAF on tab restore | `HIGH` | Low | `app.js` |
-| 02 | BUG-02: iOS AudioContext suspended | `HIGH` | Low | `audio.js` |
-| 03 | BUG-04: Seek bar stuck after off-window mouseup | `HIGH` | Low | `ui.js` |
-| 04 | BUG-09: Mirror mesh VRAM leak on mode switch | `HIGH` | Med | `geometryShapes2.js` |
-| 05 | BUG-08: Bloom strength accumulation | `HIGH` | Low | `visuals.js` |
-| 06 | PERF-01: spectralFeatures throttle | `HIGH` | Low | `audio.js` |
-| 07 | PERF-05: disposeMaterial array literal | `HIGH` | Low | `visuals.js` |
-| 08 | PERF-07: Section indicator DOM cache | `HIGH` | Low | `ui.js` |
-| 09 | UI-12: Toast notification system | `HIGH` | Med | `ui.js` |
-| 10 | FEAT-04: Tap Tempo visual feedback | `HIGH` | Low | `ui.js` |
-| 11 | FEAT-06: Per-mode camera tween | `MED` | Med | `visuals.js` |
-| 12 | FEAT-07: Section transition wipe | `MED` | Med | `visuals.js` |
-| 13 | FEAT-08: Color temp gradient mixing | `MED` | Low | `visuals.js` |
-| 14 | FEAT-11: Auto-detect sections | `MED` | High | `markers.js` + `ui.js` |
-| 15 | FEAT-12: Marker export/import UI | `MED` | Low | `ui.js` + `markers.js` |
-| 16 | UI-01: Seek bar waveform preview | `MED` | Med | `ui.js` |
-| 17 | UI-03: VU meter level display | `MED` | Low | `ui.js` |
-| 18 | UI-05: Mode favorites / pin to top | `MED` | Low | `ui.js` |
-| 19 | UI-09: Parameter lock/protect | `MED` | Low | `ui.js` + `params.js` |
-| 20 | UI-10: Preset sharing via URL hash | `MED` | Low | `ui.js` |
-| 21 | UI-14: Mobile layout overhaul | `MED` | High | `ui.js` + CSS |
-| 22 | UI-15: Accessibility improvements | `MED` | Med | `ui.js` + HTML |
-| 23 | FEAT-01: Musical key detection | `MED` | Med | `audio.js` |
-| 24 | FEAT-09: Real post-processing pipeline | `MED` | High | `visuals.js` |
-| 25 | CREATIVE-04: Streaming mode | `MED` | Low | `ui.js` |
-| 26 | CREATIVE-05: Feedback loop effect | `MED` | Med | `visuals.js` |
-| 27 | CREATIVE-08: 3D spectrum waterfall | `MED` | Med | new mode |
-| 28 | NEW MODE: Gravity Well physics | `MED` | High | `modes/gravityWell.js` |
-| 29 | NEW MODE: Navier-Stokes fluid | `MED` | High | `modes/fluidSim.js` |
-| 30 | BUG-10: Waveform points GC | `MED` | Low | `audio.js` |
-| 31 | PERF-04: BPM ring buffer | `MED` | Low | `audio.js` |
-| 32 | ARCH-07: Consistent error handling | `MED` | Med | all files |
-| 33 | UI-06: Mode category grouping | `LOW` | Low | `ui.js` |
-| 34 | UI-13: Onboarding tour | `LOW` | Med | `ui.js` |
-| 35 | FEAT-10: Camera path recording | `LOW` | High | `visuals.js` |
-| 36 | ARCH-01: ES Modules migration | `LOW` | High | all files |
-| 37 | ARCH-02: Lazy mode loading | `LOW` | Med | `app.js` + `visuals.js` |
-| 38 | ARCH-04: WebWorker audio analysis | `LOW` | High | new file |
-| 39 | NEW MODE: Boids Storm | `LOW` | Med | `modes/boidsStorm.js` |
-| 40 | NEW MODE: Mandelbrot Live | `LOW` | Med | `modes/mandelbrotLive.js` |
-| 41 | NEW MODE: Mandalic geometry | `LOW` | Med | `modes/mandalic.js` |
-| 42 | NEW MODE: Mercury Flow | `LOW` | Med | `modes/mercuryFlow.js` |
-| 43 | CREATIVE-12: GPGPU attractor particles | `LOW` | High | `hyperforge2.js` |
-| 44 | FEAT-17: Animated GIF export | `LOW` | High | `recorder.js` |
-
----
-
----
-
-# 09 · Implementation Notes for AI
-
----
 
 ## 9.1 Hard Constraints
 
