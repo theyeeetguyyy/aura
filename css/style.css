@@ -1100,3 +1100,57 @@ input[type="range"]::-webkit-slider-thumb:hover {
     opacity: 1;
     color: var(--red);
 }
+
+/* ── Creator Tags ───────────────────────────────────── */
+.creator-tag-intro {
+    position: absolute;
+    bottom: 40px;
+    font-family: var(--font);
+    font-size: 14px;
+    font-weight: 700;
+    color: transparent;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #f472b6, var(--accent-bright), var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: textGlow 3s ease-in-out infinite alternate;
+}
+
+.creator-tag-intro::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 10%;
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-bright), transparent);
+    opacity: 0.5;
+}
+
+@keyframes textGlow {
+    0% {
+        filter: drop-shadow(0 0 5px rgba(139, 92, 246, 0.4)) drop-shadow(0 0 15px rgba(244, 114, 182, 0.3));
+        transform: scale(1);
+    }
+    100% {
+        filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.8)) drop-shadow(0 0 25px rgba(244, 114, 182, 0.6));
+        transform: scale(1.02);
+    }
+}
+
+.creator-tag-app {
+    position: fixed;
+    bottom: 74px;
+    left: 20px;
+    z-index: 40;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    opacity: 0.3;
+    pointer-events: none;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+}
