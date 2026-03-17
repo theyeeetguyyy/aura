@@ -13,6 +13,7 @@ const ParamSystem = (() => {
         zoomPunch: { type: 'range', min: 0, max: 2, default: 0.3, step: 0.1, label: '🔍 Zoom Punch' },
         bloomIntensity: { type: 'range', min: 0, max: 3, default: 0.6, step: 0.1, label: 'Bloom' },
         bloomThreshold: { type: 'range', min: 0, max: 1, default: 0.4, step: 0.05, label: 'Bloom Threshold' },
+        cinematicCamera: { type: 'toggle', default: true, label: '🎥 Cinematic Auto-Cam' },
         cameraAutoRotate: { type: 'toggle', default: false, label: 'Auto Rotate Camera' },
         cameraRotateSpeed: { type: 'range', min: 0, max: 5, default: 0.3, step: 0.1, label: 'Rotate Speed' },
         postProcessing: { type: 'toggle', default: false, label: 'Post Processing' },

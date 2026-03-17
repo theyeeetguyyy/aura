@@ -483,7 +483,35 @@ const LaserShowMode = {
 
     // ── DESTROY ────────────────────────────────────────────
     destroy(scene) {
-        if (this.group) scene.remove(this.group);
+        if (this.group) {
+            this.beams.forEach(b => {
+                if (b.line.geometry) b.line.geometry.dispose();
+                if (b.mat) b.mat.dispose();
+                if (b.extraLines) b.extraLines.forEach(el => {
+                    if (el.geometry) el.geometry.dispose();
+                    if (el.material) el.material.dispose();
+                });
+            });
+            this.reflectionBeams.forEach(b => {
+                if (b.line.geometry) b.line.geometry.dispose();
+                if (b.mat) b.mat.dispose();
+            });
+            this.burstRings.forEach(r => {
+                if (r.mesh.geometry) r.mesh.geometry.dispose();
+                if (r.mat) r.mat.dispose();
+            });
+            if (this.hazeGeo) this.hazeGeo.dispose();
+            if (this.hazeMat) this.hazeMat.dispose();
+            if (this.coreMesh) {
+                if (this.coreMesh.geometry) this.coreMesh.geometry.dispose();
+                if (this.coreMesh.material) this.coreMesh.material.dispose();
+            }
+            if (this.coreGlow) {
+                if (this.coreGlow.geometry) this.coreGlow.geometry.dispose();
+                if (this.coreGlow.material) this.coreGlow.material.dispose();
+            }
+            scene.remove(this.group);
+        }
         this.group = null;
         this.beams = [];
         this.reflectionBeams = [];

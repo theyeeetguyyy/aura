@@ -402,20 +402,65 @@ const VisualEngine = (() => {
         }
 
         // Use marker-specific multipliers for each effect
-        const shakeAmount = (params.screenShake || 1) * effects.shake * masterInt;
-        const flashAmount = (params.beatFlash || 0.5) * effects.flash * masterInt;
-        const zoomPunch = (params.zoomPunch || 0.5) * effects.zoom * masterInt;
-        const reactivity = (params.reactivity || 1) * sectionInt;
+        const shakeAmount = (params.screenShake ?? 0.4) * effects.shake * masterInt;
+        const flashAmount = (params.beatFlash ?? 0.4) * effects.flash * masterInt;
+        const zoomPunch = (params.zoomPunch ?? 0.3) * effects.zoom * masterInt;
+        const reactivity = (params.reactivity ?? 1.0) * sectionInt;
 
-        // === AUTO ROTATE (section-speed-aware) ===
-        if (params.cameraAutoRotate && !isDragging) {
-            let speed = (params.cameraRotateSpeed || 0.5) * effects.speed * (1 + audio.energySmooth * 2);
-            // Chaos: erratic rotation
-            if (dropChaosActive && dropChaosIntensity > 0) {
-                speed *= 1 + dropChaosIntensity * dropLevel * 3 * Math.sin(chaosTime * 7.3);
+        // === CINEMATIC AUTO-CAM & AUTO ROTATE ===
+        if (!isDragging) {
+            if (params.cinematicCamera) {
+                let rSpeed = (params.cameraRotateSpeed || 0.3) * effects.speed;
+                let swaySpeed = 0.5;
+                let swayAmp = 0.05;
+                let targetPhi = Math.PI / 2;
+
+                if (dropChaosActive && dropChaosIntensity > 0) {
+                    // Drone-shot: fast continuous spin, low sway
+                    rSpeed = (rSpeed * 3.0 + dropChaosIntensity * dropLevel * 2.0) * (1 + Math.sin(chaosTime * 7.3) * 0.5);
+                    swaySpeed = 2.0;
+                    swayAmp = 0.15;
+                    targetPhi += Math.sin(chaosTime * swaySpeed) * swayAmp;
+                } else if (audio.isBuildingUp) {
+                    // Build-up: push in (zoom) + dramatic slow rotation
+                    rSpeed = rSpeed * 1.5;
+                    swaySpeed = 1.0;
+                    swayAmp = 0.1;
+                    orbitRadius -= 15 * dt * (audio.sectionProgress || 0.5);
+                    orbitRadius = Math.max(20, orbitRadius);
+                    targetPhi += Math.sin(clock.elapsedTime * swaySpeed) * swayAmp;
+                } else if (audio.isBreakdown || audio.sectionType === 'outro') {
+                    // Pull back slowly
+                    rSpeed = rSpeed * 0.5;
+                    swaySpeed = 0.3;
+                    swayAmp = 0.1;
+                    orbitRadius += 8 * dt;
+                    orbitRadius = Math.min(1500, orbitRadius);
+                    targetPhi += Math.sin(clock.elapsedTime * swaySpeed) * swayAmp;
+                } else if (audio.sectionType === 'intro') {
+                    rSpeed = rSpeed * 0.8;
+                    swaySpeed = 0.4;
+                    swayAmp = 0.15;
+                    targetPhi += Math.sin(clock.elapsedTime * swaySpeed) * swayAmp;
+                } else {
+                    // Verse / default
+                    rSpeed = rSpeed * 1.2 * (1 + audio.energySmooth * 2);
+                    swaySpeed = 0.8;
+                    swayAmp = 0.08;
+                    targetPhi += Math.sin(clock.elapsedTime * swaySpeed) * swayAmp;
+                }
+
+                orbitTheta += rSpeed * dt;
+                orbitPhi += (targetPhi - orbitPhi) * 0.05; // smooth drift
+                orbitDirty = true;
+            } else if (params.cameraAutoRotate) {
+                let speed = (params.cameraRotateSpeed || 0.5) * effects.speed * (1 + audio.energySmooth * 2);
+                if (dropChaosActive && dropChaosIntensity > 0) {
+                    speed *= 1 + dropChaosIntensity * dropLevel * 3 * Math.sin(chaosTime * 7.3);
+                }
+                orbitTheta += speed * dt;
+                orbitDirty = true;
             }
-            orbitTheta += speed * dt;
-            orbitDirty = true;
         }
 
         // === APPLY USER ORBIT ===
