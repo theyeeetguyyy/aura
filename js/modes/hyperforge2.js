@@ -39,6 +39,7 @@ const HyperforgeMode2 = {
     morphing: false, morphTarget: null, morphProgress: 0,
     _dropTriggeredThisDrop: false,
     _dropDisplaceActive: null, _dropColorActive: null,
+    _tempColor: null, // BUG-22 fix: reusable scratch color for per-vertex coloring
 
     // ── PARAMS ──
     params: {
@@ -595,13 +596,13 @@ const HyperforgeMode2 = {
                 case 'audioFreq': { const c = ParamSystem.getColorThreeHSL(freq + t * 0.2); r = c.r; g = c.g; b = c.b; break; }
                 case 'height': { const c = ParamSystem.getColorThreeHSL(pos[i3 + 1] / 30 + 0.5); r = c.r; g = c.g; b = c.b; break; }
                 case 'velocity': { const c = ParamSystem.getColorThreeHSL(Math.abs(disp) * 0.1 + this.time * 0.05); r = c.r; g = c.g; b = c.b; break; }
-                case 'rainbow': { const c = new THREE.Color().setHSL((t + this.time * 0.1) % 1, 0.9, 0.5 + rms * 0.3); r = c.r; g = c.g; b = c.b; break; }
+                case 'rainbow': { if (!this._tempColor) this._tempColor = new THREE.Color(); const c = this._tempColor.setHSL((t + this.time * 0.1) % 1, 0.9, 0.5 + rms * 0.3); r = c.r; g = c.g; b = c.b; break; }
                 case 'fire': { const hf = freq * 0.6 + rms * 0.4; r = Math.min(1, hf * 2); g = hf * 0.6; b = hf * 0.1; break; }
                 case 'ice': { const c2 = freq * 0.5 + 0.3; r = c2 * 0.3; g = c2 * 0.7; b = Math.min(1, c2 * 1.5); break; }
                 case 'plasma': { r = Math.sin(t * 10 + this.time) * 0.5 + 0.5; g = Math.sin(t * 10 + this.time * 1.3 + 2.1) * 0.5 + 0.5; b = Math.sin(t * 10 + this.time * 0.7 + 4.2) * 0.5 + 0.5; break; }
                 case 'thermal': { const th = freq * 0.7 + rms * 0.3; r = Math.min(1, th * 3); g = Math.max(0, th * 2 - 0.5); b = Math.max(0, th - 0.7); break; }
                 case 'void': { const edge = Math.abs(disp) / (amt + 0.01); r = edge * 0.3; g = edge * 0.1; b = edge * 0.5 + 0.05; break; }
-                case 'holographic': { const angle = Math.atan2(pos[i3 + 2], pos[i3]) / Math.PI; const c = new THREE.Color().setHSL((angle + t + this.time * 0.05) % 1, 0.9, 0.3 + freq * 0.4); r = c.r; g = c.g; b = c.b; break; }
+                case 'holographic': { const angle = Math.atan2(pos[i3 + 2], pos[i3]) / Math.PI; if (!this._tempColor) this._tempColor = new THREE.Color(); const c = this._tempColor.setHSL((angle + t + this.time * 0.05) % 1, 0.9, 0.3 + freq * 0.4); r = c.r; g = c.g; b = c.b; break; }
             }
             col[i3] = r; col[i3 + 1] = g; col[i3 + 2] = b;
         }
@@ -609,8 +610,7 @@ const HyperforgeMode2 = {
         // Mark dirty — mainMesh and mainWire see this automatically (shared buffer)
         this.outerGeo.attributes.position.needsUpdate = true;
         this.outerGeo.attributes.color.needsUpdate = true;
-        // Recompute normals so lighting stays correct after displacement
-        this.outerGeo.computeVertexNormals();
+        // BUG-08 fix: Removed computeVertexNormals() — MeshBasicMaterial is unlit, never uses normals
         // Note: NO WireframeGeometry rebuild — that was the critical performance bug.
     },
 

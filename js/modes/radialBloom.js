@@ -237,7 +237,7 @@ const RadialBloomMode = {
                     const scale = 1 + pulse * reactivity * 0.5;
                     ir.scale.set(scale, scale, 1);
                     ir.material.opacity = 0.2 + pulse * 0.3;
-                    ir.material.color = ParamSystem.getColorThree(t + 0.5 + this.time * 0.05);
+                    ir.material.color.copy(ParamSystem.getColorThree(t + 0.5 + this.time * 0.05));
                 }
             });
         }

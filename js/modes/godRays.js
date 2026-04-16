@@ -177,7 +177,7 @@ const GodRaysMode = {
             const orbScale = 3 + bass * 5 * centerGlow * reactivity;
             orb.scale.set(orbScale, orbScale, orbScale);
             orb.material.opacity = 0.3 + rms * centerGlow;
-            orb.material.color = ParamSystem.getColorThree(bass + this.time * 0.05);
+            orb.material.color.copy(ParamSystem.getColorThree(bass + this.time * 0.05));
         }
 
         // Dual source
@@ -191,7 +191,7 @@ const GodRaysMode = {
                     Math.sin(this.time * 0.5) * dualDist, 0
                 );
                 this.secondOrb.material.opacity = 0.5 + rms * 0.3;
-                this.secondOrb.material.color = ParamSystem.getColorThree(mid + this.time * 0.08);
+                this.secondOrb.material.color.copy(ParamSystem.getColorThree(mid + this.time * 0.08));
                 const s2 = 2 + mid * 3 * centerGlow;
                 this.secondOrb.scale.setScalar(s2);
             }

@@ -274,9 +274,11 @@ const RhythmicGeometryMode = {
         this.coreMesh.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(cols), 3));
         this.coreGroup.add(this.coreMesh);
 
-        this.coreWire = new THREE.LineSegments(
-            new THREE.WireframeGeometry(geo),
-            new THREE.LineBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending })
+        // BUG-09 fix: Use wireframe material on a Mesh sharing coreMesh geometry
+        // instead of rebuilding WireframeGeometry every frame
+        this.coreWire = new THREE.Mesh(
+            this.coreMesh.geometry,
+            new THREE.MeshBasicMaterial({ color: 0x8b5cf6, wireframe: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false })
         );
         this.coreGroup.add(this.coreWire);
 
@@ -680,12 +682,9 @@ const RhythmicGeometryMode = {
         this.coreMesh.geometry.attributes.position.needsUpdate = true;
         this.coreMesh.geometry.attributes.color.needsUpdate = true;
 
-        // Sync wireframe
-        if (this.coreWire) {
-            const wg = new THREE.WireframeGeometry(this.coreMesh.geometry);
-            this.coreWire.geometry.dispose();
-            this.coreWire.geometry = wg;
-        }
+        // Sync wireframe — BUG-09 fix: coreWire shares coreMesh geometry,
+        // no rebuild needed. Just flag needsUpdate (already done above).
+        // coreWire.geometry === coreMesh.geometry, so position updates propagate automatically.
 
         // Sync points
         if (this.corePoints) {
@@ -697,9 +696,9 @@ const RhythmicGeometryMode = {
             this.corePoints.material.size = (params.pointSize || 2) * (1 + bass * 2);
         }
 
-        // Materials
+        // Materials — BUG-02 fix: use .copy() for color singleton
         this.coreMesh.material.opacity = (params.solidOpacity || 0.15) * (0.5 + bass * 0.5);
-        this.coreWire.material.color = ParamSystem.getColorThree(rms + this.time * 0.1 + this.colorShiftPhase);
+        this.coreWire.material.color.copy(ParamSystem.getColorThree(rms + this.time * 0.1 + this.colorShiftPhase));
         this.coreWire.material.opacity = (params.wireOpacity || 0.85) * (0.5 + rms * 0.5 + beatPulse * 0.2);
 
         // ── ROTATION ──
@@ -772,13 +771,16 @@ const RhythmicGeometryMode = {
             copy.position.x = Math.cos(angle) * coreSize * mirrorSpacing * 0.3;
             copy.position.z = Math.sin(angle) * coreSize * mirrorSpacing * 0.3;
 
-            // Update mirror wireframe geometry
+            // Update mirror wireframe — BUG-09 + BUG-02 fix
             const wireChild = copy.children[0];
             if (wireChild && this.coreWire) {
-                wireChild.geometry.dispose();
-                wireChild.geometry = this.coreWire.geometry.clone();
+                // Share geometry reference instead of cloning every frame
+                if (wireChild.geometry !== this.coreWire.geometry) {
+                    wireChild.geometry.dispose();
+                    wireChild.geometry = this.coreWire.geometry;
+                }
                 wireChild.material.opacity = 0.2 + bass * 0.15;
-                wireChild.material.color = ParamSystem.getColorThree(rms + this.time * 0.1 + i * 0.15);
+                wireChild.material.color.copy(ParamSystem.getColorThree(rms + this.time * 0.1 + i * 0.15));
             }
         }
     },

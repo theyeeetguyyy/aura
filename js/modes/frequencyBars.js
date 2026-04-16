@@ -324,7 +324,7 @@ const FrequencyBarsMode = {
             } else if (params.colorMode === 'ice') {
                 bar.material.color.setHSL(0.55 + val * 0.1, 0.8, 0.3 + val * 0.5);
             } else {
-                bar.material.color = ParamSystem.getColorThree(t);
+                bar.material.color.copy(ParamSystem.getColorThree(t));
             }
 
             // Treble sparkle

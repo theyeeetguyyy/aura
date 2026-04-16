@@ -751,7 +751,7 @@ const GeometryForgeMode = {
         this.meshSolid.material.opacity = Math.min(0.85, (params.solidOpacity ?? 0.35) * (0.7 + bass * 0.6) + this._emissivePulse * 0.3);
         // ...wire color logic below...
         const wc = params.wireColor ?? 'palette';
-        if (wc === 'palette') this.meshWire.material.color = ParamSystem.getColorThree(rms + this.time * 0.1);
+        if (wc === 'palette') this.meshWire.material.color.copy(ParamSystem.getColorThree(rms + this.time * 0.1));
         else if (wc === 'rainbow') this.meshWire.material.color.setHSL((this.time * 0.2) % 1, 0.9, 0.6 + rms * 0.3);
         else if (wc === 'neon') this.meshWire.material.color.setHSL(0.8 + bass * 0.2, 1, 0.5 + rms * 0.4);
         else if (wc === 'fire') this.meshWire.material.color.setHSL(0.05 + bass * 0.08, 1, 0.4 + rms * 0.4);
@@ -773,7 +773,7 @@ const GeometryForgeMode = {
         else this.meshWire.material.color.setRGB(1, 1, 1);
         this.meshWire.material.opacity = (params.wireOpacity ?? 0.9) * (0.5 + rms);
 
-        this.meshInnerWire.material.color = ParamSystem.getColorThree(treble + this.time * 0.15);
+        this.meshInnerWire.material.color.copy(ParamSystem.getColorThree(treble + this.time * 0.15));
         this.meshInnerWire.material.opacity = 0.2 + bass * 0.3;
         // Inner wire breathes with treble independently
         const innerBreath = 0.85 + treble * 0.15 + Math.sin(this.time * 1.5) * 0.03;

@@ -11,18 +11,26 @@ const ParamSystem = (() => {
         screenShake: { type: 'range', min: 0, max: 3, default: 0.4, step: 0.1, label: '💥 Screen Shake' },
         beatFlash: { type: 'range', min: 0, max: 2, default: 0.4, step: 0.1, label: '⚡ Beat Flash' },
         zoomPunch: { type: 'range', min: 0, max: 2, default: 0.3, step: 0.1, label: '🔍 Zoom Punch' },
-        bloomIntensity: { type: 'range', min: 0, max: 3, default: 0.6, step: 0.1, label: 'Bloom' },
-        bloomThreshold: { type: 'range', min: 0, max: 1, default: 0.4, step: 0.05, label: 'Bloom Threshold' },
+        bloomIntensity: { type: 'range', min: 0, max: 3, default: 0.8, step: 0.1, label: 'Bloom Intensity' },
+        bloomThreshold: { type: 'range', min: 0, max: 1, default: 0.1, step: 0.05, label: 'Bloom Threshold' },
+        bloomRadius: { type: 'range', min: 0, max: 2, default: 0.8, step: 0.1, label: 'Bloom Radius' },
         cinematicCamera: { type: 'toggle', default: true, label: '🎥 Cinematic Auto-Cam' },
         cameraAutoRotate: { type: 'toggle', default: false, label: 'Auto Rotate Camera' },
         cameraRotateSpeed: { type: 'range', min: 0, max: 5, default: 0.3, step: 0.1, label: 'Rotate Speed' },
         postProcessing: { type: 'toggle', default: false, label: 'Post Processing' },
+        liveUIMapping: { type: 'toggle', default: true, label: 'Live UI Slider Sync' },
         backgroundColor: { type: 'color', default: '#000000', label: 'Background' },
         colorPalette: {
             type: 'select',
             options: ['rainbow', 'fire', 'ocean', 'neon', 'pastel', 'monochrome', 'cyberpunk', 'aurora', 'sunset', 'synthwave'],
             default: 'cyberpunk',
             label: 'Color Palette'
+        },
+        aspectRatio: {
+            type: 'select',
+            options: ['Free (Fill Window)', '16:9 (Landscape)', '9:16 (Vertical)'],
+            default: 'Free (Fill Window)',
+            label: '📱 Aspect Ratio'
         }
     };
 
@@ -30,6 +38,7 @@ const ParamSystem = (() => {
     let globalValues = {};
     let modeValues = {};
     let currentModeSchema = {};
+    let paramMappings = {}; // { paramKey: { band: 'sub', amount: 1.0, type: 'mode'|'global' } }
 
     // 2.2: Pre-allocated color cache for hot-path getColorThreeHSL
     let _cachedColor = null; // initialized lazily after THREE is available
@@ -120,7 +129,11 @@ const ParamSystem = (() => {
     }
 
     function exportPreset() {
-        return JSON.stringify({ global: globalValues, mode: modeValues }, null, 2);
+        return JSON.stringify({ 
+            global: globalValues, 
+            mode: modeValues,
+            mappings: paramMappings
+        }, null, 2);
     }
 
     function importPreset(json) {
@@ -128,6 +141,7 @@ const ParamSystem = (() => {
             const data = JSON.parse(json);
             if (data.global) Object.assign(globalValues, data.global);
             if (data.mode) Object.assign(modeValues, data.mode);
+            if (data.mappings) Object.assign(paramMappings, data.mappings);
             return true;
         } catch (e) {
             console.warn('Failed to import preset:', e);
@@ -146,6 +160,30 @@ const ParamSystem = (() => {
                 modeValues[key] = schema.options[Math.floor(Math.random() * schema.options.length)];
             }
         }
+    }
+
+    function handleModeChange() {
+        const keysToRemove = [];
+        for (const key in paramMappings) {
+            if (paramMappings[key].type === 'mode') keysToRemove.push(key);
+        }
+        for (const k of keysToRemove) delete paramMappings[k];
+    }
+
+    function setMapping(key, band, amount, type) {
+        if (!band || amount === 0) {
+            delete paramMappings[key];
+            return;
+        }
+        paramMappings[key] = { band, amount, type: type || 'mode' };
+    }
+
+    function getMapping(key) {
+        return paramMappings[key];
+    }
+
+    function getMappings() {
+        return paramMappings;
     }
 
     initGlobals();
@@ -168,6 +206,10 @@ const ParamSystem = (() => {
         exportPreset,
         importPreset,
         randomize,
-        palettes
+        palettes,
+        setMapping,
+        getMapping,
+        getMappings,
+        handleModeChange
     };
 })();

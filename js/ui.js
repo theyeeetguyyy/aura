@@ -145,8 +145,32 @@ const UI = (() => {
             _levelFill.style.width = `${bus.rms * 100}%`;
         }
 
-        // 5.9: Update debug HUD
         if (debugHUDVisible && _debugHUD) updateDebugHUD(bus);
+
+        // Active parameter modulation rendering
+        if (ParamSystem.get('liveUIMapping')) {
+            const mappings = ParamSystem.getMappings();
+            for (const key in mappings) {
+                const map = mappings[key];
+                let audioVal = 0;
+                if (map.band === 'onset') audioVal = bus.onsetStrength || 0;
+                else if (map.band === 'envelope') audioVal = bus.envelope || 0;
+                else audioVal = bus.smoothBands[map.band] || bus.rawBands[map.band] || 0;
+                
+                const paramInput = document.querySelector(`input.param-slider[data-param-key="${key}"]`);
+                const paramDisplay = document.querySelector(`span[data-param-value-for="${key}"]`);
+                if (paramInput && paramDisplay) {
+                    const baseSchema = ParamSystem.currentModeSchema[key] || ParamSystem.globalDefaults[key];
+                    if (baseSchema) {
+                        const baseVal = ParamSystem.get(key);
+                        const modulated = Math.max(baseSchema.min, Math.min(baseSchema.max, baseVal + audioVal * map.amount));
+                        paramInput.value = modulated;
+                        paramDisplay.textContent = parseFloat(modulated).toFixed(2);
+                        paramInput.classList.add('modulated-live');
+                    }
+                }
+            }
+        }
     }
 
     // ── File Import ────────────────────────────────────────
@@ -193,7 +217,8 @@ const UI = (() => {
 
         } catch (err) {
             console.error('Failed to load audio:', err);
-            alert('Failed to load audio file. Please try another file.');
+            // BUG-19 fix: Non-blocking toast instead of alert() which freezes rendering
+            showToast('Failed to load audio file. Please try another file.', 'error');
         }
 
         dropZone.classList.remove('loading');
@@ -389,6 +414,15 @@ const UI = (() => {
             valueDisplay.dataset.paramValueFor = key; // 1.10
             valueDisplay.textContent = parseFloat(input.value).toFixed(2);
 
+            const linkBtn = document.createElement('button');
+            linkBtn.className = 'param-link-btn';
+            linkBtn.innerHTML = '🔗';
+            linkBtn.title = 'Audio Modulation Mappings';
+            linkBtn.onclick = () => showMappingModal(key, label.textContent, isGlobal ? 'global' : 'mode');
+            
+            // Mark if already mapped
+            if (ParamSystem.getMapping(key)) linkBtn.classList.add('mapped');
+
             input.addEventListener('input', () => {
                 const v = parseFloat(input.value);
                 ParamSystem.set(key, v);
@@ -396,6 +430,7 @@ const UI = (() => {
             });
 
             row.appendChild(label);
+            row.appendChild(linkBtn);
             row.appendChild(input);
             row.appendChild(valueDisplay);
             wrapper.appendChild(row);
@@ -433,6 +468,9 @@ const UI = (() => {
 
             select.addEventListener('change', () => {
                 ParamSystem.set(key, select.value);
+                if (key === 'aspectRatio') {
+                    window.dispatchEvent(new Event('resize'));
+                }
             });
 
             row.appendChild(label);
@@ -458,6 +496,73 @@ const UI = (() => {
         }
 
         return wrapper;
+    }
+
+    // ── Audio Mapping Modal ────────────────────────────────────────
+    function showMappingModal(paramKey, paramName, type) {
+        let modal = document.getElementById('mapping-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'mapping-modal';
+            modal.className = 'mapping-modal';
+            document.body.appendChild(modal);
+        }
+
+        const map = ParamSystem.getMapping(paramKey) || { band: '', amount: 0 };
+        
+        modal.innerHTML = `
+            <div class="mapping-modal-content">
+                <h3>Modulate: ${paramName}</h3>
+                <div class="mapping-row">
+                    <label>Source:</label>
+                    <select id="map-source">
+                        <option value="">None</option>
+                        <option value="sub" ${map.band === 'sub' ? 'selected' : ''}>Sub-bass</option>
+                        <option value="bass" ${map.band === 'bass' ? 'selected' : ''}>Bass</option>
+                        <option value="lowMid" ${map.band === 'lowMid' ? 'selected' : ''}>Low-Mid</option>
+                        <option value="mid" ${map.band === 'mid' ? 'selected' : ''}>Mid</option>
+                        <option value="highMid" ${map.band === 'highMid' ? 'selected' : ''}>High-Mid</option>
+                        <option value="treble" ${map.band === 'treble' ? 'selected' : ''}>Treble</option>
+                        <option value="onset" ${map.band === 'onset' ? 'selected' : ''}>Transient/Onset</option>
+                        <option value="envelope" ${map.band === 'envelope' ? 'selected' : ''}>Volume Envelope</option>
+                    </select>
+                </div>
+                <div class="mapping-row">
+                    <label>Amount:</label>
+                    <input type="range" id="map-amount" min="-5" max="5" step="0.1" value="${map.amount}">
+                    <span id="map-amount-val">${map.amount}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:15px;">
+                    <button id="map-clear" style="background:#ef4444;color:#fff;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;">Clear</button>
+                    <div>
+                        <button id="map-cancel" style="background:transparent;color:#bbb;border:1px solid #444;padding:5px 10px;border-radius:4px;cursor:pointer;margin-right:5px;">Cancel</button>
+                        <button id="map-save" style="background:#8b5cf6;color:#fff;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;">Apply</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        modal.style.display = 'flex';
+
+        document.getElementById('map-amount').oninput = (e) => {
+            document.getElementById('map-amount-val').textContent = e.target.value;
+        };
+
+        document.getElementById('map-cancel').onclick = () => modal.style.display = 'none';
+        
+        document.getElementById('map-clear').onclick = () => {
+            ParamSystem.setMapping(paramKey, null, 0, type);
+            buildParamsUI();
+            modal.style.display = 'none';
+        };
+
+        document.getElementById('map-save').onclick = () => {
+            const src = document.getElementById('map-source').value;
+            const amt = parseFloat(document.getElementById('map-amount').value);
+            ParamSystem.setMapping(paramKey, src, amt, type);
+            buildParamsUI(); // Rebuild to show green chain icon
+            modal.style.display = 'none';
+        };
     }
 
     // 1.10: Refresh param input values in-place (no DOM rebuild)
@@ -913,6 +1018,44 @@ const UI = (() => {
                 renderPresetList();
             });
         });
+    }
+
+    // ── Toast Notification System ──
+    function showToast(message, type = 'info') {
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            toastContainer.style.cssText = `position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none;`;
+            document.body.appendChild(toastContainer);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        
+        // Base styling for modern look
+        toast.style.cssText = `background: rgba(10,10,15,0.9); backdrop-filter: blur(8px); border: 1px solid ${type === 'error' ? 'rgba(239,68,68,0.4)' : 'rgba(139,92,246,0.3)'}; color: #fff; padding: 12px 20px; border-radius: 8px; font-family: var(--header-font, 'Inter', sans-serif); font-size: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); transform: translateX(120%); opacity: 0; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease;`;
+        
+        toast.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><span style="color:${type === 'error' ? '#ef4444' : '#8b5cf6'};font-size:18px;">${type === 'error' ? '⚠️' : 'ℹ️'}</span> <span>${message}</span></div>`;
+        
+        toastContainer.appendChild(toast);
+
+        // Animate in
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                toast.style.transform = 'translateX(0)';
+                toast.style.opacity = '1';
+            });
+        });
+
+        // Remove after 4s
+        setTimeout(() => {
+            toast.style.transform = 'translateX(120%)';
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 400); // Wait for transition
+        }, 4000);
     }
 
     return {

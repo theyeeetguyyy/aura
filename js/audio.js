@@ -299,7 +299,9 @@ const AudioEngine = (() => {
         ctx = new (window.AudioContext || window.webkitAudioContext)();
         analyser = ctx.createAnalyser();
         analyser.fftSize = 4096;
-        analyser.smoothingTimeConstant = 0.82; // was 0.5 — higher = smoother, more graceful motion
+        // BUG-05 fix: Set to 0 for raw FFT data. Manual smoothing in computeBands()
+        // handles all smoothing. Double-smoothed audio dampens tearout transients.
+        analyser.smoothingTimeConstant = 0.0;
 
         gainNode = ctx.createGain();
         gainNode.connect(analyser);
@@ -375,11 +377,40 @@ const AudioEngine = (() => {
         volumeEnvelopeValue = 0;
         prevFrameEnergy = 0;
 
-        return new Promise((resolve) => {
-            audioElement.addEventListener('canplaythrough', () => {
+        return new Promise((resolve, reject) => {
+            if (audioElement.readyState >= 4) {
                 audioBus.duration = audioElement.duration;
                 resolve();
-            }, { once: true });
+                return;
+            }
+
+            const onCanPlay = () => {
+                audioBus.duration = audioElement.duration;
+                cleanup();
+                resolve();
+            };
+
+            const onError = () => {
+                cleanup();
+                reject(new Error("Audio playback error"));
+            };
+
+            const cleanup = () => {
+                audioElement.removeEventListener('canplaythrough', onCanPlay);
+                audioElement.removeEventListener('error', onError);
+            };
+
+            audioElement.addEventListener('canplaythrough', onCanPlay, { once: true });
+            audioElement.addEventListener('error', onError, { once: true });
+
+            // Failsafe for blob instant loads
+            setTimeout(() => {
+                if (audioElement.readyState >= 1) {
+                    audioBus.duration = audioElement.duration || 0;
+                    cleanup();
+                    resolve();
+                }
+            }, 1000);
         });
     }
 

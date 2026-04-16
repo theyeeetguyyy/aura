@@ -156,25 +156,57 @@ const VisualEngine = (() => {
     }
 
     function initPostProcessing() {
-        if (!THREE.EffectComposer) return;
-        composer = new THREE.EffectComposer(renderer);
-        renderPass = new THREE.RenderPass(scene, camera);
-        composer.addPass(renderPass);
-        if (THREE.UnrealBloomPass) {
-            bloomPass = new THREE.UnrealBloomPass(
-                new THREE.Vector2(window.innerWidth, window.innerHeight),
-                0.8, 0.4, 0.3
-            );
-            composer.addPass(bloomPass);
+        if (!typeof THREE.EffectComposer !== 'undefined') {
+            composer = new THREE.EffectComposer(renderer);
+            renderPass = new THREE.RenderPass(scene, camera);
+            composer.addPass(renderPass);
+            
+            if (typeof THREE.UnrealBloomPass !== 'undefined') {
+                bloomPass = new THREE.UnrealBloomPass(
+                    new THREE.Vector2(window.innerWidth, window.innerHeight),
+                    0.8,  // strength
+                    0.8,  // radius
+                    0.1   // threshold
+                );
+                composer.addPass(bloomPass);
+            }
         }
     }
 
     function onResize() {
-        const w = window.innerWidth, h = window.innerHeight;
-        camera.aspect = w / h;
+        const aspectTarget = typeof ParamSystem !== 'undefined' ? ParamSystem.get('aspectRatio') : 'Free (Fill Window)';
+        let targetW = window.innerWidth;
+        let targetH = window.innerHeight;
+
+        if (aspectTarget === '16:9 (Landscape)') {
+            const aspect = 16 / 9;
+            if (targetW / targetH > aspect) {
+                targetW = targetH * aspect;
+            } else {
+                targetH = targetW / aspect;
+            }
+        } else if (aspectTarget === '9:16 (Vertical)') {
+            const aspect = 9 / 16;
+            if (targetW / targetH > aspect) {
+                targetW = targetH * aspect;
+            } else {
+                targetH = targetW / aspect;
+            }
+        }
+
+        targetW = Math.round(targetW);
+        targetH = Math.round(targetH);
+
+        // Resize Canvas CSS visually
+        renderer.domElement.style.width = targetW + 'px';
+        renderer.domElement.style.height = targetH + 'px';
+
+        camera.aspect = targetW / targetH;
         camera.updateProjectionMatrix();
-        renderer.setSize(w, h);
-        if (composer) composer.setSize(w, h);
+        
+        // Resize WebGL target buffer
+        renderer.setSize(targetW, targetH, false); // false prevents overriding our CSS style
+        if (composer) composer.setSize(targetW, targetH);
     }
 
     function registerMode(key, modeObj) {
@@ -637,13 +669,14 @@ const VisualEngine = (() => {
         // Bloom — section-aware
         if (bloomPass) {
             const pp = ParamSystem.get('postProcessing');
-            bloomPass.enabled = pp;
             if (pp) {
                 const effects = audioBus.sectionEffects || { bloom: 1 };
                 const masterInt = audioBus.masterIntensity || 1;
+                // Add base intensity + beat react + master intensity
                 bloomPass.strength = (ParamSystem.get('bloomIntensity') || 0.8) * effects.bloom
                     + audioBus.bassBeatIntensity * 0.5 * masterInt;
-                bloomPass.threshold = ParamSystem.get('bloomThreshold') || 0.3;
+                bloomPass.threshold = ParamSystem.get('bloomThreshold') || 0.1;
+                bloomPass.radius = ParamSystem.get('bloomRadius') || 0.8;
             }
         }
 
@@ -657,13 +690,30 @@ const VisualEngine = (() => {
         if (activeMode && activeMode.update) {
             try {
                 const sectionEffects = audioBus.sectionEffects || {};
-                activeMode.update(audioBus, {
+                const baseParams = {
                     ...ParamSystem.getAllGlobal(),
                     ...ParamSystem.getAllMode(),
                     _displacementScale: sectionEffects.displacementScale ?? 1,
                     _particleScale: sectionEffects.particleScale ?? 1,
                     _speedScale: sectionEffects.speed ?? 1,
-                }, dt);
+                };
+
+                // Apply dynamic Audio Modulations (Parameter Routing)
+                const mappings = ParamSystem.getMappings();
+                for (const key in mappings) {
+                    const map = mappings[key];
+                    let audioVal = 0;
+                    if (map.band === 'onset') audioVal = audioBus.onsetStrength;
+                    else if (map.band === 'envelope') audioVal = audioBus.envelope;
+                    else audioVal = audioBus.smoothBands[map.band] || audioBus.rawBands[map.band] || 0;
+                    
+                    if (baseParams[key] !== undefined && typeof baseParams[key] === 'number') {
+                        // Apply modulation and clamp slightly to avoid exploding engine 
+                        baseParams[key] += audioVal * map.amount;
+                    }
+                }
+
+                activeMode.update(audioBus, baseParams, dt);
                 modeErrorReported = false;
             } catch (err) {
                 if (!modeErrorReported) {

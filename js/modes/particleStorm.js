@@ -7,8 +7,8 @@
 const ParticleStormMode = {
     name: 'Particle Storm',
     particles: null,
-    velocities: [],
-    ages: [],
+    velocities: null,
+    ages: null,
     maxParticles: 5000,
     group: null,
     connectionLines: null,
@@ -113,8 +113,8 @@ const ParticleStormMode = {
         const colors = new Float32Array(count * 3);
         const sizes = new Float32Array(count);
 
-        this.velocities = [];
-        this.ages = [];
+        this.velocities = new Float32Array(count * 3);
+        this.ages = new Float32Array(count);
 
         for (let i = 0; i < count; i++) {
             positions[i * 3] = (Math.random() - 0.5) * 100;
@@ -124,12 +124,10 @@ const ParticleStormMode = {
             colors[i * 3 + 1] = 1;
             colors[i * 3 + 2] = 1;
             sizes[i] = 1;
-            this.velocities.push({
-                x: (Math.random() - 0.5) * 0.5,
-                y: (Math.random() - 0.5) * 0.5,
-                z: (Math.random() - 0.5) * 0.5
-            });
-            this.ages.push(Math.random() * 10);
+            this.velocities[i * 3] = (Math.random() - 0.5) * 0.5;
+            this.velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.5;
+            this.velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
+            this.ages[i] = Math.random() * 10;
         }
 
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -190,36 +188,38 @@ const ParticleStormMode = {
         if (audio.isDropSection) {
             if (dropReaction === 'explode') {
                 for (let i = 0; i < this.maxParticles; i++) {
+                    const i3 = i * 3;
                     const angle = Math.random() * Math.PI * 2;
                     const phi = Math.random() * Math.PI;
                     const force = audio.dropIntensity * 5;
-                    this.velocities[i].x += Math.sin(phi) * Math.cos(angle) * force;
-                    this.velocities[i].y += Math.sin(phi) * Math.sin(angle) * force;
-                    this.velocities[i].z += Math.cos(phi) * force;
+                    this.velocities[i3] += Math.sin(phi) * Math.cos(angle) * force;
+                    this.velocities[i3 + 1] += Math.sin(phi) * Math.sin(angle) * force;
+                    this.velocities[i3 + 2] += Math.cos(phi) * force;
                 }
             } else if (dropReaction === 'implode') {
                 for (let i = 0; i < this.maxParticles; i++) {
                     const i3 = i * 3;
                     const dx = -pos[i3], dy = -pos[i3 + 1], dz = -pos[i3 + 2];
                     const d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.01;
-                    this.velocities[i].x += (dx / d) * audio.dropIntensity * 3;
-                    this.velocities[i].y += (dy / d) * audio.dropIntensity * 3;
-                    this.velocities[i].z += (dz / d) * audio.dropIntensity * 3;
+                    this.velocities[i3] += (dx / d) * audio.dropIntensity * 3;
+                    this.velocities[i3 + 1] += (dy / d) * audio.dropIntensity * 3;
+                    this.velocities[i3 + 2] += (dz / d) * audio.dropIntensity * 3;
                 }
             } else if (dropReaction === 'freeze') {
                 for (let i = 0; i < this.maxParticles; i++) {
-                    this.velocities[i].x *= 0.01;
-                    this.velocities[i].y *= 0.01;
-                    this.velocities[i].z *= 0.01;
+                    const i3 = i * 3;
+                    this.velocities[i3] *= 0.01;
+                    this.velocities[i3 + 1] *= 0.01;
+                    this.velocities[i3 + 2] *= 0.01;
                 }
             }
         }
 
         for (let i = 0; i < this.maxParticles; i++) {
             const i3 = i * 3;
-            let vx = this.velocities[i].x;
-            let vy = this.velocities[i].y;
-            let vz = this.velocities[i].z;
+            let vx = this.velocities[i3];
+            let vy = this.velocities[i3 + 1];
+            let vz = this.velocities[i3 + 2];
 
             this.ages[i] += dt;
 
@@ -359,9 +359,9 @@ const ParticleStormMode = {
             pos[i3 + 1] += vy * speed;
             pos[i3 + 2] += vz * speed;
 
-            this.velocities[i].x = vx;
-            this.velocities[i].y = vy;
-            this.velocities[i].z = vz;
+            this.velocities[i3] = vx;
+            this.velocities[i3 + 1] = vy;
+            this.velocities[i3 + 2] = vz;
 
             // Boundary reset
             const dist = Math.sqrt(pos[i3] ** 2 + pos[i3 + 1] ** 2 + pos[i3 + 2] ** 2);
@@ -377,16 +377,16 @@ const ParticleStormMode = {
                     pos[i3 + 2] *= 0.01;
                     const a = Math.random() * Math.PI * 2;
                     const p = Math.random() * Math.PI;
-                    this.velocities[i].x = Math.sin(p) * Math.cos(a) * 0.5;
-                    this.velocities[i].y = Math.sin(p) * Math.sin(a) * 0.5;
-                    this.velocities[i].z = Math.cos(p) * 0.5;
+                    this.velocities[i3] = Math.sin(p) * Math.cos(a) * 0.5;
+                    this.velocities[i3 + 1] = Math.sin(p) * Math.sin(a) * 0.5;
+                    this.velocities[i3 + 2] = Math.cos(p) * 0.5;
                 } else {
                     pos[i3] *= 0.01;
                     pos[i3 + 1] *= 0.01;
                     pos[i3 + 2] *= 0.01;
-                    this.velocities[i].x = (Math.random() - 0.5) * 0.3;
-                    this.velocities[i].y = (Math.random() - 0.5) * 0.3;
-                    this.velocities[i].z = (Math.random() - 0.5) * 0.3;
+                    this.velocities[i3] = (Math.random() - 0.5) * 0.3;
+                    this.velocities[i3 + 1] = (Math.random() - 0.5) * 0.3;
+                    this.velocities[i3 + 2] = (Math.random() - 0.5) * 0.3;
                 }
                 this.ages[i] = 0;
             }
@@ -440,7 +440,7 @@ const ParticleStormMode = {
             this.particles.material.dispose();
             this.particles = null;
         }
-        this.velocities = [];
-        this.ages = [];
+        this.velocities = null;
+        this.ages = null;
     }
 };

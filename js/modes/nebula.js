@@ -191,7 +191,7 @@ const NebulaMode = {
         if (this.coreGlow) {
             const coreScale = (params.coreIntensity || 2) * (1 + bass * 3 + this.shockwavePhase);
             this.coreGlow.scale.setScalar(coreScale);
-            this.coreGlow.material.color = ParamSystem.getColorThree(rms + this.time * 0.1);
+            this.coreGlow.material.color.copy(ParamSystem.getColorThree(rms + this.time * 0.1));
             this.coreGlow.material.opacity = 0.4 + rms * 0.5;
         }
 

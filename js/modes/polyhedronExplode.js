@@ -182,7 +182,7 @@ const PolyhedronExplodeMode = {
                 const c = new THREE.Color().setHSL(0.65 - Math.min(speed * 0.3, 0.6), 1, 0.4 + speed * 0.1);
                 frag.mesh.material.color = c;
             } else {
-                frag.mesh.material.color = ParamSystem.getColorThree(t + audio.rms * 0.3);
+                frag.mesh.material.color.copy(ParamSystem.getColorThree(t + audio.rms * 0.3));
             }
             frag.mesh.material.opacity = (0.5 + freq * 0.4) * (0.5 + glow);
             frag.mesh.material.wireframe = params.renderMode === 'wireframe';

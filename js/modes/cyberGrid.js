@@ -202,7 +202,7 @@ const CyberGridMode = {
             const h = 1 + band * 30 * pillarReact;
             pillar.scale.y = h;
             pillar.position.y = h / 2;
-            pillar.material.color = ParamSystem.getColorThree(band + this.time * 0.05 + i * 0.1);
+            pillar.material.color.copy(ParamSystem.getColorThree(band + this.time * 0.05 + i * 0.1));
             pillar.material.opacity = 0.3 + band * 0.5;
         });
 
@@ -212,7 +212,7 @@ const CyberGridMode = {
                 laser.material.opacity = 0.1 + treble * 0.8;
                 laser.rotation.x = Math.sin(this.time * 2 + i) * 0.1;
                 laser.position.x = Math.sin(this.time * 0.5 + i * 2) * 10;
-                laser.material.color = ParamSystem.getColorThree(this.time * 0.1 + i * 0.2);
+                laser.material.color.copy(ParamSystem.getColorThree(this.time * 0.1 + i * 0.2));
             });
         }
 

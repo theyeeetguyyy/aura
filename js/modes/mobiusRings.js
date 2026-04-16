@@ -97,6 +97,9 @@ const MobiusRingsMode = {
         }
     },
 
+    // Cached param key to avoid per-frame geometry rebuild (BUG-04 fix)
+    _lastParamKey: '',
+
     update(audio, params, dt) {
         if (!this.group) return;
         this.time += dt;
@@ -111,18 +114,30 @@ const MobiusRingsMode = {
         const orbitSpeed = params.orbitSpeed || 0.5;
         const tilt = params.tiltVariation || 1;
 
+        // Only rebuild geometry when static params change (not audio-reactive values)
+        const paramKey = `${params.radius}_${params.tubeRadius}_${params.segments}_${params.twist}`;
+        const needsRebuild = paramKey !== this._lastParamKey;
+        if (needsRebuild) this._lastParamKey = paramKey;
+
         for (let i = 0; i < this.rings.length; i++) {
             const ring = this.rings[i];
             const t = i / this.rings.length;
 
-            // Rebuild with current params
-            ring.geometry.dispose();
-            ring.geometry = this.createMobiusGeometry(
-                (params.radius || 30) * (1 + bass * params.scaleReact * reactivity * 0.3),
-                (params.tubeRadius || 1.5) * (1 + mid * reactivity * 0.5),
-                Math.floor(params.segments || 128),
-                (params.twist || 3) + bass * 2 * reactivity
-            );
+            // Only rebuild geometry when params actually changed
+            if (needsRebuild) {
+                ring.geometry.dispose();
+                ring.geometry = this.createMobiusGeometry(
+                    params.radius || 30,
+                    params.tubeRadius || 1.5,
+                    Math.floor(params.segments || 128),
+                    params.twist || 3
+                );
+            }
+
+            // Audio reactivity via scale instead of geometry rebuild
+            const scaleReact = params.scaleReact || 1;
+            const s = 1 + bass * scaleReact * reactivity * 0.3;
+            ring.scale.setScalar(s);
 
             ring.material.wireframe = params.renderMode === 'wireframe';
 
@@ -131,9 +146,8 @@ const MobiusRingsMode = {
             ring.rotation.y = t * Math.PI * 0.7 + this.time * orbitSpeed * 0.5;
             ring.rotation.z = Math.sin(this.time * 0.3 + i) * tilt * 0.5;
 
-            // Color
-            const color = ParamSystem.getColorThree(t + bass * 0.3);
-            ring.material.color = color;
+            // Color — BUG-02 fix: use .copy() instead of direct singleton assignment
+            ring.material.color.copy(ParamSystem.getColorThree(t + bass * 0.3));
             ring.material.opacity = 0.4 + treble * 0.4;
         }
 

@@ -17,6 +17,7 @@ const HyperforgeMode = {
     explodePhase: 0, superformulaPhase: 0, lastSfParams: '', lastRebuildTime: 0,
     smoothSfM: 6, smoothSfN1: 1, smoothSfN2: 1, smoothSfN3: 1,
     morphing: false, morphTarget: null, morphProgress: 0,
+    _tempColor: null, // BUG-22 fix: reusable scratch color
 
     params: {
         // ── OUTER SURFACE ──
@@ -243,7 +244,9 @@ const HyperforgeMode = {
         this.mainMesh = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.2, side: THREE.DoubleSide, blending: THREE.NormalBlending, depthWrite: false }));
         this.mainMesh.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(cols), 3));
         this.group.add(this.mainMesh);
-        this.mainWire = new THREE.LineSegments(new THREE.WireframeGeometry(geo), new THREE.LineBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending }));
+        // BUG-07 fix: Use wireframe material on Mesh sharing mainMesh geometry
+        // instead of rebuilding WireframeGeometry every frame
+        this.mainWire = new THREE.Mesh(this.mainMesh.geometry, new THREE.MeshBasicMaterial({ color: 0x8b5cf6, wireframe: true, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
         this.group.add(this.mainWire);
         geo.dispose(); this.currentShape = shape;
     },
@@ -263,7 +266,8 @@ const HyperforgeMode = {
         this.innerNormals = new Float32Array(geo.attributes.normal.array);
         this.innerMesh = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ color: 0x22ccff, transparent: true, opacity: 0.15, side: THREE.DoubleSide, blending: THREE.NormalBlending, depthWrite: false }));
         this.group.add(this.innerMesh);
-        this.innerWire = new THREE.LineSegments(new THREE.WireframeGeometry(geo), new THREE.LineBasicMaterial({ color: 0x22ccff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending }));
+        // Inner also uses wireframe:true pattern
+        this.innerWire = new THREE.Mesh(this.innerMesh.geometry, new THREE.MeshBasicMaterial({ color: 0x22ccff, wireframe: true, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
         this.group.add(this.innerWire);
         geo.dispose(); this.currentInner = shape; this.currentInnerSize = size;
     },
@@ -369,14 +373,13 @@ const HyperforgeMode = {
         if (this.trailLine) this.trailLine.visible = params.showTrails;
 
         // Materials
-        this.mainMesh.material.opacity = params.solidOpacity || 0.2;
         this.mainWire.material.opacity = (params.wireOpacity || 0.7) * (0.5 + rms);
-        this.mainWire.material.color = ParamSystem.getColorThree(rms + this.time * 0.1);
+        this.mainWire.material.color.copy(ParamSystem.getColorThree(rms + this.time * 0.1));
         if (this.attractorSystem) { this.attractorSystem.material.size = (params.pointGlow || 2.5) * (1 + bass); this.attractorSystem.visible = params.attractorType !== 'none'; }
         if (this.innerMesh) { this.innerMesh.visible = params.showInner; this.innerMesh.material.opacity = 0.1 + bass * 0.15; }
         if (this.innerWire) {
             this.innerWire.visible = params.showInner; this.innerWire.material.opacity = 0.3 + rms * 0.4;
-            this.innerWire.material.color = params.dualWireColors ? ParamSystem.getColorThree(treble + this.time * 0.15 + 0.5) : ParamSystem.getColorThree(treble + this.time * 0.15);
+            this.innerWire.material.color.copy(params.dualWireColors ? ParamSystem.getColorThree(treble + this.time * 0.15 + 0.5) : ParamSystem.getColorThree(treble + this.time * 0.15));
         }
 
         // Rotation — beat-phase-synced
@@ -511,23 +514,22 @@ const HyperforgeMode = {
                 case 'audioFreq': { const c = ParamSystem.getColorThreeHSL(freq + t * 0.2); r = c.r; g = c.g; b = c.b; break; }
                 case 'height': { const c = ParamSystem.getColorThreeHSL(pos[i3 + 1] / 30 + 0.5); r = c.r; g = c.g; b = c.b; break; }
                 case 'velocity': { const v2 = Math.abs(disp) * 0.1; const c = ParamSystem.getColorThreeHSL(v2 + this.time * 0.05); r = c.r; g = c.g; b = c.b; break; }
-                case 'rainbow': { const c = new THREE.Color().setHSL((t + this.time * 0.1) % 1, 0.9, 0.5 + rms * 0.3); r = c.r; g = c.g; b = c.b; break; }
+                case 'rainbow': { if (!this._tempColor) this._tempColor = new THREE.Color(); const c = this._tempColor.setHSL((t + this.time * 0.1) % 1, 0.9, 0.5 + rms * 0.3); r = c.r; g = c.g; b = c.b; break; }
                 case 'fire': { const h = freq * 0.6 + rms * 0.4; r = Math.min(1, h * 2); g = h * 0.6; b = h * 0.1; break; }
                 case 'ice': { const c2 = freq * 0.5 + 0.3; r = c2 * 0.3; g = c2 * 0.7; b = Math.min(1, c2 * 1.5); break; }
                 case 'plasma': { r = Math.sin(t * 10 + this.time) * 0.5 + 0.5; g = Math.sin(t * 10 + this.time * 1.3 + 2.1) * 0.5 + 0.5; b = Math.sin(t * 10 + this.time * 0.7 + 4.2) * 0.5 + 0.5; break; }
                 case 'thermal': { const th = freq * 0.7 + rms * 0.3; r = Math.min(1, th * 3); g = Math.max(0, th * 2 - 0.5); b = Math.max(0, th - 0.7); break; }
                 case 'void': { const edge = Math.abs(disp) / (amt + 0.01); r = edge * 0.3; g = edge * 0.1; b = edge * 0.5 + 0.05; break; }
-                case 'holographic': { const angle = Math.atan2(pos[i3 + 2], pos[i3]) / Math.PI; const c = new THREE.Color().setHSL((angle + t + this.time * 0.05) % 1, 0.9, 0.3 + freq * 0.4); r = c.r; g = c.g; b = c.b; break; }
+                case 'holographic': { const angle = Math.atan2(pos[i3 + 2], pos[i3]) / Math.PI; if (!this._tempColor) this._tempColor = new THREE.Color(); const c = this._tempColor.setHSL((angle + t + this.time * 0.05) % 1, 0.9, 0.3 + freq * 0.4); r = c.r; g = c.g; b = c.b; break; }
             }
             col[i3] = r; col[i3 + 1] = g; col[i3 + 2] = b;
         }
 
         this.mainMesh.geometry.attributes.position.needsUpdate = true;
         this.mainMesh.geometry.attributes.color.needsUpdate = true;
-        this.mainMesh.geometry.computeVertexNormals();
+        // BUG-08 fix: Removed computeVertexNormals() — MeshBasicMaterial is unlit, never uses normals
 
-        // Sync wireframe (only when needed)
-        if (this.mainWire) { const wg = new THREE.WireframeGeometry(this.mainMesh.geometry); this.mainWire.geometry.dispose(); this.mainWire.geometry = wg; }
+        // BUG-07 fix: mainWire shares mainMesh.geometry, no rebuild needed
     },
 
     updateAttractor(audio, params, dt) {
@@ -652,7 +654,7 @@ const HyperforgeMode = {
         // Trail color
         const tcm = params.trailColorMode || 'velocity';
         if (tcm === 'time') this.trailLine.material.color.setHSL((this.time * 0.1) % 1, 0.9, 0.5);
-        else if (tcm === 'palette') this.trailLine.material.color = ParamSystem.getColorThree(audio.rms + this.time * 0.05);
+        else if (tcm === 'palette') this.trailLine.material.color.copy(ParamSystem.getColorThree(audio.rms + this.time * 0.05));
         else this.trailLine.material.color.setHex(0xff44aa);
     },
 
