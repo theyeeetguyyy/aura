@@ -643,7 +643,9 @@ const VisualEngine = (() => {
                 fogTarget *= 1 + Math.sin(chaosTime * 4.3) * 2.0 * ci;
                 fogTarget = Math.max(0.0001, fogTarget);
             }
-            scene.fog.density += (fogTarget - scene.fog.density) * 0.05;
+            // Scale fog density inversely with distance to keep brightness consistent when zooming out
+            const distanceScale = 100 / Math.max(1, orbitRadius);
+            scene.fog.density += (fogTarget * distanceScale - scene.fog.density) * 0.05;
             // 6.2: Color temperature → fog color
             const targetFogColor = _fogColorMap[audio.colorTemp] || _fogColorMap.neutral;
             scene.fog.color.lerp(targetFogColor, 0.03);
