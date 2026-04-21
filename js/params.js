@@ -6,14 +6,14 @@
 const ParamSystem = (() => {
     // Global params applied across all modes
     const globalDefaults = {
-        reactivity: { type: 'range', min: 0, max: 3, default: 1.0, step: 0.05, label: 'Reactivity' },
-        smoothing: { type: 'range', min: 0, max: 0.99, default: 0.75, step: 0.01, label: 'Smoothing' },
-        screenShake: { type: 'range', min: 0, max: 3, default: 0.4, step: 0.1, label: '💥 Screen Shake' },
-        beatFlash: { type: 'range', min: 0, max: 2, default: 0.4, step: 0.1, label: '⚡ Beat Flash' },
-        zoomPunch: { type: 'range', min: 0, max: 2, default: 0.3, step: 0.1, label: '🔍 Zoom Punch' },
-        bloomIntensity: { type: 'range', min: 0, max: 3, default: 0.8, step: 0.1, label: 'Bloom Intensity' },
-        bloomThreshold: { type: 'range', min: 0, max: 1, default: 0.1, step: 0.05, label: 'Bloom Threshold' },
-        bloomRadius: { type: 'range', min: 0, max: 2, default: 0.8, step: 0.1, label: 'Bloom Radius' },
+        reactivity: { type: 'range', min: 0, max: 5, default: 1.0, step: 0.05, label: '⚡ Reactivity' },
+        smoothing: { type: 'range', min: 0, max: 0.99, default: 0.75, step: 0.01, label: '〰️ Smoothing' },
+        screenShake: { type: 'range', min: 0, max: 5, default: 0.4, step: 0.1, label: '💥 Screen Shake' },
+        beatFlash: { type: 'range', min: 0, max: 3, default: 0.4, step: 0.1, label: '⚡ Beat Flash' },
+        zoomPunch: { type: 'range', min: 0, max: 3, default: 0.3, step: 0.1, label: '🔍 Zoom Punch' },
+        bloomIntensity: { type: 'range', min: 0, max: 3, default: 0.5, step: 0.1, label: '✨ Bloom Intensity' },
+        bloomThreshold: { type: 'range', min: 0, max: 1, default: 0.35, step: 0.05, label: '🔆 Bloom Threshold' },
+        bloomRadius: { type: 'range', min: 0, max: 2, default: 0.8, step: 0.1, label: '🌫️ Bloom Radius' },
         cinematicCamera: { type: 'toggle', default: true, label: '🎥 Cinematic Auto-Cam' },
         cameraAutoRotate: { type: 'toggle', default: false, label: 'Auto Rotate Camera' },
         cameraRotateSpeed: { type: 'range', min: 0, max: 5, default: 0.3, step: 0.1, label: 'Rotate Speed' },

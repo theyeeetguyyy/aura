@@ -5,7 +5,7 @@
 // ============================================================
 
 const GeometryForgeMode2 = {
-    name: 'Geometry Forge web',
+    name: 'Geometry Forge',
 
     // ── STATE ──
     group: null,
@@ -39,7 +39,7 @@ const GeometryForgeMode2 = {
 
     // ── PARAMS ──
     params: {
-        // ═══ PRIMARY SHAPE ═══
+        // ═══ SHAPE ═══
         shape: {
             type: 'select', options: [
                 'icosahedron', 'dodecahedron', 'octahedron', 'tetrahedron',
@@ -48,25 +48,26 @@ const GeometryForgeMode2 = {
                 'trefoilKnot', 'gyroid', 'seashell', 'spiralSphere',
                 'stellatedOcta', 'romanSurface', 'crossCap', 'catenoid',
                 'helicoid', 'diniSurface', 'boysSurface', 'astroid', 'menger', 'calabi'
-            ], default: 'icosahedron', label: '🔷 Primary Shape'
+            ], default: 'icosahedron', label: '🔷 Shape'
         },
-        detail: { type: 'range', min: 0, max: 5, default: 3, step: 1, label: 'Shape Resolution' },
-        size: { type: 'range', min: 5, max: 60, default: 25, step: 1, label: 'Shape Size' },
+        detail: { type: 'range', min: 0, max: 5, default: 3, step: 1, label: '🔶 Detail Level' },
+        size: { type: 'range', min: 0, max: 80, default: 25, step: 1, label: '📐 Size' },
 
-        // ═══ PRIMARY APPEARANCE ═══
-        showSolid: { type: 'toggle', default: true, label: '⬛ Show Solid Face' },
-        showWireframe: { type: 'toggle', default: true, label: '🕸️ Show Wireframe' },
-        showInnerWire: { type: 'toggle', default: false, label: '🔲 Show Inner Wire' },
-        showPoints: { type: 'toggle', default: false, label: '·· Show Vertex Points' },
-        solidOpacity: { type: 'range', min: 0, max: 1, default: 0.35, step: 0.05, label: 'Solid Face Opacity' },
-        wireOpacity: { type: 'range', min: 0, max: 1, default: 0.9, step: 0.05, label: 'Wireframe Opacity' },
-        wireColor: {
-            type: 'select', options: ['white', 'palette', 'rainbow', 'neon', 'fire', 'ice', 'void', 'pulse', 'spectrum', 'complementary'],
-            default: 'palette', label: 'Wireframe Color'
+        // ═══ DISPLACEMENT ═══
+        displaceMode: {
+            type: 'select', options: [
+                'frequency', 'noise', 'spike', 'breathe', 'ripple', 'shatter', 'twist', 'melt',
+                'waveform', 'pulse', 'glitch', 'fractal', 'magnetic', 'cellular', 'orbit', 'harmonics',
+                'voronoi', 'flow', 'tentacle', 'interference', 'crystallize', 'audio3D', 'gravityWell', 'jellyfish'
+            ], default: 'frequency', label: '🌊 Displace Mode'
         },
-        pointSize: { type: 'range', min: 0.5, max: 8, default: 2.5, step: 0.5, label: 'Vertex Point Size' },
+        displaceAmount: { type: 'range', min: 0, max: 50, default: 12, step: 0.5, label: '📊 Displace Amount' },
+        displaceFreq: { type: 'range', min: 0, max: 15, default: 3, step: 0.1, label: '〰️ Displace Frequency' },
+        noiseScale: { type: 'range', min: 0, max: 15, default: 2, step: 0.1, label: '🌀 Noise Scale' },
+        noiseOctaves: { type: 'range', min: 1, max: 6, default: 3, step: 1, label: '🔢 Noise Detail' },
+        symmetryMode: { type: 'select', options: ['off', 'x', 'y', 'z', 'xy', 'xyz'], default: 'off', label: '🔀 Displacement Symmetry' },
 
-        // ═══ COLOR & TEXTURE ═══
+        // ═══ COLORS ═══
         vertexColorMode: {
             type: 'select',
             options: ['off', 'frequency', 'height', 'distance', 'rainbow', 'bands', 'plasma', 'thermal', 'pattern', 'displacement', 'velocity', 'waveformColor'],
@@ -74,14 +75,90 @@ const GeometryForgeMode2 = {
         },
         colorPalette: {
             type: 'select',
-            options: ['default', 'void', 'solar', 'ocean', 'toxic', 'nebula', 'aurora', 'fire', 'ice', 'cyber', 'sunset', 'acid', 'midnight', 'lava'],
+            options: ['default', 'custom', 'void', 'solar', 'ocean', 'toxic', 'nebula', 'aurora', 'fire', 'ice', 'cyber', 'sunset', 'acid', 'midnight', 'lava'],
             default: 'default', label: '🎨 Color Palette'
         },
+        customColor1: { type: 'color', default: '#8b5cf6', label: '🟣 Custom Color A' },
+        customColor2: { type: 'color', default: '#f472b6', label: '🔴 Custom Color B' },
+        wireColor: {
+            type: 'select', options: ['white', 'palette', 'rainbow', 'neon', 'fire', 'ice', 'void', 'pulse', 'spectrum', 'complementary'],
+            default: 'palette', label: '🔌 Wire Color'
+        },
+
+        // ═══ APPEARANCE ═══
+        showSolid: { type: 'toggle', default: true, label: '⬛ Solid Faces' },
+        showWireframe: { type: 'toggle', default: true, label: '🕸️ Wireframe' },
+        showInnerWire: { type: 'toggle', default: false, label: '🔲 Inner Wire' },
+        showPoints: { type: 'toggle', default: false, label: '·· Vertex Points' },
+        solidOpacity: { type: 'range', min: 0, max: 1, default: 0.2, step: 0.05, label: '🔳 Solid Opacity' },
+        wireOpacity: { type: 'range', min: 0, max: 1, default: 0.9, step: 0.05, label: '🕸️ Wire Opacity' },
+        pointSize: { type: 'range', min: 0, max: 10, default: 2.5, step: 0.5, label: '·· Point Size' },
+
+        // ═══ ROTATION ═══
+        autoRotateMode: {
+            type: 'select', options: ['off', 'smooth', 'tumble', 'orbit', 'wobble', 'spin', 'breatheRot', 'chaotic', 'beatLock'],
+            default: 'smooth', label: '🔄 Rotation Mode'
+        },
+        rotSpeedX: { type: 'range', min: 0, max: 8, default: 0.3, step: 0.05, label: '↔️ Rotate Speed X' },
+        rotSpeedY: { type: 'range', min: 0, max: 8, default: 0.5, step: 0.05, label: '↕️ Rotate Speed Y' },
+        rotSpeedZ: { type: 'range', min: 0, max: 8, default: 0.1, step: 0.05, label: '🔃 Rotate Speed Z' },
+
+        // ═══ AUDIO REACTIVITY ═══
+        bassBreath: { type: 'range', min: 0, max: 8, default: 1.2, step: 0.1, label: '🔊 Bass Breathing' },
+        beatExplode: { type: 'range', min: 0, max: 8, default: 0.8, step: 0.1, label: '💥 Beat Explode' },
+        beatSpinBurst: { type: 'range', min: 0, max: 5, default: 0.3, step: 0.1, label: '🌀 Beat Spin Burst' },
+        beatShrink: { type: 'toggle', default: false, label: '📉 Beat Shrink/Grow' },
+        pulseRate: { type: 'range', min: 0, max: 15, default: 0, step: 0.5, label: '💓 Auto Pulse Rate' },
+        gravity: { type: 'range', min: -5, max: 5, default: 0, step: 0.1, label: '⬇️ Gravity' },
+
+        // ═══ SURFACE PATTERN ═══
         surfacePattern: {
             type: 'select',
             options: ['none', 'checker', 'stripe', 'spiral', 'hex', 'dots', 'waves', 'voronoiPat', 'fractalNoise'],
             default: 'none', label: '🔲 Surface Pattern'
         },
+        chromaticSplit: { type: 'range', min: 0, max: 8, default: 0, step: 0.1, label: '🌈 Chromatic Split' },
+
+        // ═══ DROP SECTION ═══
+        dropEffect: {
+            type: 'select', options: ['morph', 'explode', 'invert', 'glitch', 'shatter', 'scatter', 'invertSpace', 'all'],
+            default: 'morph', label: '🔥 Drop Effect'
+        },
+        dropMorphTarget: {
+            type: 'select', options: [
+                'random', 'icosahedron', 'dodecahedron', 'octahedron', 'tetrahedron', 'torus', 'torusKnot',
+                'sphere', 'cube', 'heart', 'star', 'crystal', 'mobius', 'klein', 'trefoilKnot',
+                'gyroid', 'seashell', 'romanSurface', 'crossCap', 'boysSurface', 'menger', 'calabi'
+            ], default: 'random', label: '🎯 Drop Morph Shape'
+        },
+        dropDisplaceOverride: {
+            type: 'select', options: [
+                'off', 'frequency', 'noise', 'spike', 'breathe', 'ripple', 'shatter', 'twist', 'melt',
+                'waveform', 'pulse', 'glitch', 'fractal', 'magnetic', 'voronoi', 'flow',
+                'tentacle', 'interference', 'crystallize', 'harmonics'
+            ], default: 'off', label: '🌊 Drop Displace Override'
+        },
+        dropColorOverride: {
+            type: 'select', options: [
+                'off', 'frequency', 'height', 'distance', 'rainbow', 'plasma',
+                'thermal', 'displacement', 'velocity', 'waveformColor', 'pattern'
+            ], default: 'off', label: '🎨 Drop Color Override'
+        },
+        dropIntensityMult: { type: 'range', min: 0, max: 8, default: 1.5, step: 0.1, label: '⚡ Drop Intensity' },
+
+        // ═══ GHOST TRAIL ═══
+        ghostTrail: { type: 'toggle', default: true, label: '👻 Ghost Trail' },
+        ghostCount: { type: 'range', min: 0, max: 12, default: 4, step: 1, label: '👻 Ghost Count' },
+        ghostSpacing: { type: 'range', min: 0, max: 20, default: 5, step: 1, label: '↔️ Ghost Spacing' },
+        trailStyle: { type: 'select', options: ['ghost', 'ribbon', 'echo'], default: 'ghost', label: '✨ Trail Style' },
+
+        // ═══ PARTICLES ═══
+        emitParticles: { type: 'toggle', default: true, label: '✨ Particles' },
+        particleCount: { type: 'range', min: 0, max: 8000, default: 2000, step: 100, label: '✨ Particle Count' },
+
+        // ═══ MIRROR ═══
+        mirrorMode: { type: 'select', options: ['off', 'bilateral', 'tri', 'quad', 'hex', 'octa'], default: 'off', label: '🪞 Mirror Mode' },
+        mirrorDistance: { type: 'range', min: 0, max: 100, default: 30, step: 5, label: '↔️ Mirror Distance' },
 
         // ═══ SECONDARY SHAPE ═══
         secondaryShape: {
@@ -90,95 +167,24 @@ const GeometryForgeMode2 = {
                 'dodecahedron', 'tetrahedron', 'crystal', 'star', 'cone', 'cylinder', 'trefoilKnot', 'gyroid'],
             default: 'off', label: '🔵 Secondary Shape'
         },
-        secondarySize: { type: 'range', min: 2, max: 50, default: 12, step: 1, label: 'Secondary Size' },
-        secondaryShowSolid: { type: 'toggle', default: false, label: 'Secondary Solid Face' },
-        secondaryShowWire: { type: 'toggle', default: true, label: 'Secondary Wireframe' },
-        secondaryOpacity: { type: 'range', min: 0, max: 1, default: 0.15, step: 0.05, label: 'Secondary Solid Opacity' },
-        secondaryWireOpacity: { type: 'range', min: 0, max: 1, default: 0.6, step: 0.05, label: 'Secondary Wire Opacity' },
+        secondarySize: { type: 'range', min: 0, max: 60, default: 12, step: 1, label: '📐 Secondary Size' },
+        secondaryShowSolid: { type: 'toggle', default: false, label: '⬛ Secondary Solid' },
+        secondaryShowWire: { type: 'toggle', default: true, label: '🕸️ Secondary Wire' },
+        secondaryOpacity: { type: 'range', min: 0, max: 1, default: 0.15, step: 0.05, label: '🔳 Secondary Opacity' },
+        secondaryWireOpacity: { type: 'range', min: 0, max: 1, default: 0.6, step: 0.05, label: '🕸️ Sec Wire Opacity' },
         secondaryColorMode: {
             type: 'select', options: ['palette', 'frequency', 'height', 'plasma', 'rainbow', 'thermal'],
-            default: 'palette', label: 'Secondary Color Mode'
+            default: 'palette', label: '🎨 Secondary Color'
         },
         secondaryDisplaceMode: {
             type: 'select',
             options: ['off', 'frequency', 'noise', 'spike', 'breathe', 'ripple', 'waveform', 'pulse', 'voronoi', 'interference', 'twist', 'crystallize'],
-            default: 'frequency', label: 'Secondary Displacement Mode'
+            default: 'frequency', label: '🌊 Sec Displace Mode'
         },
-        secondaryDisplaceAmt: { type: 'range', min: 0, max: 20, default: 5, step: 0.5, label: 'Secondary Displacement Amount' },
-        secondaryRotSpeed: { type: 'range', min: -3, max: 3, default: 0.8, step: 0.1, label: 'Secondary Rotation Speed' },
-        secondaryOrbit: { type: 'toggle', default: false, label: '🌀 Secondary Orbits Primary' },
-        secondaryOrbitRadius: { type: 'range', min: 10, max: 80, default: 35, step: 5, label: 'Orbit Radius' },
-
-        // ═══ DISPLACEMENT ═══
-        displaceMode: {
-            type: 'select', options: [
-                'frequency', 'noise', 'spike', 'breathe', 'ripple', 'shatter', 'twist', 'melt',
-                'waveform', 'pulse', 'glitch', 'fractal', 'magnetic', 'cellular', 'orbit', 'harmonics',
-                'voronoi', 'flow', 'tentacle', 'interference', 'crystallize', 'audio3D', 'gravityWell', 'jellyfish'
-            ], default: 'frequency', label: '🌊 Displacement Mode'
-        },
-        displaceAmount: { type: 'range', min: 0, max: 40, default: 12, step: 0.5, label: 'Displacement Amount' },
-        displaceFreq: { type: 'range', min: 0.5, max: 10, default: 3, step: 0.1, label: 'Displacement Frequency' },
-        noiseScale: { type: 'range', min: 0.5, max: 10, default: 2, step: 0.1, label: 'Noise Scale' },
-        noiseOctaves: { type: 'range', min: 1, max: 5, default: 3, step: 1, label: 'Noise Octaves (Detail)' },
-        symmetryMode: { type: 'select', options: ['off', 'x', 'y', 'z', 'xy', 'xyz'], default: 'off', label: '🔀 Axis Symmetry Mirror' },
-        chromaticSplit: { type: 'range', min: 0, max: 5, default: 0, step: 0.1, label: '🌈 Chromatic Split Amount' },
-
-        // ═══ ANIMATION & ROTATION ═══
-        autoRotateMode: {
-            type: 'select', options: ['smooth', 'tumble', 'orbit', 'wobble', 'spin', 'breatheRot', 'chaotic', 'beatLock'],
-            default: 'smooth', label: '🔄 Rotation Mode'
-        },
-        rotSpeedX: { type: 'range', min: 0, max: 5, default: 0.3, step: 0.05, label: 'Rotation Speed X' },
-        rotSpeedY: { type: 'range', min: 0, max: 5, default: 0.5, step: 0.05, label: 'Rotation Speed Y' },
-        rotSpeedZ: { type: 'range', min: 0, max: 5, default: 0.1, step: 0.05, label: 'Rotation Speed Z' },
-        bassBreath: { type: 'range', min: 0, max: 5, default: 1.2, step: 0.1, label: '🔊 Bass Scale Breathing' },
-        pulseRate: { type: 'range', min: 0, max: 10, default: 0, step: 0.5, label: '💓 Auto Pulse Rate' },
-        gravity: { type: 'range', min: -3, max: 3, default: 0, step: 0.1, label: '⬇️ Gravity Pull' },
-
-        // ═══ BEAT & DROP REACTIONS ═══
-        beatExplode: { type: 'range', min: 0, max: 5, default: 0.8, step: 0.1, label: '💥 Beat Explode Force' },
-        beatSpinBurst: { type: 'range', min: 0, max: 5, default: 0.3, step: 0.1, label: '🌀 Beat Spin Burst' },
-        beatShrink: { type: 'toggle', default: false, label: 'Beat Shrink/Grow Toggle' },
-        dropEffect: {
-            type: 'select', options: ['morph', 'explode', 'invert', 'glitch', 'shatter', 'scatter', 'invertSpace', 'all'],
-            default: 'morph', label: '🔥 Drop Effect Type'
-        },
-        dropMorphTarget: {
-            type: 'select', options: [
-                'random', 'icosahedron', 'dodecahedron', 'octahedron', 'tetrahedron', 'torus', 'torusKnot',
-                'sphere', 'cube', 'heart', 'star', 'crystal', 'mobius', 'klein', 'trefoilKnot',
-                'gyroid', 'seashell', 'romanSurface', 'crossCap', 'boysSurface', 'menger', 'calabi'
-            ], default: 'random', label: '🎯 Drop Morph Target Shape'
-        },
-        dropDisplaceOverride: {
-            type: 'select', options: [
-                'off', 'frequency', 'noise', 'spike', 'breathe', 'ripple', 'shatter', 'twist', 'melt',
-                'waveform', 'pulse', 'glitch', 'fractal', 'magnetic', 'voronoi', 'flow',
-                'tentacle', 'interference', 'crystallize', 'harmonics'
-            ], default: 'off', label: '🌊 Drop Displacement Override'
-        },
-        dropColorOverride: {
-            type: 'select', options: [
-                'off', 'frequency', 'height', 'distance', 'rainbow', 'plasma',
-                'thermal', 'displacement', 'velocity', 'waveformColor', 'pattern'
-            ], default: 'off', label: '🎨 Drop Color Override'
-        },
-        dropIntensityMult: { type: 'range', min: 0.5, max: 5, default: 1.5, step: 0.1, label: '⚡ Drop Intensity Multiplier' },
-
-        // ═══ GHOST TRAIL ═══
-        ghostTrail: { type: 'toggle', default: true, label: '👻 Ghost Trails' },
-        ghostCount: { type: 'range', min: 1, max: 8, default: 4, step: 1, label: 'Ghost Trail Count' },
-        ghostSpacing: { type: 'range', min: 1, max: 15, default: 5, step: 1, label: 'Ghost Spacing (frames)' },
-        trailStyle: { type: 'select', options: ['ghost', 'ribbon', 'echo'], default: 'ghost', label: 'Trail Style' },
-
-        // ═══ PARTICLE EMITTER ═══
-        emitParticles: { type: 'toggle', default: true, label: '✨ Particle Emitter' },
-        particleCount: { type: 'range', min: 500, max: 5000, default: 2000, step: 100, label: 'Particle Count' },
-
-        // ═══ MIRROR ═══
-        mirrorMode: { type: 'select', options: ['off', 'bilateral', 'tri', 'quad', 'hex', 'octa'], default: 'off', label: '🪞 Mirror Mode' },
-        mirrorDistance: { type: 'range', min: 0, max: 80, default: 30, step: 5, label: 'Mirror Distance' },
+        secondaryDisplaceAmt: { type: 'range', min: 0, max: 30, default: 5, step: 0.5, label: '📊 Sec Displace Amt' },
+        secondaryRotSpeed: { type: 'range', min: -5, max: 5, default: 0.8, step: 0.1, label: '🔄 Sec Rotation' },
+        secondaryOrbit: { type: 'toggle', default: false, label: '🌀 Sec Orbits Primary' },
+        secondaryOrbitRadius: { type: 'range', min: 0, max: 100, default: 35, step: 5, label: '🔵 Orbit Radius' },
     },
 
     // ── NOISE ──
@@ -359,21 +365,30 @@ const GeometryForgeMode2 = {
     // ── PALETTE ──
     getPaletteColor(palette, t, rms) {
         const c = this._tempColor || (this._tempColor = new THREE.Color());
+        // Clamp inputs to prevent white-out
+        const ct = Math.max(0, Math.min(1, t));
+        const cr = Math.max(0, Math.min(1, rms));
         switch (palette) {
-            case 'void': return c.setHSL(0.75 + t * 0.1, 0.3, 0.05 + t * 0.15 + rms * 0.1);
-            case 'solar': return c.setHSL(0.08 + t * 0.06, 1, 0.3 + t * 0.3 + rms * 0.2);
-            case 'ocean': return c.setHSL(0.5 + t * 0.15, 0.8, 0.2 + t * 0.3 + rms * 0.2);
-            case 'toxic': return c.setHSL(0.25 + t * 0.1, 1, 0.2 + t * 0.4 + rms * 0.2);
-            case 'nebula': return c.setHSL(0.7 + t * 0.25, 0.9, 0.2 + t * 0.4 + rms * 0.2);
-            case 'aurora': return c.setHSL(0.3 + t * 0.2, 0.9, 0.3 + t * 0.3 + rms * 0.2);
-            case 'fire': return c.setHSL(0.02 + t * 0.08, 1, 0.3 + t * 0.4 + rms * 0.2);
-            case 'ice': return c.setHSL(0.55 + t * 0.1, 0.7, 0.4 + t * 0.3 + rms * 0.2);
-            case 'cyber': return c.setHSL(0.75 + t * 0.15, 1, 0.3 + t * 0.4 + rms * 0.3);
-            case 'sunset': return c.setHSL(0.02 + t * 0.12, 0.95, 0.25 + t * 0.35 + rms * 0.2);
-            case 'acid': return c.setHSL(0.2 + t * 0.15, 1, 0.35 + t * 0.4 + rms * 0.25);
-            case 'midnight': return c.setHSL(0.65 + t * 0.05, 0.4 + t * 0.5, 0.1 + t * 0.5 + rms * 0.2);
-            case 'lava': return c.setHSL(0.0 + t * 0.08, 1, 0.1 + t * 0.5 + rms * 0.2);
-            default: return ParamSystem.getColorThreeHSL(t);
+            case 'void': return c.setHSL(0.75 + ct * 0.1, 0.3, Math.min(0.35, 0.05 + ct * 0.15 + cr * 0.1));
+            case 'solar': return c.setHSL(0.08 + ct * 0.06, 1, Math.min(0.7, 0.3 + ct * 0.3 + cr * 0.1));
+            case 'ocean': return c.setHSL(0.5 + ct * 0.15, 0.8, Math.min(0.65, 0.2 + ct * 0.3 + cr * 0.1));
+            case 'toxic': return c.setHSL(0.25 + ct * 0.1, 1, Math.min(0.7, 0.2 + ct * 0.4 + cr * 0.1));
+            case 'nebula': return c.setHSL(0.7 + ct * 0.25, 0.9, Math.min(0.7, 0.2 + ct * 0.4 + cr * 0.1));
+            case 'aurora': return c.setHSL(0.3 + ct * 0.2, 0.9, Math.min(0.7, 0.3 + ct * 0.3 + cr * 0.1));
+            case 'fire': return c.setHSL(0.02 + ct * 0.08, 1, Math.min(0.7, 0.3 + ct * 0.3 + cr * 0.1));
+            case 'ice': return c.setHSL(0.55 + ct * 0.1, 0.7, Math.min(0.7, 0.4 + ct * 0.2 + cr * 0.1));
+            case 'cyber': return c.setHSL(0.75 + ct * 0.15, 1, Math.min(0.7, 0.3 + ct * 0.3 + cr * 0.1));
+            case 'sunset': return c.setHSL(0.02 + ct * 0.12, 0.95, Math.min(0.7, 0.25 + ct * 0.3 + cr * 0.1));
+            case 'acid': return c.setHSL(0.2 + ct * 0.15, 1, Math.min(0.7, 0.35 + ct * 0.25 + cr * 0.1));
+            case 'midnight': return c.setHSL(0.65 + ct * 0.05, 0.4 + ct * 0.5, Math.min(0.65, 0.1 + ct * 0.4 + cr * 0.1));
+            case 'lava': return c.setHSL(0.0 + ct * 0.08, 1, Math.min(0.65, 0.1 + ct * 0.4 + cr * 0.1));
+            case 'custom': {
+                // Blend between customColor1 and customColor2
+                const c1 = new THREE.Color(this._customColor1 || '#8b5cf6');
+                const c2 = new THREE.Color(this._customColor2 || '#f472b6');
+                return c.copy(c1).lerp(c2, ct);
+            }
+            default: return ParamSystem.getColorThreeHSL(ct);
         }
     },
 
@@ -641,7 +656,7 @@ const GeometryForgeMode2 = {
     updateMirrors(params, audio) {
         const mode = params.mirrorMode ?? 'off';
         if (mode === 'off') { this.mirrorMeshes.forEach(m => m.visible = false); return; }
-        const counts = { bilateral: 1, tri: 2, quad: 3, hex: 5, octa: 7 };
+        const counts = { bilateral: 2, tri: 3, quad: 4, hex: 6, octa: 8 };
         const count = counts[mode] || 0; if (!count) return;
         const dist = (params.mirrorDistance ?? 30) * (1 + audio.smoothBands.bass * 0.5);
         const solidPos = this.sharedGeo.attributes.position.array;
@@ -743,6 +758,12 @@ const GeometryForgeMode2 = {
         const detail = Math.floor(params.detail ?? 3);
         const size = params.size ?? 25;
         const palette = params.colorPalette ?? 'default';
+
+        // Cache custom colors for 'custom' palette
+        if (palette === 'custom') {
+            this._customColor1 = params.customColor1 || '#8b5cf6';
+            this._customColor2 = params.customColor2 || '#f472b6';
+        }
 
         // Rebuild on shape/detail/size change
         if (shape !== this.currentShape || detail !== this.currentDetail || size !== this.currentSize) {
@@ -949,7 +970,7 @@ const GeometryForgeMode2 = {
         else if (wc === 'spectrum') wireCol.setHSL((rms + bass * 0.3 + treble * 0.2 + this.time * 0.02) % 1, 1, 0.4 + rms * 0.4);
         else if (wc === 'complementary') wireCol.setHSL(((this.time * 0.05 + rms * 0.3) + 0.5) % 1, 0.9, 0.45 + rms * 0.35);
         else wireCol.setRGB(1, 1, 1);
-        this.meshWire.material.opacity = (params.wireOpacity ?? 0.9) * (0.5 + rms);
+        this.meshWire.material.opacity = Math.min(0.95, (params.wireOpacity ?? 0.9) * (0.5 + rms * 0.5));
 
         this.meshInnerWire.material.color.copy(ParamSystem.getColorThree(treble + this.time * 0.15));
         this.meshInnerWire.material.opacity = 0.2 + bass * 0.3;
@@ -962,7 +983,10 @@ const GeometryForgeMode2 = {
         const rx = (params.rotSpeedX ?? 0.3) * (1 + mid * react) * rotMult;
         const ry = (params.rotSpeedY ?? 0.5) * (1 + bass * react) * rotMult;
         const rz = (params.rotSpeedZ ?? 0.1) * (1 + treble * react) * rotMult;
-        if (rotMode === 'smooth') { this.group.rotation.x += rx * dt; this.group.rotation.y += ry * dt; this.group.rotation.z += rz * dt; }
+        if (rotMode === 'off') {
+            // No rotation — user has full manual control; keep current angles
+        }
+        else if (rotMode === 'smooth') { this.group.rotation.x += rx * dt; this.group.rotation.y += ry * dt; this.group.rotation.z += rz * dt; }
         else if (rotMode === 'tumble') { this.group.rotation.x += rx * dt + Math.sin(this.time * 1.5) * 0.01; this.group.rotation.y += ry * dt + Math.cos(this.time * 1.2) * 0.01; this.group.rotation.z += rz * dt + Math.sin(this.time * 0.8) * 0.02; }
         else if (rotMode === 'orbit') { this.group.rotation.y += ry * dt; this.group.rotation.x = Math.sin(this.time * 0.5) * 0.3; this.group.rotation.z = Math.cos(this.time * 0.3) * 0.2; }
         else if (rotMode === 'wobble') { this.group.rotation.x = Math.sin(this.time * rx) * 0.5; this.group.rotation.y += ry * dt; this.group.rotation.z = Math.cos(this.time * rz) * 0.3; }

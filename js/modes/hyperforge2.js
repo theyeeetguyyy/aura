@@ -7,7 +7,7 @@
 // ============================================================
 
 const HyperforgeMode2 = {
-    name: 'Hyperforge web',
+    name: 'Hyperforge',
     group: null, time: 0,
 
     // Outer mesh: mainMesh + mainWire share ONE geometry (outerGeo)
@@ -43,58 +43,62 @@ const HyperforgeMode2 = {
 
     // ── PARAMS ──
     params: {
-        // ═══ OUTER SURFACE ═══
+        // ═══ SURFACE ═══
         outerSurface: {
             type: 'select', options: [
                 'superformula', 'lorenzSurface', 'kleinBottle', 'catenoid', 'helicoid',
                 'diniSurface', 'enneperSurface', 'crossCap', 'torusKnot', 'icosahedron', 'sphere',
                 'boysSurface', 'romanSurface', 'seiferSurface', 'steinerian', 'trefoilKnot', 'algebraicHorn'
-            ], default: 'superformula', label: '🔮 Outer Surface Shape'
+            ], default: 'superformula', label: '🔮 Surface Shape'
         },
-        outerDetail: { type: 'range', min: 10, max: 80, default: 40, step: 5, label: 'Outer Surface Resolution' },
-        outerSize: { type: 'range', min: 5, max: 50, default: 22, step: 1, label: 'Outer Surface Size' },
+        outerDetail: { type: 'range', min: 0, max: 100, default: 40, step: 5, label: '🔶 Resolution' },
+        outerSize: { type: 'range', min: 0, max: 60, default: 22, step: 1, label: '📐 Size' },
 
-        // Superformula controls (visible when outerSurface = superformula)
-        sfM: { type: 'range', min: 1, max: 20, default: 6, step: 0.5, label: 'SF: m (rotational symmetry)' },
-        sfN1: { type: 'range', min: 0.1, max: 10, default: 1, step: 0.1, label: 'SF: n1 (overall shape)' },
-        sfN2: { type: 'range', min: 0.1, max: 10, default: 1, step: 0.1, label: 'SF: n2 (horizontal)' },
-        sfN3: { type: 'range', min: 0.1, max: 10, default: 1, step: 0.1, label: 'SF: n3 (vertical)' },
-        sfAudioMap: { type: 'toggle', default: true, label: '🎵 Audio Drives SF Shape' },
-
-        // ═══ OUTER APPEARANCE ═══
-        solidOpacity: { type: 'range', min: 0, max: 0.8, default: 0.2, step: 0.05, label: 'Solid Face Opacity' },
-        wireOpacity: { type: 'range', min: 0, max: 1, default: 0.7, step: 0.05, label: 'Wireframe Opacity' },
-        colorMode: {
-            type: 'select', options: [
-                'reactionDiffusion', 'curvature', 'audioFreq', 'height', 'velocity',
-                'rainbow', 'fire', 'ice', 'plasma', 'thermal', 'void', 'holographic'
-            ], default: 'reactionDiffusion', label: '🎨 Outer Color Mode'
-        },
-
-        // ═══ INNER SURFACE ═══
-        showInner: { type: 'toggle', default: true, label: '🔵 Show Inner Surface' },
-        innerSurface: {
-            type: 'select', options: ['sphere', 'torusKnot', 'icosahedron', 'superformula', 'none'],
-            default: 'icosahedron', label: 'Inner Surface Shape'
-        },
-        innerScale: { type: 'range', min: 0.1, max: 0.9, default: 0.4, step: 0.05, label: 'Inner Surface Scale' },
-        innerSolidOpacity: { type: 'range', min: 0, max: 0.6, default: 0.1, step: 0.05, label: 'Inner Solid Opacity' },
-        innerWireOpacity: { type: 'range', min: 0, max: 1, default: 0.5, step: 0.05, label: 'Inner Wire Opacity' },
-        dualWireColors: { type: 'toggle', default: false, label: 'Dual Wire Color Mode' },
+        // ═══ SUPERFORMULA ═══
+        sfM: { type: 'range', min: 0, max: 30, default: 6, step: 0.5, label: '🔢 SF Symmetry (m)' },
+        sfN1: { type: 'range', min: 0, max: 15, default: 1, step: 0.1, label: '🔷 SF Shape (n1)' },
+        sfN2: { type: 'range', min: 0, max: 15, default: 1, step: 0.1, label: '↔️ SF Horizontal (n2)' },
+        sfN3: { type: 'range', min: 0, max: 15, default: 1, step: 0.1, label: '↕️ SF Vertical (n3)' },
+        sfAudioMap: { type: 'toggle', default: true, label: '🎵 Audio Drives SF' },
 
         // ═══ DISPLACEMENT ═══
         displaceMode: {
             type: 'select', options: [
                 'fourier', 'forceField', 'vortex', 'magnetic', 'superposition', 'turbulence',
                 'audioSculpt', 'reaction', 'gravitationalWell', 'stringTheory', 'fluidSim'
-            ], default: 'fourier', label: '🌊 Displacement Mode'
+            ], default: 'fourier', label: '🌊 Displace Mode'
         },
-        displaceAmt: { type: 'range', min: 0, max: 30, default: 8, step: 0.5, label: 'Displacement Amount' },
-        displaceSpeed: { type: 'range', min: 0.1, max: 5, default: 1.5, step: 0.1, label: 'Displacement Speed' },
+        displaceAmt: { type: 'range', min: 0, max: 40, default: 8, step: 0.5, label: '📊 Displace Amount' },
+        displaceSpeed: { type: 'range', min: 0, max: 8, default: 1.5, step: 0.1, label: '⏩ Displace Speed' },
         symmetryAxis: { type: 'select', options: ['off', 'x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz'], default: 'off', label: '🔀 Symmetry Axis' },
-        gravWellCount: { type: 'range', min: 1, max: 5, default: 2, step: 1, label: '🕳️ Gravity Well Count' },
+        gravWellCount: { type: 'range', min: 0, max: 8, default: 2, step: 1, label: '🕳️ Gravity Wells' },
 
-        // ═══ STRANGE ATTRACTOR ═══
+        // ═══ COLORS ═══
+        colorMode: {
+            type: 'select', options: [
+                'reactionDiffusion', 'curvature', 'audioFreq', 'height', 'velocity',
+                'rainbow', 'fire', 'ice', 'plasma', 'thermal', 'void', 'holographic'
+            ], default: 'reactionDiffusion', label: '🎨 Color Mode'
+        },
+        customColor1: { type: 'color', default: '#8b5cf6', label: '🟣 Custom Color A' },
+        customColor2: { type: 'color', default: '#22ccff', label: '🔵 Custom Color B' },
+
+        // ═══ APPEARANCE ═══
+        solidOpacity: { type: 'range', min: 0, max: 1, default: 0.2, step: 0.05, label: '🔳 Solid Opacity' },
+        wireOpacity: { type: 'range', min: 0, max: 1, default: 0.7, step: 0.05, label: '🕸️ Wire Opacity' },
+
+        // ═══ INNER SURFACE ═══
+        showInner: { type: 'toggle', default: true, label: '🔵 Inner Surface' },
+        innerSurface: {
+            type: 'select', options: ['sphere', 'torusKnot', 'icosahedron', 'superformula', 'none'],
+            default: 'icosahedron', label: '🔷 Inner Shape'
+        },
+        innerScale: { type: 'range', min: 0, max: 1, default: 0.4, step: 0.05, label: '📐 Inner Scale' },
+        innerSolidOpacity: { type: 'range', min: 0, max: 0.8, default: 0.1, step: 0.05, label: '🔳 Inner Solid Opacity' },
+        innerWireOpacity: { type: 'range', min: 0, max: 1, default: 0.5, step: 0.05, label: '🕸️ Inner Wire Opacity' },
+        dualWireColors: { type: 'toggle', default: false, label: '🌈 Dual Wire Colors' },
+
+        // ═══ ATTRACTOR ═══
         attractorType: {
             type: 'select', options: ['lorenz', 'rossler', 'aizawa', 'thomas', 'halvorsen', 'chen', 'dadras', 'sprott', 'none'],
             default: 'lorenz', label: '🌀 Attractor Type'
@@ -103,58 +107,61 @@ const HyperforgeMode2 = {
             type: 'select', options: ['none', 'lorenz', 'rossler', 'aizawa', 'thomas', 'halvorsen', 'chen', 'dadras', 'sprott'],
             default: 'none', label: '🔗 Secondary Attractor'
         },
-        attractorBlend: { type: 'range', min: 0, max: 1, default: 0.5, step: 0.05, label: 'Attractor Blend Amount' },
-        attractorCount: { type: 'range', min: 500, max: 10000, default: 4000, step: 500, label: 'Attractor Point Count' },
-        attractorSpeed: { type: 'range', min: 0.1, max: 5, default: 1, step: 0.1, label: 'Attractor Speed' },
-        attractorScale: { type: 'range', min: 0.2, max: 3, default: 1, step: 0.1, label: 'Attractor Scale' },
+        attractorBlend: { type: 'range', min: 0, max: 1, default: 0.5, step: 0.05, label: '🔀 Attractor Blend' },
+        attractorCount: { type: 'range', min: 0, max: 15000, default: 4000, step: 500, label: '✨ Attractor Points' },
+        attractorSpeed: { type: 'range', min: 0, max: 8, default: 1, step: 0.1, label: '⏩ Attractor Speed' },
+        attractorScale: { type: 'range', min: 0, max: 5, default: 1, step: 0.1, label: '📐 Attractor Scale' },
         attractorAudioLink: {
             type: 'select', options: ['bass', 'mid', 'treble', 'rms', 'sub'],
-            default: 'bass', label: '🔊 Attractor Audio Link Band'
+            default: 'bass', label: '🔊 Audio Link Band'
         },
-        particleJitter: { type: 'range', min: 0, max: 5, default: 0, step: 0.1, label: 'Particle Jitter Amount' },
-        pointGlow: { type: 'range', min: 0.5, max: 6, default: 2.5, step: 0.5, label: '✨ Attractor Point Glow Size' },
+        particleJitter: { type: 'range', min: 0, max: 8, default: 0, step: 0.1, label: '✨ Particle Jitter' },
+        pointGlow: { type: 'range', min: 0, max: 10, default: 2.5, step: 0.5, label: '✨ Point Glow Size' },
         showTrails: { type: 'toggle', default: true, label: '📈 Show Trails' },
         trailColorMode: {
             type: 'select', options: ['velocity', 'time', 'distance', 'palette'],
-            default: 'velocity', label: 'Trail Color Mode'
+            default: 'velocity', label: '🎨 Trail Color'
         },
 
         // ═══ FLOW PARTICLES ═══
         flowEnabled: { type: 'toggle', default: true, label: '💫 Flow Particles' },
-        flowCount: { type: 'range', min: 500, max: 8000, default: 3000, step: 500, label: 'Flow Particle Count' },
-        flowSpeed: { type: 'range', min: 0.1, max: 3, default: 1, step: 0.1, label: 'Flow Speed' },
+        flowCount: { type: 'range', min: 0, max: 12000, default: 3000, step: 500, label: '💫 Flow Count' },
+        flowSpeed: { type: 'range', min: 0, max: 5, default: 1, step: 0.1, label: '⏩ Flow Speed' },
         flowPattern: {
             type: 'select', options: ['orbit', 'spiral', 'helix', 'chaos', 'vortex'],
             default: 'orbit', label: '🌀 Flow Pattern'
         },
 
-        // ═══ ANIMATION ═══
-        rotSpeed: { type: 'range', min: 0, max: 3, default: 0.4, step: 0.05, label: 'Rotation Speed' },
-        bassBreath: { type: 'range', min: 0, max: 5, default: 2.5, step: 0.1, label: '🔊 Bass Scale Breathing' },
-        beatExplode: { type: 'range', min: 0, max: 5, default: 2, step: 0.1, label: '💥 Beat Explode Force' },
+        // ═══ ROTATION ═══
+        rotSpeed: { type: 'range', min: 0, max: 8, default: 0.4, step: 0.05, label: '🔄 Rotation Speed' },
+        rotationEnabled: { type: 'toggle', default: true, label: '🔄 Rotation On/Off' },
+
+        // ═══ AUDIO REACTIVITY ═══
+        bassBreath: { type: 'range', min: 0, max: 8, default: 2.5, step: 0.1, label: '🔊 Bass Breathing' },
+        beatExplode: { type: 'range', min: 0, max: 8, default: 2, step: 0.1, label: '💥 Beat Explode' },
         beatExplosionStyle: {
             type: 'select', options: ['radial', 'shatter', 'invert', 'twist'],
             default: 'radial', label: '💥 Explode Style'
         },
 
-        // ═══ DROP / MORPH ═══
-        morphEnabled: { type: 'toggle', default: true, label: '🔄 Drop Triggers Morph' },
-        morphSpeed: { type: 'range', min: 0.5, max: 5, default: 2, step: 0.1, label: 'Morph Speed' },
+        // ═══ DROP SECTION ═══
+        morphEnabled: { type: 'toggle', default: true, label: '🔄 Drop Morph' },
+        morphSpeed: { type: 'range', min: 0, max: 8, default: 2, step: 0.1, label: '⏩ Morph Speed' },
         dropReaction: {
             type: 'select', options: ['shapeShift', 'colorStorm', 'particleBurst', 'invert', 'all'],
-            default: 'all', label: '🔥 Drop Reaction Type'
+            default: 'all', label: '🔥 Drop Reaction'
         },
         dropMorphTarget: {
             type: 'select', options: [
                 'random', 'superformula', 'lorenzSurface', 'kleinBottle', 'catenoid', 'helicoid',
                 'diniSurface', 'enneperSurface', 'crossCap', 'boysSurface', 'trefoilKnot', 'algebraicHorn'
-            ], default: 'random', label: '🎯 Drop Morph Target Shape'
+            ], default: 'random', label: '🎯 Drop Morph Shape'
         },
         dropDisplaceOverride: {
             type: 'select', options: [
                 'off', 'fourier', 'forceField', 'vortex', 'magnetic', 'superposition',
                 'turbulence', 'audioSculpt', 'reaction', 'gravitationalWell', 'stringTheory', 'fluidSim'
-            ], default: 'off', label: '🌊 Drop Displacement Override'
+            ], default: 'off', label: '🌊 Drop Displace Override'
         },
         dropColorOverride: {
             type: 'select', options: [
@@ -162,7 +169,7 @@ const HyperforgeMode2 = {
                 'fire', 'plasma', 'thermal', 'void', 'holographic'
             ], default: 'off', label: '🎨 Drop Color Override'
         },
-        dropIntensityMult: { type: 'range', min: 0.5, max: 5, default: 1.5, step: 0.1, label: '⚡ Drop Intensity Multiplier' },
+        dropIntensityMult: { type: 'range', min: 0, max: 8, default: 1.5, step: 0.1, label: '⚡ Drop Intensity' },
     },
 
     // ── NOISE ──
@@ -484,8 +491,8 @@ const HyperforgeMode2 = {
         if (this.trailLine) this.trailLine.visible = !!params.showTrails;
 
         // ── MATERIALS ──
-        this.mainMesh.material.opacity = params.solidOpacity || 0.2;
-        this.mainWire.material.opacity = (params.wireOpacity || 0.7) * (0.5 + rms);
+        this.mainMesh.material.opacity = Math.min(0.8, params.solidOpacity || 0.2);
+        this.mainWire.material.opacity = Math.min(0.95, (params.wireOpacity || 0.7) * (0.5 + rms * 0.5));
         this.mainWire.material.color.copy(ParamSystem.getColorThree(rms + this.time * 0.1));
 
         if (this.attractorSystem) {
@@ -505,14 +512,16 @@ const HyperforgeMode2 = {
             this.innerWire.material.color.copy(hwColor);
         }
 
-        // ── ROTATION (SE.rotationMultiplier scales with marker section) ──
-        const rotMult = SE.rotationMultiplier ?? 1;
-        const rot = (params.rotSpeed || 0.4) * (1 + mid * react * 0.6) * rotMult;
-        this.group.rotation.x += rot * 0.3 * dt;
-        this.group.rotation.y += rot * dt;
-        this.group.rotation.z += rot * 0.1 * dt;
-        if (audio.bassBeat) {
-            this.group.rotation.y += Math.min(0.15, audio.bassBeatIntensity * 0.2) * rotMult;
+        // ── ROTATION (with on/off toggle) ──
+        if (params.rotationEnabled !== false) {
+            const rotMult = SE.rotationMultiplier ?? 1;
+            const rot = (params.rotSpeed || 0.4) * (1 + mid * react * 0.6) * rotMult;
+            this.group.rotation.x += rot * 0.3 * dt;
+            this.group.rotation.y += rot * dt;
+            this.group.rotation.z += rot * 0.1 * dt;
+            if (audio.bassBeat) {
+                this.group.rotation.y += Math.min(0.15, audio.bassBeatIntensity * 0.2) * rotMult;
+            }
         }
 
         // ── BEAT EXPLODE ──
@@ -588,21 +597,21 @@ const HyperforgeMode2 = {
             // Sub sustain rumble
             if (audio.hasSustainedBass) pos[i3 + 1] += (audio.subSustain || 0) * (audio.wobbleLFO || 0) * amt * 0.4;
 
-            // Colors
+            // Colors — clamped to prevent white-out
             let r = 1, g = 1, b = 1;
             switch (colorMode) {
                 case 'reactionDiffusion': { const rd = (Math.sin(pos[i3] * 0.2 + this.time) + Math.cos(pos[i3 + 1] * 0.15 + this.time * 0.8)) * 0.5 + 0.5; const c = ParamSystem.getColorThreeHSL(rd * 0.6 + freq * 0.4); r = c.r; g = c.g; b = c.b; break; }
-                case 'curvature': { const cv = Math.abs(disp) / (amt + 0.01); const c = ParamSystem.getColorThreeHSL(cv); r = c.r; g = c.g; b = c.b; break; }
-                case 'audioFreq': { const c = ParamSystem.getColorThreeHSL(freq + t * 0.2); r = c.r; g = c.g; b = c.b; break; }
-                case 'height': { const c = ParamSystem.getColorThreeHSL(pos[i3 + 1] / 30 + 0.5); r = c.r; g = c.g; b = c.b; break; }
-                case 'velocity': { const c = ParamSystem.getColorThreeHSL(Math.abs(disp) * 0.1 + this.time * 0.05); r = c.r; g = c.g; b = c.b; break; }
-                case 'rainbow': { if (!this._tempColor) this._tempColor = new THREE.Color(); const c = this._tempColor.setHSL((t + this.time * 0.1) % 1, 0.9, 0.5 + rms * 0.3); r = c.r; g = c.g; b = c.b; break; }
-                case 'fire': { const hf = freq * 0.6 + rms * 0.4; r = Math.min(1, hf * 2); g = hf * 0.6; b = hf * 0.1; break; }
-                case 'ice': { const c2 = freq * 0.5 + 0.3; r = c2 * 0.3; g = c2 * 0.7; b = Math.min(1, c2 * 1.5); break; }
+                case 'curvature': { const cv = Math.min(1, Math.abs(disp) / (amt + 0.01)); const c = ParamSystem.getColorThreeHSL(cv); r = c.r; g = c.g; b = c.b; break; }
+                case 'audioFreq': { const c = ParamSystem.getColorThreeHSL(Math.min(1, freq + t * 0.2)); r = c.r; g = c.g; b = c.b; break; }
+                case 'height': { const c = ParamSystem.getColorThreeHSL(Math.min(1, pos[i3 + 1] / 30 + 0.5)); r = c.r; g = c.g; b = c.b; break; }
+                case 'velocity': { const c = ParamSystem.getColorThreeHSL(Math.min(1, Math.abs(disp) * 0.1 + this.time * 0.05)); r = c.r; g = c.g; b = c.b; break; }
+                case 'rainbow': { if (!this._tempColor) this._tempColor = new THREE.Color(); const c = this._tempColor.setHSL((t + this.time * 0.1) % 1, 0.9, Math.min(0.7, 0.5 + rms * 0.2)); r = c.r; g = c.g; b = c.b; break; }
+                case 'fire': { const hf = Math.min(1, freq * 0.6 + rms * 0.3); r = Math.min(1, hf * 2); g = hf * 0.6; b = hf * 0.1; break; }
+                case 'ice': { const c2 = Math.min(0.9, freq * 0.5 + 0.3); r = c2 * 0.3; g = c2 * 0.7; b = Math.min(1, c2 * 1.2); break; }
                 case 'plasma': { r = Math.sin(t * 10 + this.time) * 0.5 + 0.5; g = Math.sin(t * 10 + this.time * 1.3 + 2.1) * 0.5 + 0.5; b = Math.sin(t * 10 + this.time * 0.7 + 4.2) * 0.5 + 0.5; break; }
-                case 'thermal': { const th = freq * 0.7 + rms * 0.3; r = Math.min(1, th * 3); g = Math.max(0, th * 2 - 0.5); b = Math.max(0, th - 0.7); break; }
-                case 'void': { const edge = Math.abs(disp) / (amt + 0.01); r = edge * 0.3; g = edge * 0.1; b = edge * 0.5 + 0.05; break; }
-                case 'holographic': { const angle = Math.atan2(pos[i3 + 2], pos[i3]) / Math.PI; if (!this._tempColor) this._tempColor = new THREE.Color(); const c = this._tempColor.setHSL((angle + t + this.time * 0.05) % 1, 0.9, 0.3 + freq * 0.4); r = c.r; g = c.g; b = c.b; break; }
+                case 'thermal': { const th = Math.min(1, freq * 0.7 + rms * 0.2); r = Math.min(1, th * 2.5); g = Math.max(0, th * 2 - 0.5); b = Math.max(0, th - 0.7); break; }
+                case 'void': { const edge = Math.min(1, Math.abs(disp) / (amt + 0.01)); r = edge * 0.3; g = edge * 0.1; b = edge * 0.5 + 0.05; break; }
+                case 'holographic': { const angle = Math.atan2(pos[i3 + 2], pos[i3]) / Math.PI; if (!this._tempColor) this._tempColor = new THREE.Color(); const c = this._tempColor.setHSL((angle + t + this.time * 0.05) % 1, 0.9, Math.min(0.65, 0.3 + freq * 0.3)); r = c.r; g = c.g; b = c.b; break; }
             }
             col[i3] = r; col[i3 + 1] = g; col[i3 + 2] = b;
         }

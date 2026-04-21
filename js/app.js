@@ -44,11 +44,9 @@ const AuraApp = (() => {
         VisualEngine.registerMode('spectrogram', SpectrogramMode);
         VisualEngine.registerMode('kaleidoscope', KaleidoscopeMode);
         VisualEngine.registerMode('shaderTunnel', ShaderTunnelMode);
-        VisualEngine.registerMode('geometryForge', GeometryForgeMode);
-        VisualEngine.registerMode('geometryForge2', GeometryForgeMode2);
-        VisualEngine.registerMode('hyperforge', HyperforgeMode);
-        VisualEngine.registerMode('hyperforge2', HyperforgeMode2);
-        VisualEngine.registerMode('godRays', GodRaysMode);
+        VisualEngine.registerMode('geometryForge', GeometryForgeMode2);
+        VisualEngine.registerMode('hyperforge', HyperforgeMode2);
+
         VisualEngine.registerMode('particleManipulation', ParticleManipulationMode);
         VisualEngine.registerMode('mathMode', MathModeMode);
         VisualEngine.registerMode('fractalTree', FractalTreeMode);
@@ -56,21 +54,21 @@ const AuraApp = (() => {
         VisualEngine.registerMode('lissajous', LissajousMode);
         VisualEngine.registerMode('mobiusRings', MobiusRingsMode);
         VisualEngine.registerMode('gridDistortion', GridDistortionMode);
-        VisualEngine.registerMode('dnaHelix', DnaHelixMode);
-        VisualEngine.registerMode('polyhedronExplode', PolyhedronExplodeMode);
+
         VisualEngine.registerMode('starfield', StarfieldMode);
-        VisualEngine.registerMode('nebula', NebulaMode);
-        VisualEngine.registerMode('aurora', AuroraMode);
+
+
         VisualEngine.registerMode('cyberGrid', CyberGridMode);
         VisualEngine.registerMode('neonPlasma', NeonPlasmaMode);
-        VisualEngine.registerMode('dimensionalRift', DimensionalRiftMode);
+
         VisualEngine.registerMode('rhythmicGeometry', RhythmicGeometryMode);
-        VisualEngine.registerMode('sdfRaymarcher', SDFRaymarcherMode);
-        VisualEngine.registerMode('noiseRealm', NoiseRealmMode);
+
         VisualEngine.registerMode('gpgpuParticles', GPGPUParticlesMode);
-        VisualEngine.registerMode('fractalShader', FractalShaderMode);
+
         VisualEngine.registerMode('voidEngine', VoidEngineMode);
-        VisualEngine.registerMode('laserShow', LaserShowMode);
+
+        VisualEngine.registerMode('titanforge', TitanforgeMode);
+
     }
 
     function loop() {

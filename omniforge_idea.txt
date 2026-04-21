@@ -1,0 +1,15 @@
+# The Next Phase: "OmniForge" Design Proposal
+
+**OmniForge: Recursive Geometry Instancing**
+
+Instead of deforming one giant mesh, OmniForge will leverage **InstancedMesh GPU Rendering** to create a fractal-like hierarchy of thousands of interconnected parametric shapes that react independently to different frequency bands.
+
+### Core Mechanics
+1. **The Core / Anchor**: A central geometry (like the Superformula from Hyperforge). This reacts strictly to the `Sub` and `Bass`.
+2. **The Orbitals**: Using `THREE.InstancedMesh` (for extreme performance), hundreds of secondary geometries orbit the core along complex math paths (Lissajous curves, Lorenz strange attractors). These react to the `Mid`.
+3. **The Web**: A dynamic line-rendering system (similar to a Plexus effect) that connects the orbitals to one another when they get close. The web vibrates based on the `Treble` and transient `Onsets`.
+
+### Why it's a step up:
+- **True Depth**: Hyperforge is a complex 2D surface warped in 3D. OmniForge takes up physical 3D volume, giving a much deeper, more cinematic feel.
+- **Granular Audio Reactivity**: Instead of assigning a displacement algorithm to the whole mesh, the Core, Orbitals, and Web each run off isolated audio bands, allowing much tighter synchronization with specific instruments in extreme bass music.
+- **Infinite Variation**: By decoupling the *Path* (where the items are) from the *Form* (what the items are), we multiply the number of unique visual outputs mathematically.

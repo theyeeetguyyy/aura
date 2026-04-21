@@ -230,7 +230,7 @@ const ShaderTunnelMode = {
                     if (uColorBands > 0.0) {
                         hue = floor(hue * uColorBands) / uColorBands;
                     }
-                    float val = v * (1.0 + uRMS) * (0.3 + depth * 3.0);
+                    float val = v * (1.0 + uRMS) * (0.2 + depth * 2.0); // Reduced multiplier to prevent blowout
                     val = clamp(val, 0.0, 1.0);
 
                     vec3 color = hsv2rgb(vec3(hue, uSaturation, val));
@@ -239,23 +239,25 @@ const ShaderTunnelMode = {
                     float edge = smoothstep(0.0, 0.3, r);
                     color *= edge;
 
-                    // Ring overlay
-                    color += ring * uGlow * vec3(0.5, 0.3, 1.0);
+                    // Ring overlay (clamped to prevent blowout)
+                    ring = clamp(ring, 0.0, 2.5);
+                    color += ring * uGlow * vec3(0.5, 0.3, 1.0) * 0.6;
 
                     // Beat flash
-                    color += uBeatIntensity * 0.2;
+                    color += uBeatIntensity * 0.1; // Reduced flash
 
                     // Center glow
-                    float centerGlow = exp(-r * 3.0) * uInnerGlow * uBass;
+                    float centerGlow = exp(-r * 3.0) * uInnerGlow * min(1.0, uBass * 0.7);
                     color += centerGlow * vec3(0.6, 0.2, 1.0);
 
                     // Fog
                     color *= exp(-depth * 0.3 * uFogDepth);
 
                     float layerOpacity = 1.0 / (1.0 + layer * 0.5);
-                    totalColor += color * layerOpacity;
+                    totalColor += clamp(color * layerOpacity, 0.0, 1.5);
                 }
 
+                totalColor = clamp(totalColor, 0.0, 1.5); // Prevent fully white frames
                 gl_FragColor = vec4(totalColor, 1.0);
             }
         `;

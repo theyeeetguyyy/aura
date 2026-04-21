@@ -265,6 +265,47 @@ const UI = (() => {
 
     // ── Panels ─────────────────────────────────────────────
     function setupPanels() {
+        // --- Panel Resizing Logic ---
+        function makeResizable(panelId, isLeft) {
+            const panel = document.getElementById(panelId);
+            if (!panel) return;
+            const handle = document.createElement('div');
+            handle.className = 'panel-resize-handle';
+            panel.appendChild(handle);
+            
+            let isResizing = false;
+            let startX = 0;
+            let startWidth = 0;
+
+            handle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startX = e.clientX;
+                startWidth = panel.offsetWidth;
+                panel.classList.add('resizing');
+                handle.classList.add('dragging');
+                document.body.style.cursor = 'col-resize';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const dx = e.clientX - startX;
+                let newWidth = isLeft ? startWidth + dx : startWidth - dx;
+                newWidth = Math.max(220, Math.min(newWidth, 500));
+                panel.style.width = `${newWidth}px`;
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!isResizing) return;
+                isResizing = false;
+                panel.classList.remove('resizing');
+                handle.classList.remove('dragging');
+                document.body.style.cursor = '';
+            });
+        }
+        
+        makeResizable('modes-panel', true);
+        makeResizable('params-panel', false);
+
         const modePanelBtn = document.getElementById('btn-modes');
         const paramsPanelBtn = document.getElementById('btn-params');
 
@@ -349,12 +390,11 @@ const UI = (() => {
             frequencyBars: '📊', particleStorm: '✨', radialBloom: '🌸',
             terrainMesh: '🏔', waveformScope: '〰️', spectrogram: '🌈',
             kaleidoscope: '🔮', shaderTunnel: '🌀', geometryForge: '🔧',
-            hyperforge: '⚡', godRays: '☀️', particleManipulation: '🎆',
+            hyperforge: '⚡', particleManipulation: '🎆',
             mathMode: '📐', fractalTree: '🌳', voronoiField: '🔷',
             lissajous: '∞', mobiusRings: '💍', gridDistortion: '🔲',
-            dnaHelix: '🧬', polyhedronExplode: '💥', starfield: '⭐',
-            nebula: '🌌', aurora: '🏔️', cyberGrid: '🏙️', neonPlasma: '🔮',
-            dimensionalRift: '🌀', rhythmicGeometry: '🎶'
+            starfield: '⭐', cyberGrid: '🏙️', neonPlasma: '🔮',
+            rhythmicGeometry: '🎶'
         };
         return icons[key] || '◆';
     }
@@ -413,6 +453,43 @@ const UI = (() => {
             valueDisplay.className = 'param-value';
             valueDisplay.dataset.paramValueFor = key; // 1.10
             valueDisplay.textContent = parseFloat(input.value).toFixed(2);
+            valueDisplay.title = "Double-click to edit";
+
+            // Double click to type inline exact values
+            valueDisplay.addEventListener('dblclick', () => {
+                const numInput = document.createElement('input');
+                numInput.type = 'number';
+                numInput.className = 'param-value-input';
+                numInput.value = parseFloat(input.value).toFixed(2);
+                numInput.min = schema.min;
+                numInput.max = schema.max;
+                numInput.step = schema.step || 0.01;
+                
+                const commit = () => {
+                    let v = parseFloat(numInput.value);
+                    if(isNaN(v)) v = parseFloat(input.value);
+                    v = Math.max(schema.min, Math.min(schema.max, v));
+                    input.value = v;
+                    ParamSystem.set(key, v);
+                    valueDisplay.textContent = v.toFixed(2);
+                    valueDisplay.style.display = '';
+                    numInput.remove();
+                };
+
+                numInput.addEventListener('blur', commit);
+                numInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') commit();
+                    if (e.key === 'Escape') {
+                        valueDisplay.style.display = '';
+                        numInput.remove();
+                    }
+                });
+
+                valueDisplay.style.display = 'none';
+                row.insertBefore(numInput, valueDisplay);
+                numInput.focus();
+                numInput.select();
+            });
 
             const linkBtn = document.createElement('button');
             linkBtn.className = 'param-link-btn';

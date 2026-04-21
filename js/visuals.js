@@ -674,10 +674,10 @@ const VisualEngine = (() => {
             if (pp) {
                 const effects = audioBus.sectionEffects || { bloom: 1 };
                 const masterInt = audioBus.masterIntensity || 1;
-                // Add base intensity + beat react + master intensity
-                bloomPass.strength = (ParamSystem.get('bloomIntensity') || 0.8) * effects.bloom
-                    + audioBus.bassBeatIntensity * 0.5 * masterInt;
-                bloomPass.threshold = ParamSystem.get('bloomThreshold') || 0.1;
+                // Clamp bloom strength to prevent white-out saturation
+                bloomPass.strength = Math.min(2.5, (ParamSystem.get('bloomIntensity') || 0.5) * effects.bloom
+                    + audioBus.bassBeatIntensity * 0.3 * masterInt);
+                bloomPass.threshold = ParamSystem.get('bloomThreshold') || 0.35;
                 bloomPass.radius = ParamSystem.get('bloomRadius') || 0.8;
             }
         }
