@@ -135,6 +135,12 @@ Drag and drop an audio file onto the welcome screen, or click **Import Audio**. 
 - M4A
 - AAC
 
+## 🎬 Aura Studio (Video Maker upgrade — WIP)
+
+Aura now includes an early “editor layer” (Graph + Timeline) for building state-based visual edits over time.
+
+- **How-To Guide**: see `AURA_STUDIO_HOWTO.md`
+
 ## 🏗️ Architecture
 
 ```

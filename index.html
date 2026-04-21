@@ -14,6 +14,21 @@
 
 <body>
 
+    <div class="studio-topbar">
+        <div class="studio-brand">
+            <span class="studio-brand-mark">AURA</span>
+            <span class="studio-brand-sub">Studio</span>
+        </div>
+        <div class="studio-topbar-actions">
+            <button class="studio-view-btn active" id="btn-view-library" title="Toggle Library">Library</button>
+            <button class="studio-view-btn active" id="btn-view-inspector" title="Toggle Inspector">Inspector</button>
+            <button class="studio-view-btn active" id="btn-view-timeline" title="Toggle Timeline">Timeline</button>
+            <button class="studio-view-btn" id="btn-view-graph" title="Toggle Advanced Graph">Advanced Graph</button>
+        </div>
+        <div class="studio-topbar-status" id="studio-status">Load audio to start editing</div>
+        <button class="studio-settings-btn" id="btn-global-settings" title="Global Settings">Settings</button>
+    </div>
+
     <!-- THREE.JS CANVAS -->
     <canvas id="aura-canvas"></canvas>
 
@@ -40,22 +55,33 @@
     <!-- PANEL TOGGLE BUTTONS -->
     <button class="panel-toggle" id="btn-modes" title="Modes (Tab)">◆</button>
     <button class="panel-toggle" id="btn-params" title="Parameters (P)">⚙</button>
+    <button class="panel-toggle" id="btn-graph" title="Graph (N)">⛓</button>
 
     <!-- MODES PANEL (LEFT) -->
     <div class="panel" id="modes-panel">
         <div class="panel-header">
-            <span class="panel-title">Visual Modes</span>
+            <span class="panel-title">Library</span>
         </div>
-        <div class="mode-search-wrap">
-            <input type="text" id="mode-search" placeholder="🔍 Search modes..." autocomplete="off">
+        <div class="library-tabs">
+            <button class="library-tab active" data-library-tab="states">States</button>
+            <button class="library-tab" data-library-tab="modes">Modes</button>
         </div>
-        <div id="mode-list"></div>
+        <div id="library-states-view" class="library-view active">
+            <div class="library-section-title">State Library</div>
+            <div id="state-list" class="state-list"></div>
+        </div>
+        <div id="library-modes-view" class="library-view">
+            <div class="mode-search-wrap">
+                <input type="text" id="mode-search" placeholder="Search modes..." autocomplete="off">
+            </div>
+            <div id="mode-list"></div>
+        </div>
     </div>
 
     <!-- PARAMS PANEL (RIGHT) -->
     <div class="panel" id="params-panel">
         <div class="panel-header">
-            <span class="panel-title">Parameters</span>
+            <span class="panel-title">Inspector</span>
         </div>
         <div class="panel-actions">
             <button class="panel-action-btn" id="btn-randomize">🎲 Randomize</button>
@@ -64,6 +90,39 @@
         </div>
         <div id="preset-list" class="preset-list"></div>
         <div id="params-content"></div>
+    </div>
+
+    <!-- GRAPH PANEL (CENTER-LEFT) -->
+    <div class="panel" id="graph-panel">
+        <div class="panel-header">
+            <span class="panel-title">State Graph</span>
+        </div>
+        <div class="panel-actions">
+            <button class="panel-action-btn" id="btn-graph-new-node">＋ Node</button>
+            <button class="panel-action-btn" id="btn-graph-capture">⦿ Capture</button>
+        </div>
+        <div class="graph-wrap">
+            <svg id="graph-svg" class="graph-svg">
+                <g id="graph-edges"></g>
+            </svg>
+            <div id="graph-nodes" class="graph-nodes"></div>
+        </div>
+        <div class="graph-hint">Tip: click an output port → click another node’s input to connect.</div>
+        <div class="graph-inspector" id="graph-inspector">
+            <div class="gi-title">Inspector</div>
+            <div class="gi-row">
+                <label>Name</label>
+                <input id="gi-name" type="text" placeholder="Select a node..." />
+            </div>
+            <div class="gi-row">
+                <label>Mode</label>
+                <select id="gi-mode"></select>
+            </div>
+            <div class="gi-actions">
+                <button class="timeline-btn" id="gi-add-to-timeline">＋ To Timeline</button>
+                <button class="timeline-btn" id="gi-capture">⦿ Capture</button>
+            </div>
+        </div>
     </div>
 
     <!-- TRANSPORT BAR -->
@@ -91,26 +150,88 @@
         <div class="level-meter">
             <div id="level-fill"></div>
         </div>
-        <!-- MARKER CONTROLS -->
-        <div class="marker-controls">
-            <select id="marker-type-select" aria-label="Section Type" title="Section Type">
-                <option value="intro">🎵 Intro</option>
-                <option value="verse">🎤 Verse</option>
-                <option value="buildup" selected>📈 Build-up</option>
-                <option value="fakeout">🎭 Fakeout</option>
-                <option value="drop">💥 DROP</option>
-                <option value="drop2">🔥 DROP 2</option>
-                <option value="breakdown">🌀 Breakdown</option>
-                <option value="bridge">🌉 Bridge</option>
-                <option value="climax">⚡ Climax</option>
-                <option value="outro">🎬 Outro</option>
-            </select>
-            <button class="transport-btn marker-btn" id="btn-add-marker" aria-label="Add Marker" title="Add Marker (M)">📌</button>
-            <button class="transport-btn marker-btn" id="btn-clear-markers" aria-label="Clear All Markers" title="Clear All Markers">🗑️</button>
-        </div>
         <button class="transport-btn" id="btn-record" aria-label="Record" title="Record (R)">⏺</button>
         <button class="transport-btn" id="btn-flash" aria-label="Toggle Beat Flash" title="Toggle Beat Flash (F)" style="font-size:13px; opacity:1;">⚡</button>
         <button class="transport-btn" id="btn-screenshot" aria-label="Screenshot" title="Screenshot (Ctrl+S)" style="font-size:13px;">📸</button>
+    </div>
+
+    <!-- TIMELINE DOCK (Aura Studio v1) -->
+    <div id="timeline-dock" class="timeline-dock">
+        <div class="timeline-toprow">
+            <div class="timeline-title">Timeline</div>
+            <div class="timeline-actions">
+                <button class="timeline-btn" id="btn-toggle-timeline" title="Collapse/Expand timeline">▾</button>
+                <button class="timeline-btn" id="btn-follow-timeline" title="When ON, playback follows timeline states">Follow</button>
+                <button class="timeline-btn" id="btn-add-state" title="Add State at current time">＋ State</button>
+                <select id="marker-type-select" class="timeline-marker-type" aria-label="Marker Type">
+                    <option value="intro">🎵 Intro</option>
+                    <option value="verse">🎤 Verse</option>
+                    <option value="buildup" selected>📈 Build-up</option>
+                    <option value="fakeout">🎭 Fakeout</option>
+                    <option value="drop">💥 DROP</option>
+                    <option value="drop2">🔥 DROP 2</option>
+                    <option value="breakdown">🌀 Breakdown</option>
+                    <option value="bridge">🌉 Bridge</option>
+                    <option value="climax">⚡ Climax</option>
+                    <option value="outro">🎬 Outro</option>
+                </select>
+                <button class="timeline-btn" id="btn-add-marker-tl" title="Add Marker at current time">＋ Marker</button>
+                <button class="timeline-btn" id="btn-clear-markers-tl" title="Clear Markers">Clear Markers</button>
+                <button class="timeline-btn" id="btn-save-project" title="Save project JSON">Save</button>
+                <button class="timeline-btn" id="btn-load-project" title="Load project JSON">Load</button>
+                <input type="file" id="project-file-input" accept=".json,.aura.json" style="display:none" />
+            </div>
+        </div>
+        <div class="timeline-bar">
+            <div class="timeline-markers"></div>
+            <div class="timeline-events"></div>
+            <div class="timeline-playhead"></div>
+        </div>
+        <div class="timeline-list">
+            <div class="timeline-list-header">
+                <div class="tcol time">Time</div>
+                <div class="tcol name">State</div>
+                <div class="tcol mode">Mode</div>
+                <div class="tcol del"></div>
+            </div>
+            <div id="timeline-event-list" class="timeline-event-list"></div>
+        </div>
+    </div>
+
+    <div id="global-settings-modal" class="settings-modal">
+        <div class="settings-modal-content">
+            <div class="settings-modal-header">
+                <h2>Global Settings</h2>
+                <button class="settings-close" id="global-settings-close">✕</button>
+            </div>
+            <div class="settings-grid">
+                <label class="settings-row">
+                    <span>Theme</span>
+                    <select id="theme-select">
+                        <option value="purple">Purple</option>
+                        <option value="mono">Black/White</option>
+                        <option value="shiny">Shiny</option>
+                        <option value="matte">Matte</option>
+                    </select>
+                </label>
+                <label class="settings-row checkbox">
+                    <span>Auto BPM</span>
+                    <input type="checkbox" id="bpm-auto" checked>
+                </label>
+                <label class="settings-row">
+                    <span>Manual BPM</span>
+                    <input type="number" id="bpm-manual" min="60" max="220" step="1" value="140" />
+                </label>
+                <label class="settings-row checkbox">
+                    <span>Live UI Mapping</span>
+                    <input type="checkbox" id="settings-live-ui-mapping">
+                </label>
+                <label class="settings-row checkbox">
+                    <span>Follow Timeline During Playback</span>
+                    <input type="checkbox" id="settings-follow-timeline" checked>
+                </label>
+            </div>
+        </div>
     </div>
 
     <!-- KEYBOARD SHORTCUTS (4.11: ? button + modal) -->
@@ -155,6 +276,17 @@
     <script src="js/recorder.js"></script>
     <script src="js/markers.js"></script>
     <script src="js/visuals.js"></script>
+    <!-- Aura Studio (project + timeline) -->
+    <script src="js/project/schema.js"></script>
+    <script src="js/project/store.js"></script>
+    <script src="js/project/serialize.js"></script>
+    <script src="js/graph/graphModel.js"></script>
+    <script src="js/graph/graphEvaluator.js"></script>
+    <script src="js/graph/uiGraph.js"></script>
+    <script src="js/studio/stateLibrary.js"></script>
+    <script src="js/studio/layout.js"></script>
+    <script src="js/timeline/timelineModel.js"></script>
+    <script src="js/timeline/uiTimeline.js"></script>
     <script src="js/ui.js"></script>
 
     <!-- VISUAL MODES -->

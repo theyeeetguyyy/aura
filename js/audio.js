@@ -73,6 +73,8 @@ const AudioEngine = (() => {
     // BPM estimation
     let beatTimes = [];
     let estimatedBPM = 140;
+    let autoBpm = true;
+    let manualBpm = 140;
 
     // Spectral analysis
     let spectralFlatness = 0;
@@ -622,19 +624,21 @@ const AudioEngine = (() => {
             audioBus.beatCount++;
             lastBeatTime = now;
 
-            // BPM estimation
-            beatTimes.push(now);
-            if (beatTimes.length > 20) beatTimes.shift();
-            if (beatTimes.length > 4) {
-                let intervals = [];
-                for (let i = 1; i < beatTimes.length; i++) {
-                    const interval = beatTimes[i] - beatTimes[i - 1];
-                    if (interval > 200 && interval < 1500) intervals.push(interval);
-                }
-                if (intervals.length > 3) {
-                    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-                    estimatedBPM = Math.round(60000 / avgInterval);
-                    audioBus.bpm = Math.max(60, Math.min(200, estimatedBPM));
+            // BPM estimation (when auto mode enabled)
+            if (autoBpm) {
+                beatTimes.push(now);
+                if (beatTimes.length > 20) beatTimes.shift();
+                if (beatTimes.length > 4) {
+                    let intervals = [];
+                    for (let i = 1; i < beatTimes.length; i++) {
+                        const interval = beatTimes[i] - beatTimes[i - 1];
+                        if (interval > 200 && interval < 1500) intervals.push(interval);
+                    }
+                    if (intervals.length > 3) {
+                        const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+                        estimatedBPM = Math.round(60000 / avgInterval);
+                        audioBus.bpm = Math.max(60, Math.min(200, estimatedBPM));
+                    }
                 }
             }
         } else {
@@ -1323,6 +1327,9 @@ const AudioEngine = (() => {
         analyser.getByteFrequencyData(freqData);
         analyser.getByteTimeDomainData(timeData);
 
+        // Manual BPM override
+        if (!autoBpm) audioBus.bpm = manualBpm;
+
         // Core analysis (v3) — runs every frame
         computeBands();
         computeRMS();
@@ -1369,6 +1376,18 @@ const AudioEngine = (() => {
         return audioElement ? audioElement.loop : false;
     }
 
+    function setAutoBpm(enabled) {
+        autoBpm = !!enabled;
+        if (!autoBpm) audioBus.bpm = manualBpm;
+        return autoBpm;
+    }
+
+    function setManualBpm(bpm) {
+        manualBpm = Math.max(60, Math.min(220, Math.round(Number(bpm) || 140)));
+        if (!autoBpm) audioBus.bpm = manualBpm;
+        return manualBpm;
+    }
+
     return {
         init,
         loadFile,
@@ -1382,6 +1401,8 @@ const AudioEngine = (() => {
         getAudioStream,
         toggleLoop,
         isLooping,
+        setAutoBpm,
+        setManualBpm,
         update,
         tapBPM,
         audioBus,

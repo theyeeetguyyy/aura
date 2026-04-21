@@ -104,6 +104,14 @@ const MarkerSystem = (() => {
         markers = markers.filter(m => m.id !== id);
     }
 
+    function moveMarker(id, newTime) {
+        const m = markers.find(x => x.id === id);
+        if (!m) return false;
+        m.time = Math.max(0, newTime);
+        markers.sort((a, b) => a.time - b.time);
+        return true;
+    }
+
     function clearAll() {
         markers = [];
         nextId = 1;
@@ -244,6 +252,7 @@ const MarkerSystem = (() => {
         SECTION_TYPES,
         addMarker,
         removeMarker,
+        moveMarker,
         clearAll,
         getMarkers,
         getTypes,

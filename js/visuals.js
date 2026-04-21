@@ -103,6 +103,9 @@ const VisualEngine = (() => {
     const CHAOS_ATTACK = 6.0;     // fast ramp in (reach 1.0 in ~0.15s)
     const CHAOS_RELEASE = 1.2;    // slow ramp out (~0.8s)
 
+    // Aura Studio: timeline-driven state application
+    let _lastAppliedEventId = null;
+
     function init(canvas) {
         clock = new THREE.Clock();
 
@@ -391,6 +394,29 @@ const VisualEngine = (() => {
         orbitDirty = false; // 1.2: Reset so applyOrbit doesn't run every frame
     }
 
+    function getOrbitState() {
+        return {
+            orbitTheta,
+            orbitPhi,
+            orbitRadius,
+            fov: camera ? camera.fov : baseFOV
+        };
+    }
+
+    function setOrbitState(state) {
+        if (!state) return;
+        if (typeof state.orbitTheta === 'number') orbitTheta = state.orbitTheta;
+        if (typeof state.orbitPhi === 'number') orbitPhi = state.orbitPhi;
+        if (typeof state.orbitRadius === 'number') orbitRadius = Math.max(10, Math.min(2000, state.orbitRadius));
+        if (typeof state.fov === 'number' && camera) {
+            baseFOV = state.fov;
+            camera.fov = state.fov;
+            camera.updateProjectionMatrix();
+        }
+        orbitDirty = true;
+        applyOrbit();
+    }
+
     // ── DUBSTEP EFFECTS v3 — Section-aware ──────────────────
 
     function updateEffects(audio, params, dt) {
@@ -658,6 +684,35 @@ const VisualEngine = (() => {
         const dt = Math.min(clock.getDelta(), 0.05); // 1.1: Clamp to 50ms max (prevents tab-switch explosion)
         const audioBus = AudioEngine.audioBus;
 
+        // ── Aura Studio: Apply timeline state at current time ──
+        // This makes timeline evaluation the source of truth for mode/params.
+        // Timeline should not constantly override manual edits while paused.
+        // We follow the timeline while playing; scrubbing will apply state via TimelineUI.
+        if (typeof ProjectStore !== 'undefined' && typeof GraphEvaluator !== 'undefined' && audioBus && audioBus.loaded && audioBus.isPlaying) {
+            try {
+                const project = ProjectStore.getState();
+                const follow = !!(project.editor && project.editor.followTimeline);
+                if (!follow) {
+                    // User wants manual control during playback
+                    // (export/offline rendering will always force deterministic evaluation later)
+                    // Still render normal visuals using current ParamSystem state.
+                    // So just skip timeline application.
+                    // Note: scrub calls applyStudioStateAtTime() explicitly.
+                    // eslint-disable-next-line no-empty
+                } else {
+                const t = audioBus.currentTime || 0;
+                const res = GraphEvaluator.evalAtTime(project, t);
+                if (res && res.blended && res.appliedEventId) {
+                    applyBlendedState(res.blended);
+                    _lastAppliedEventId = res.appliedEventId;
+                }
+                }
+            } catch (e) {
+                // Keep rendering even if timeline state has issues
+                // (errors are logged once per frame anyway by the browser)
+            }
+        }
+
         // Background color — 6.3: tint toward colorTemp when section active
         const bgColor = ParamSystem.get('backgroundColor') || '#000000';
         if (audioBus.sectionType && audioBus.colorTemp !== 'neutral') {
@@ -741,6 +796,60 @@ const VisualEngine = (() => {
         }
     }
 
+    function applyBlendedState(blended) {
+        const a = blended.a;
+        const b = blended.b;
+        const t = blended.t;
+
+        // Mode transition behavior:
+        // keep source mode for first half, then switch to destination mode.
+        // This reduces hard jump-cuts when clips transition between different modes.
+        const modeA = a?.visual?.modeKey || null;
+        const modeB = b?.visual?.modeKey || null;
+        const desiredMode = (modeA && modeB && modeA !== modeB && t < 0.5) ? modeA : modeB;
+        if (desiredMode && desiredMode !== activeModeKey) setMode(desiredMode);
+
+        // Params blending (numeric only)
+        const ag = a?.visual?.globalParams || null;
+        const bg = b?.visual?.globalParams || null;
+        if (ag && bg) {
+            const mix = GraphModel.deepBlend(ag, bg, t);
+            for (const [k, v] of Object.entries(mix)) ParamSystem.set(k, v);
+        } else if (bg) {
+            for (const [k, v] of Object.entries(bg)) ParamSystem.set(k, v);
+        }
+
+        const am = a?.visual?.modeParams || null;
+        const bm = b?.visual?.modeParams || null;
+        if (am && bm) {
+            const mix = GraphModel.deepBlend(am, bm, t);
+            for (const [k, v] of Object.entries(mix)) ParamSystem.set(k, v);
+        } else if (bm) {
+            for (const [k, v] of Object.entries(bm)) ParamSystem.set(k, v);
+        }
+
+        // Mappings: take target mappings (blending mappings isn’t meaningful)
+        const mappings = b?.visual?.mappings;
+        if (mappings && typeof mappings === 'object' && ParamSystem.setMapping) {
+            const current = ParamSystem.getMappings ? ParamSystem.getMappings() : {};
+            const keys = Object.keys(current);
+            for (const key of keys) ParamSystem.setMapping(key, null, 0, current[key]?.type);
+            for (const [k, m] of Object.entries(mappings)) {
+                if (!m) continue;
+                ParamSystem.setMapping(k, m.band, m.amount, m.type);
+            }
+        }
+
+        // Camera blending between states (prevents zoom jumps/cropping)
+        const ac = a?.camera || null;
+        const bc = b?.camera || null;
+        if (bc) {
+            let c = bc;
+            if (ac) c = GraphModel.deepBlend(ac, bc, t);
+            setOrbitState(c);
+        }
+    }
+
     return {
         init,
         registerMode,
@@ -763,6 +872,15 @@ const VisualEngine = (() => {
         get activeMode() { return activeMode; },
         get scene() { return scene; },
         get camera() { return camera; },
-        get renderer() { return renderer; }
+        get renderer() { return renderer; },
+        getOrbitState,
+        setOrbitState,
+        // Aura Studio: allow one-shot application on scrub/seek
+        applyStudioStateAtTime(t) {
+            if (typeof ProjectStore === 'undefined' || typeof GraphEvaluator === 'undefined') return;
+            const project = ProjectStore.getState();
+            const res = GraphEvaluator.evalAtTime(project, t || 0);
+            if (res && res.blended) applyBlendedState(res.blended);
+        }
     };
 })();

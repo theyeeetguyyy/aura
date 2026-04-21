@@ -27,6 +27,8 @@ const UI = (() => {
 
     function init() {
         setupTransport();
+        setupStudioControls();
+        setupGlobalSettings();
         setupFileImport();
         setupPanels();
         setupKeyboard();
@@ -34,6 +36,71 @@ const UI = (() => {
         setupMarkers();
         setupShortcutsModal();
         setupPresets();
+        if (typeof TimelineUI !== 'undefined') TimelineUI.init();
+        if (typeof GraphUI !== 'undefined') GraphUI.init();
+        if (typeof StateLibrary !== 'undefined') StateLibrary.init();
+        if (typeof StudioLayout !== 'undefined') StudioLayout.init();
+    }
+
+    function setupStudioControls() {
+        const themeSelect = document.getElementById('theme-select');
+        const savedTheme = localStorage.getItem('aura_theme') || 'purple';
+        if (themeSelect) {
+            themeSelect.value = savedTheme;
+            applyTheme(savedTheme);
+            themeSelect.addEventListener('change', () => {
+                applyTheme(themeSelect.value);
+                localStorage.setItem('aura_theme', themeSelect.value);
+            });
+        }
+    }
+
+    function applyTheme(theme) {
+        document.body.classList.remove('theme-mono', 'theme-shiny', 'theme-matte');
+        if (theme === 'mono') document.body.classList.add('theme-mono');
+        else if (theme === 'shiny') document.body.classList.add('theme-shiny');
+        else if (theme === 'matte') document.body.classList.add('theme-matte');
+    }
+
+    function setupGlobalSettings() {
+        const openBtn = document.getElementById('btn-global-settings');
+        const modal = document.getElementById('global-settings-modal');
+        const closeBtn = document.getElementById('global-settings-close');
+        const liveMap = document.getElementById('settings-live-ui-mapping');
+        const followTimeline = document.getElementById('settings-follow-timeline');
+        const bpmAuto = document.getElementById('bpm-auto');
+        const bpmManual = document.getElementById('bpm-manual');
+        if (!openBtn || !modal || !closeBtn) return;
+
+        openBtn.addEventListener('click', () => {
+            if (liveMap) liveMap.checked = !!ParamSystem.get('liveUIMapping');
+            if (bpmAuto) bpmAuto.checked = !!AudioEngine.audioBus.autoBpm;
+            if (bpmManual) bpmManual.value = String(AudioEngine.audioBus.manualBpm || 140);
+            if (followTimeline && typeof ProjectStore !== 'undefined') {
+                const p = ProjectStore.getState();
+                followTimeline.checked = !!(p.editor && p.editor.followTimeline);
+            }
+            modal.classList.add('open');
+        });
+        closeBtn.addEventListener('click', () => modal.classList.remove('open'));
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('open');
+        });
+        if (liveMap) {
+            liveMap.addEventListener('change', () => {
+                ParamSystem.set('liveUIMapping', !!liveMap.checked);
+            });
+        }
+        if (followTimeline) {
+            followTimeline.addEventListener('change', () => {
+                if (typeof ProjectStore !== 'undefined') {
+                    ProjectStore.dispatch({
+                        type: 'editor/set',
+                        editor: { followTimeline: !!followTimeline.checked }
+                    }, { recordHistory: false });
+                }
+            });
+        }
     }
 
     // ── Transport Bar ──────────────────────────────────────
@@ -46,6 +113,8 @@ const UI = (() => {
         _levelFill = document.getElementById('level-fill');
         _bpmDisplay = document.getElementById('bpm-display');
         _volDisplay = document.getElementById('vol-display');
+        const bpmAuto = document.getElementById('bpm-auto');
+        const bpmManual = document.getElementById('bpm-manual');
 
         _playBtn.addEventListener('click', () => {
             AudioEngine.togglePlay();
@@ -100,6 +169,19 @@ const UI = (() => {
         createDebugHUD();
         // 4.10: Create REC overlay
         createRecOverlay();
+
+        if (bpmAuto) {
+            bpmAuto.addEventListener('change', () => {
+                if (AudioEngine.setAutoBpm) AudioEngine.setAutoBpm(bpmAuto.checked);
+            });
+        }
+        if (bpmManual) {
+            bpmManual.addEventListener('change', () => {
+                const v = Math.max(60, Math.min(220, Number(bpmManual.value || 140)));
+                bpmManual.value = String(v);
+                if (AudioEngine.setManualBpm) AudioEngine.setManualBpm(v);
+            });
+        }
     }
 
     function updatePlayButton() {
@@ -198,9 +280,24 @@ const UI = (() => {
             AudioEngine.play();
             updatePlayButton();
 
+            // Aura Studio: ensure timeline dock is visible after load
+            const timelineDock = document.getElementById('timeline-dock');
+            if (timelineDock) timelineDock.classList.add('active');
+            if (typeof StudioLayout !== 'undefined' && StudioLayout.updateStatus) {
+                StudioLayout.updateStatus(`Editing: ${file.name}`);
+            }
+
             // Show track name
             const trackName = document.getElementById('track-name');
             if (trackName) trackName.textContent = file.name.replace(/\.(mp3|wav|ogg|flac|m4a)$/i, '');
+
+            // Aura Studio: store audio metadata on project
+            if (typeof ProjectStore !== 'undefined') {
+                ProjectStore.dispatch({
+                    type: 'audio/meta',
+                    audio: { fileName: file.name, duration: AudioEngine.audioBus.duration || 0 }
+                }, { recordHistory: false });
+            }
 
             // Hide the drop zone with fade
             dropZone.classList.add('hidden');
@@ -308,9 +405,11 @@ const UI = (() => {
 
         const modePanelBtn = document.getElementById('btn-modes');
         const paramsPanelBtn = document.getElementById('btn-params');
+        const graphPanelBtn = document.getElementById('btn-graph');
 
         modePanelBtn.addEventListener('click', () => toggleModesPanel());
         paramsPanelBtn.addEventListener('click', () => toggleParamsPanel());
+        if (graphPanelBtn) graphPanelBtn.addEventListener('click', () => toggleGraphPanel());
 
         // Mode list click handler
         document.getElementById('mode-list').addEventListener('click', (e) => {
@@ -320,6 +419,15 @@ const UI = (() => {
                 VisualEngine.setMode(key);
                 updateModeList();
                 buildParamsUI();
+
+                // If timeline-follow is on and we are currently playing, inform user.
+                if (AudioEngine?.audioBus?.isPlaying && typeof ProjectStore !== 'undefined') {
+                    const follow = !!(ProjectStore.getState().editor && ProjectStore.getState().editor.followTimeline);
+                    if (follow && UI.showToast) UI.showToast('Playback is following Timeline. Pause or toggle Follow: OFF to freely switch modes.', 'info');
+                }
+
+                // NOTE: mode switch now updates live preview only.
+                // Persisting to a state is explicit via Capture actions.
             }
         });
 
@@ -342,26 +450,40 @@ const UI = (() => {
             randomBtn.addEventListener('click', () => {
                 ParamSystem.randomize();
                 refreshParamValues();
+
+                if (AudioEngine?.audioBus?.isPlaying && typeof ProjectStore !== 'undefined') {
+                    const follow = !!(ProjectStore.getState().editor && ProjectStore.getState().editor.followTimeline);
+                    if (follow && UI.showToast) UI.showToast('Playback is following Timeline. Pause or toggle Follow: OFF to Randomize live.', 'info');
+                }
+
+                // NOTE: randomize now updates live preview only.
+                // Persisting to a state is explicit via Capture actions.
             });
         }
     }
 
     function toggleModesPanel() {
-        modePanelOpen = !modePanelOpen;
         const panel = document.getElementById('modes-panel');
+        modePanelOpen = !panel.classList.contains('open');
         panel.classList.toggle('open', modePanelOpen);
-        // 4.2: Panel toggle button active state
-        document.getElementById('btn-modes').classList.toggle('active', modePanelOpen);
         if (modePanelOpen) updateModeList();
     }
 
     function toggleParamsPanel() {
-        paramsPanelOpen = !paramsPanelOpen;
         const panel = document.getElementById('params-panel');
+        paramsPanelOpen = !panel.classList.contains('open');
         panel.classList.toggle('open', paramsPanelOpen);
-        // 4.2: Panel toggle button active state
-        document.getElementById('btn-params').classList.toggle('active', paramsPanelOpen);
         if (paramsPanelOpen) buildParamsUI();
+    }
+
+    function toggleGraphPanel() {
+        const panel = document.getElementById('graph-panel');
+        if (!panel) return;
+        const isOpen = !panel.classList.contains('open');
+        panel.classList.toggle('open', isOpen);
+        const btn = document.getElementById('btn-graph');
+        if (btn) btn.classList.toggle('active', isOpen);
+        if (isOpen && typeof GraphUI !== 'undefined') GraphUI.render();
     }
 
     function updateModeList() {
@@ -668,6 +790,18 @@ const UI = (() => {
             // Don't trigger shortcuts when typing in inputs
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
 
+            // Editor undo/redo
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === 'KeyZ') {
+                e.preventDefault();
+                if (typeof ProjectStore !== 'undefined') ProjectStore.undo();
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ'))) {
+                e.preventDefault();
+                if (typeof ProjectStore !== 'undefined') ProjectStore.redo();
+                return;
+            }
+
             switch (e.code) {
                 case 'Space':
                     e.preventDefault();
@@ -681,6 +815,25 @@ const UI = (() => {
                 case 'KeyP':
                     toggleParamsPanel();
                     break;
+                case 'KeyN':
+                    toggleGraphPanel();
+                    break;
+                case 'Delete':
+                case 'Backspace': {
+                    // Delete selected graph node
+                    if (typeof GraphUI !== 'undefined' && typeof ProjectStore !== 'undefined') {
+                        const id = GraphUI.getSelectedNodeId ? GraphUI.getSelectedNodeId() : null;
+                        if (id && id !== 'node_1') {
+                            ProjectStore.dispatch({ type: 'nodes/remove', id });
+                            break;
+                        }
+                    }
+                    // If no node deletion happened, try deleting selected timeline event
+                    if (typeof TimelineUI !== 'undefined' && TimelineUI.deleteSelectedEvent) {
+                        TimelineUI.deleteSelectedEvent();
+                    }
+                    break;
+                }
                 case 'KeyR': {
                     const canvas = document.getElementById('aura-canvas');
                     Recorder.toggle(canvas);
@@ -858,6 +1011,7 @@ const UI = (() => {
     function update() {
         updateTransport();
         updateMarkerSection();
+        if (typeof TimelineUI !== 'undefined' && TimelineUI.update) TimelineUI.update();
     }
 
     // ── Marker System ─────────────────────────────────────
@@ -920,6 +1074,7 @@ const UI = (() => {
 
     function renderMarkers() {
         const dotsContainer = document.getElementById('marker-dots');
+        const markerTrack = document.getElementById('marker-track');
         if (!dotsContainer) return;
 
         dotsContainer.innerHTML = '';
@@ -927,6 +1082,7 @@ const UI = (() => {
         if (duration <= 0) return;
 
         const markers = MarkerSystem.getMarkers();
+        let draggingMarkerId = null;
 
         // Render region backgrounds between markers
         for (let i = 0; i < markers.length; i++) {
@@ -964,6 +1120,12 @@ const UI = (() => {
                 AudioEngine.seek(m.time);
             });
 
+            // Drag to move marker
+            dot.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                draggingMarkerId = m.id;
+            });
+
             // Right-click to delete
             dot.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
@@ -974,6 +1136,24 @@ const UI = (() => {
 
             dotsContainer.appendChild(dot);
         });
+
+        if (markerTrack && !markerTrack.dataset.markerDragBound) {
+            document.addEventListener('mousemove', (e) => {
+                if (!draggingMarkerId) return;
+                const duration = AudioEngine.audioBus.duration;
+                if (duration <= 0) return;
+                const rect = markerTrack.getBoundingClientRect();
+                const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                const ratio = rect.width > 0 ? x / rect.width : 0;
+                const t = ratio * duration;
+                if (MarkerSystem.moveMarker) {
+                    MarkerSystem.moveMarker(draggingMarkerId, t);
+                    renderMarkers();
+                }
+            });
+            document.addEventListener('mouseup', () => { draggingMarkerId = null; });
+            markerTrack.dataset.markerDragBound = '1';
+        }
     }
 
     function updateMarkerSection() {
@@ -1143,6 +1323,8 @@ const UI = (() => {
         toggleModesPanel,
         toggleParamsPanel,
         refreshParamValues,
-        screenshot
+        screenshot,
+        showToast,
+        renderMarkers
     };
 })();
