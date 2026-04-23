@@ -90,6 +90,7 @@ const VisualEngine = (() => {
     let orbitPhi = Math.PI / 2; // vertical angle (start at equator)
     let orbitRadius = 100;
     let isDragging = false;
+    let touchDragging = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
     let orbitDirty = false;  // true if user has manually orbited
@@ -197,8 +198,8 @@ const VisualEngine = (() => {
             }
         }
 
-        targetW = Math.round(targetW);
-        targetH = Math.round(targetH);
+        targetW = Math.floor(targetW / 2) * 2;
+        targetH = Math.floor(targetH / 2) * 2;
 
         // Resize Canvas CSS visually
         renderer.domElement.style.width = targetW + 'px';
@@ -337,7 +338,6 @@ const VisualEngine = (() => {
 
         // 8.1: Touch support for orbit (single finger drag) & zoom (pinch)
         let lastTouchX = 0, lastTouchY = 0;
-        let touchDragging = false;
         let pinchStartDist = 0;
 
         canvas.addEventListener('touchstart', (e) => {
@@ -405,6 +405,7 @@ const VisualEngine = (() => {
 
     function setOrbitState(state) {
         if (!state) return;
+        if (isDragging || touchDragging) return; // FIX: Don't snap camera if user is manually dragging it
         if (typeof state.orbitTheta === 'number') orbitTheta = state.orbitTheta;
         if (typeof state.orbitPhi === 'number') orbitPhi = state.orbitPhi;
         if (typeof state.orbitRadius === 'number') orbitRadius = Math.max(10, Math.min(2000, state.orbitRadius));
@@ -799,7 +800,16 @@ const VisualEngine = (() => {
     function applyBlendedState(blended) {
         const a = blended.a;
         const b = blended.b;
-        const t = blended.t;
+        const type = blended.type || 'transform';
+        let t = blended.t;
+
+        // Handle transition types
+        if (type === 'cut') {
+            t = t < 0.5 ? 0 : 1;
+        } else if (type === 'crossfade') {
+            // For now, crossfade is numeric blend, but we could add a screen-space fade later.
+            t = blended.t;
+        }
 
         // Mode transition behavior:
         // keep source mode for first half, then switch to destination mode.

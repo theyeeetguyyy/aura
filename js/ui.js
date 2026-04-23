@@ -56,10 +56,10 @@ const UI = (() => {
     }
 
     function applyTheme(theme) {
-        document.body.classList.remove('theme-mono', 'theme-shiny', 'theme-matte');
-        if (theme === 'mono') document.body.classList.add('theme-mono');
-        else if (theme === 'shiny') document.body.classList.add('theme-shiny');
-        else if (theme === 'matte') document.body.classList.add('theme-matte');
+        document.body.classList.remove('theme-mono', 'theme-shiny', 'theme-matte', 'theme-cyberpunk', 'theme-vaporwave', 'theme-matrix');
+        if (theme !== 'purple') {
+            document.body.classList.add(`theme-${theme}`);
+        }
     }
 
     function setupGlobalSettings() {
@@ -130,16 +130,6 @@ const UI = (() => {
             });
         }
 
-        // Seek bar
-        _seekBar.addEventListener('mousedown', () => { seekDragging = true; });
-        _seekBar.addEventListener('input', () => {
-            if (AudioEngine.audioBus.loaded) {
-                const t = (_seekBar.value / 1000) * AudioEngine.audioBus.duration;
-                AudioEngine.seek(t);
-            }
-        });
-        document.addEventListener('mouseup', () => { seekDragging = false; });
-
         // Volume — 4.13: Show percentage
         volBar.addEventListener('input', () => {
             const v = volBar.value / 100;
@@ -190,9 +180,6 @@ const UI = (() => {
 
     function updateTransport() {
         const bus = AudioEngine.audioBus;
-        if (!seekDragging && bus.duration > 0 && _seekBar) {
-            _seekBar.value = (bus.currentTime / bus.duration) * 1000;
-        }
 
         if (_timeDisplay) {
             _timeDisplay.textContent = `${formatTime(bus.currentTime)} / ${formatTime(bus.duration)}`;
@@ -521,9 +508,56 @@ const UI = (() => {
         return icons[key] || '◆';
     }
 
+    function buildStateInspector(evt) {
+        if (!evt) return;
+        const container = document.getElementById('params-content');
+        if (!container) return;
+        
+        let inspector = document.getElementById('state-inspector');
+        if (!inspector) {
+            inspector = document.createElement('div');
+            inspector.id = 'state-inspector';
+            inspector.className = 'param-section';
+            container.insertBefore(inspector, container.firstChild);
+        }
+        
+        inspector.innerHTML = `
+            <h3 class="param-section-title inspector-title">State Inspector</h3>
+            <div class="param-control">
+                <div class="param-row">
+                    <label>Name</label>
+                    <input type="text" id="inspector-name" value="${evt.name || ''}" class="inspector-input" placeholder="State Name" />
+                </div>
+                <div class="param-row">
+                    <label>Transition</label>
+                    <select id="inspector-transition" class="inspector-select">
+                        <option value="transform" ${evt.transitionType === 'transform' ? 'selected' : ''}>Transform</option>
+                        <option value="crossfade" ${evt.transitionType === 'crossfade' ? 'selected' : ''}>Crossfade</option>
+                        <option value="cut" ${evt.transitionType === 'cut' ? 'selected' : ''}>Cut</option>
+                    </select>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('inspector-name').addEventListener('change', (e) => {
+            if (typeof ProjectStore !== 'undefined') {
+                ProjectStore.dispatch({ type: 'timeline/updateStateEvent', id: evt.id, patch: { name: e.target.value } });
+            }
+        });
+        document.getElementById('inspector-transition').addEventListener('change', (e) => {
+            if (typeof ProjectStore !== 'undefined') {
+                ProjectStore.dispatch({ type: 'timeline/updateStateEvent', id: evt.id, patch: { transitionType: e.target.value } });
+            }
+        });
+    }
+
     function buildParamsUI() {
         const container = document.getElementById('params-content');
+        
+        // Preserve state inspector if it exists
+        const inspector = document.getElementById('state-inspector');
         container.innerHTML = '';
+        if (inspector) container.appendChild(inspector);
 
         // Global section
         const globalSection = createSection('Global');
@@ -1070,6 +1104,7 @@ const UI = (() => {
 
         MarkerSystem.addMarker(time, type);
         renderMarkers();
+        if (typeof TimelineUI !== 'undefined') TimelineUI.render();
     }
 
     function renderMarkers() {

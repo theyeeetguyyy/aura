@@ -7,6 +7,7 @@
     <meta name="description"
         content="AURA — Audio Reactive Visual Generator. Import music and create stunning real-time visuals with 20 modes and deep parameter control.">
     <title>AURA — Audio Reactive Visuals</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@300;500;700&family=Syncopate:wght@400;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
@@ -45,9 +46,6 @@
         <!-- LARGE CREATOR TAG (INTRO SCREEN) -->
         <div class="creator-tag-intro">made by theyeetguy</div>
     </div>
-
-    <!-- SMALL CREATOR TAG (APP MAIN INTERFACE) -->
-    <div class="creator-tag-app">made by theyeetguy</div>
 
     <!-- HIDDEN FILE INPUT -->
     <input type="file" id="file-input" accept=".mp3,.wav,.ogg,.flac,.m4a,.aac,.wma">
@@ -109,7 +107,7 @@
         </div>
         <div class="graph-hint">Tip: click an output port → click another node’s input to connect.</div>
         <div class="graph-inspector" id="graph-inspector">
-            <div class="gi-title">Inspector</div>
+            <div class="gi-title">Graph Node Inspector</div>
             <div class="gi-row">
                 <label>Name</label>
                 <input id="gi-name" type="text" placeholder="Select a node..." />
@@ -125,67 +123,63 @@
         </div>
     </div>
 
-    <!-- TRANSPORT BAR -->
-    <div id="transport-bar">
-        <button class="transport-btn" id="btn-play" aria-label="Play or Pause" title="Play/Pause (Space)">▶</button>
-        <button class="transport-btn loop-btn" id="btn-loop" aria-label="Toggle Loop" title="Loop (L)">🔁</button>
-        <span id="track-name">No track loaded</span>
-        <div class="seek-container">
-            <input type="range" id="seek-bar" min="0" max="1000" value="0" aria-label="Seek position" title="Seek (← →)">
-            <!-- MARKER TRACK -->
-            <div id="marker-track">
-                <div id="marker-dots"></div>
-            </div>
-            <span id="time-display">0:00 / 0:00</span>
-        </div>
-        <!-- BPM DISPLAY (3.3) -->
-        <span id="bpm-display" class="bpm-badge">-- BPM</span>
-        <!-- CURRENT SECTION INDICATOR -->
-        <div id="section-indicator" class="section-hidden"></div>
-        <div class="volume-container">
-            <span class="volume-icon">🔊</span>
-            <input type="range" id="vol-bar" min="0" max="100" value="80" aria-label="Volume" title="Volume (↑ ↓)">
-            <span id="vol-display" class="vol-display">80%</span>
-        </div>
-        <div class="level-meter">
-            <div id="level-fill"></div>
-        </div>
-        <button class="transport-btn" id="btn-record" aria-label="Record" title="Record (R)">⏺</button>
-        <button class="transport-btn" id="btn-flash" aria-label="Toggle Beat Flash" title="Toggle Beat Flash (F)" style="font-size:13px; opacity:1;">⚡</button>
-        <button class="transport-btn" id="btn-screenshot" aria-label="Screenshot" title="Screenshot (Ctrl+S)" style="font-size:13px;">📸</button>
-    </div>
-
-    <!-- TIMELINE DOCK (Aura Studio v1) -->
+    <!-- NLE TIMELINE DOCK -->
     <div id="timeline-dock" class="timeline-dock">
         <div class="timeline-toprow">
-            <div class="timeline-title">Timeline</div>
-            <div class="timeline-actions">
-                <button class="timeline-btn" id="btn-toggle-timeline" title="Collapse/Expand timeline">▾</button>
-                <button class="timeline-btn" id="btn-follow-timeline" title="When ON, playback follows timeline states">Follow</button>
-                <button class="timeline-btn" id="btn-add-state" title="Add State at current time">＋ State</button>
+            <!-- Left: Playback & Info -->
+            <div class="timeline-group">
+                <button class="transport-btn" id="btn-play" title="Play/Pause (Space)">▶</button>
+                <button class="transport-btn loop-btn" id="btn-loop" title="Loop (L)">🔁</button>
+                <div class="timeline-time-info">
+                    <span id="time-display">0:00 / 0:00</span>
+                    <span id="bpm-display" class="bpm-badge">-- BPM</span>
+                </div>
+            </div>
+
+            <!-- Middle: Timeline Tools & Actions -->
+            <div class="timeline-group timeline-actions center">
+                <button class="timeline-btn" id="btn-follow-timeline" title="Follow Playhead">Follow</button>
+                <div class="divider"></div>
+                <button class="timeline-btn action-btn" id="btn-add-state" title="Add State">＋ State</button>
+                <div class="divider"></div>
                 <select id="marker-type-select" class="timeline-marker-type" aria-label="Marker Type">
                     <option value="intro">🎵 Intro</option>
                     <option value="verse">🎤 Verse</option>
                     <option value="buildup" selected>📈 Build-up</option>
-                    <option value="fakeout">🎭 Fakeout</option>
                     <option value="drop">💥 DROP</option>
-                    <option value="drop2">🔥 DROP 2</option>
                     <option value="breakdown">🌀 Breakdown</option>
-                    <option value="bridge">🌉 Bridge</option>
                     <option value="climax">⚡ Climax</option>
                     <option value="outro">🎬 Outro</option>
                 </select>
-                <button class="timeline-btn" id="btn-add-marker-tl" title="Add Marker at current time">＋ Marker</button>
-                <button class="timeline-btn" id="btn-clear-markers-tl" title="Clear Markers">Clear Markers</button>
-                <button class="timeline-btn" id="btn-save-project" title="Save project JSON">Save</button>
-                <button class="timeline-btn" id="btn-load-project" title="Load project JSON">Load</button>
+                <button class="timeline-btn action-btn" id="btn-add-marker-tl" title="Add Marker (M)">＋ Mark</button>
+                <button class="timeline-btn" id="btn-clear-markers-tl" title="Clear Markers">Clear</button>
+            </div>
+
+            <!-- Right: System & Record -->
+            <div class="timeline-group right">
+                <div class="volume-mini">
+                    <span class="volume-icon">🔊</span>
+                    <input type="range" id="vol-bar" min="0" max="100" value="80" title="Volume">
+                </div>
+                <div class="divider"></div>
+                <button class="transport-btn small-btn" id="btn-record" title="Record (R)">⏺</button>
+                <button class="transport-btn small-btn" id="btn-flash" title="Beat Flash (F)">⚡</button>
+                <button class="transport-btn small-btn" id="btn-screenshot" title="Screenshot (Ctrl+S)">📸</button>
+                <div class="divider"></div>
+                <button class="timeline-btn" id="btn-save-project" title="Save Project">💾</button>
+                <button class="timeline-btn" id="btn-load-project" title="Load Project">📂</button>
                 <input type="file" id="project-file-input" accept=".json,.aura.json" style="display:none" />
+                <button class="timeline-btn" id="btn-toggle-timeline" title="Toggle List">▾</button>
             </div>
         </div>
-        <div class="timeline-bar">
-            <div class="timeline-markers"></div>
-            <div class="timeline-events"></div>
-            <div class="timeline-playhead"></div>
+        <div class="timeline-bar-wrapper" id="timeline-bar-wrapper">
+            <div class="timeline-time-ruler" id="timeline-time-ruler"></div>
+            <div class="timeline-bar" id="timeline-bar">
+                <canvas id="waveform-canvas"></canvas>
+                <div class="timeline-markers"></div>
+                <div class="timeline-events"></div>
+                <div class="timeline-playhead"></div>
+            </div>
         </div>
         <div class="timeline-list">
             <div class="timeline-list-header">
@@ -208,10 +202,13 @@
                 <label class="settings-row">
                     <span>Theme</span>
                     <select id="theme-select">
-                        <option value="purple">Purple</option>
-                        <option value="mono">Black/White</option>
-                        <option value="shiny">Shiny</option>
-                        <option value="matte">Matte</option>
+                        <option value="purple">Aura Purple</option>
+                        <option value="cyberpunk">Cyberpunk 2077</option>
+                        <option value="vaporwave">Vaporwave</option>
+                        <option value="matrix">The Matrix</option>
+                        <option value="mono">Monochrome Pro</option>
+                        <option value="shiny">Glossy Glass</option>
+                        <option value="matte">Matte Black</option>
                     </select>
                 </label>
                 <label class="settings-row checkbox">
@@ -244,14 +241,17 @@
             </div>
             <div class="shortcuts-grid">
                 <div class="shortcut-item"><kbd>Space</kbd><span>Play / Pause</span></div>
+                <div class="shortcut-item"><kbd>L</kbd><span>Toggle Loop</span></div>
                 <div class="shortcut-item"><kbd>Tab</kbd><span>Toggle Modes Panel</span></div>
                 <div class="shortcut-item"><kbd>P</kbd><span>Toggle Params Panel</span></div>
                 <div class="shortcut-item"><kbd>1-9</kbd><span>Quick Mode Switch</span></div>
                 <div class="shortcut-item"><kbd>[ ]</kbd><span>Prev / Next Mode</span></div>
                 <div class="shortcut-item"><kbd>← →</kbd><span>Seek ±5 seconds</span></div>
                 <div class="shortcut-item"><kbd>↑ ↓</kbd><span>Volume Up / Down</span></div>
-                <div class="shortcut-item"><kbd>L</kbd><span>Toggle Loop</span></div>
-                <div class="shortcut-item"><kbd>M</kbd><span>Add Marker</span></div>
+                <div class="shortcut-item"><kbd>M</kbd><span>Add Timeline Marker</span></div>
+                <div class="shortcut-item"><kbd>Ctrl+Wheel</kbd><span>Zoom Timeline</span></div>
+                <div class="shortcut-item"><kbd>Shift+Wheel</kbd><span>Pan Timeline</span></div>
+
                 <div class="shortcut-item"><kbd>R</kbd><span>Start/Stop Recording</span></div>
                 <div class="shortcut-item"><kbd>F</kbd><span>Toggle Beat Flash</span></div>
                 <div class="shortcut-item"><kbd>G</kbd><span>Toggle Fullscreen</span></div>

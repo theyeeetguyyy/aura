@@ -14,10 +14,10 @@ const Recorder = (() => {
 
         // Record at native canvas resolution — DO NOT resize the renderer.
         // Forcing 1920×1080 makes the render loop draw a 2MP frame every tick,
-        // which tanks the GPU and kills FPS. captureStream(60) is a browser hint;
-        // actual FPS is determined by how fast the canvas is being painted.
-        // At native res the render loop stays fast and the capture hits true 60fps.
-        const videoStream = canvas.captureStream(60);
+        // which tanks the GPU and kills FPS. 
+        // 9.1: captureStream() with no arguments captures every frame painted to the canvas.
+        // This ensures the recording FPS matches the render FPS perfectly.
+        const videoStream = canvas.captureStream();
         const audioStream = AudioEngine.getAudioStream();
 
         // Combine video + audio streams
@@ -27,23 +27,26 @@ const Recorder = (() => {
             audioStream.getTracks().forEach(t => combinedStream.addTrack(t));
         }
 
-        // Prefer MP4 (H264+AAC), fallback to WebM VP9, then VP8
+        // Prefer high-quality formats: VP9 (WebM) or High-Profile H.264 (MP4)
         let mimeType, ext;
-        if (MediaRecorder.isTypeSupported('video/mp4; codecs=avc1.42E01E,mp4a.40.2')) {
-            mimeType = 'video/mp4; codecs=avc1.42E01E,mp4a.40.2'; ext = 'mp4';
+        if (MediaRecorder.isTypeSupported('video/webm; codecs=vp9,opus')) {
+            mimeType = 'video/webm; codecs=vp9,opus'; ext = 'webm';
+        } else if (MediaRecorder.isTypeSupported('video/mp4; codecs=avc1.640033,mp4a.40.2')) {
+            // High Profile 5.1
+            mimeType = 'video/mp4; codecs=avc1.640033,mp4a.40.2'; ext = 'mp4';
+        } else if (MediaRecorder.isTypeSupported('video/mp4; codecs=avc1.4d002a,mp4a.40.2')) {
+            // Main Profile 4.2
+            mimeType = 'video/mp4; codecs=avc1.4d002a,mp4a.40.2'; ext = 'mp4';
         } else if (MediaRecorder.isTypeSupported('video/mp4')) {
             mimeType = 'video/mp4'; ext = 'mp4';
-        } else if (MediaRecorder.isTypeSupported('video/webm; codecs=vp9,opus')) {
-            mimeType = 'video/webm; codecs=vp9,opus'; ext = 'webm';
-        } else if (MediaRecorder.isTypeSupported('video/webm; codecs=vp8,opus')) {
-            mimeType = 'video/webm; codecs=vp8,opus'; ext = 'webm';
         } else {
             mimeType = 'video/webm'; ext = 'webm';
         }
 
         mediaRecorder = new MediaRecorder(combinedStream, {
             mimeType,
-            videoBitsPerSecond: 16000000 // 16 Mbps for crisp 1080p
+            videoBitsPerSecond: 100000000, // 100 Mbps for 4K-ready sharpness
+            audioBitsPerSecond: 320000      // 320 kbps for studio audio quality
         });
 
         chunks = [];

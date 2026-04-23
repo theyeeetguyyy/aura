@@ -67,9 +67,11 @@ const ProjectStore = (() => {
         const id = `evt_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
         next.timeline.stateEvents.push({
           id,
+          name: '',
           time: action.time,
+          duration: typeof action.duration === 'number' ? action.duration : 5.0,
           nodeId: action.nodeId,
-          transitionSec: typeof action.transitionSec === 'number' ? action.transitionSec : 0.75,
+          transitionType: action.transitionType || 'transform',
           easing: action.easing || 'easeInOut',
         });
         next.timeline.stateEvents.sort((a, b) => a.time - b.time);

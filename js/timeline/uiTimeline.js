@@ -17,6 +17,13 @@ const TimelineUI = (() => {
   let _selectedEventId = null;
   let _draggingEventId = null;
   let _draggingMarkerId = null;
+  let _zoomLevel = 1;
+  let _waveformCanvas = null;
+  let _waveformCtx = null;
+  let _isScrubbing = false;
+  let _draggingHandle = null;
+  let _dragOffsetX = 0;
+  let _dragStartEvent = null;
 
   function ensureDom() {
     _root = document.getElementById('timeline-dock');
@@ -31,6 +38,8 @@ const TimelineUI = (() => {
     _btnSave = _root.querySelector('#btn-save-project');
     _btnLoad = _root.querySelector('#btn-load-project');
     _fileInput = _root.querySelector('#project-file-input');
+    _waveformCanvas = _root.querySelector('#waveform-canvas');
+    if (_waveformCanvas) _waveformCtx = _waveformCanvas.getContext('2d');
 
     return !!(_bar && _playhead && _eventLayer && _markerLayer && _list && _btnAdd && _btnSave && _btnLoad && _fileInput);
   }
@@ -69,10 +78,12 @@ const TimelineUI = (() => {
       const markerType = typeSelect ? typeSelect.value : 'drop';
       MarkerSystem.addMarker(AudioEngine.audioBus.currentTime || 0, markerType);
       if (typeof UI !== 'undefined' && UI.renderMarkers) UI.renderMarkers();
+      render();
     });
     if (clearMarkersBtn) clearMarkersBtn.addEventListener('click', () => {
       MarkerSystem.clearAll();
       if (typeof UI !== 'undefined' && UI.renderMarkers) UI.renderMarkers();
+      render();
     });
     _btnSave.addEventListener('click', () => ProjectIO.exportProject());
     _btnLoad.addEventListener('click', () => _fileInput.click());
@@ -92,7 +103,10 @@ const TimelineUI = (() => {
 
     // Scrub by clicking the bar
     _bar.addEventListener('mousedown', (e) => {
+      // Ignore if clicking on a clip or marker (handled by their own mousedown)
+      if (e.target.closest('.timeline-state-clip') || e.target.closest('.timeline-marker-pin')) return;
       if (!AudioEngine?.audioBus?.loaded) return;
+      _isScrubbing = true;
       const rect = _bar.getBoundingClientRect();
       const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
       const ratio = rect.width > 0 ? x / rect.width : 0;
@@ -102,6 +116,34 @@ const TimelineUI = (() => {
         VisualEngine.applyStudioStateAtTime(AudioEngine.audioBus.currentTime || 0);
       }
     });
+
+    // Zooming
+    const wrapper = _root.querySelector('.timeline-bar-wrapper');
+    if (wrapper) {
+      wrapper.addEventListener('wheel', (e) => {
+        if (e.ctrlKey || e.metaKey || e.shiftKey) {
+          e.preventDefault();
+          const zoomDelta = e.deltaY < 0 ? 1.2 : 0.8;
+          const newZoom = Math.max(1, Math.min(30, _zoomLevel * zoomDelta));
+          
+          const rect = wrapper.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const scrollX = wrapper.scrollLeft;
+          const timeRatioAtMouse = (mouseX + scrollX) / (_bar.offsetWidth || 1);
+          
+          _zoomLevel = newZoom;
+          _bar.style.minWidth = `${_zoomLevel * 100}%`;
+          
+          const newWidth = wrapper.scrollWidth;
+          wrapper.scrollLeft = (timeRatioAtMouse * newWidth) - mouseX;
+          
+          renderWaveform();
+        } else {
+          // Normal horizontal scroll
+          wrapper.scrollLeft += e.deltaY;
+        }
+      });
+    }
 
     ProjectStore.subscribe(() => render());
     render();
@@ -144,6 +186,49 @@ const TimelineUI = (() => {
     ProjectStore.dispatch({ type: 'timeline/addStateEvent', time: t, nodeId });
   }
 
+  function renderWaveform() {
+    if (!_waveformCanvas || !_waveformCtx || !AudioEngine?.audioBus?.waveformPeaks) return;
+    const peaks = AudioEngine.audioBus.waveformPeaks;
+    const cw = _bar.offsetWidth;
+    const ch = _bar.offsetHeight;
+    
+    _waveformCanvas.width = cw;
+    _waveformCanvas.height = ch;
+    
+    _waveformCtx.clearRect(0, 0, cw, ch);
+    const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#8b5cf6';
+    _waveformCtx.fillStyle = `color-mix(in srgb, ${accent} 40%, transparent)`;
+    
+    const len = peaks.length / 2;
+    const step = Math.max(1, Math.floor(len / cw));
+    
+    _waveformCtx.beginPath();
+    _waveformCtx.moveTo(0, ch / 2);
+    
+    // Top half (max peaks)
+    for (let i = 0; i < cw; i++) {
+      const idx = Math.floor((i / cw) * len) * 2 + 1; // +1 for max
+      if (idx < peaks.length) {
+        const val = peaks[idx];
+        const y = (1 - val) * ch / 2;
+        _waveformCtx.lineTo(i, y);
+      }
+    }
+    
+    // Bottom half (min peaks)
+    for (let i = cw - 1; i >= 0; i--) {
+      const idx = Math.floor((i / cw) * len) * 2; // 0 for min
+      if (idx < peaks.length) {
+        const val = peaks[idx];
+        const y = (1 - val) * ch / 2;
+        _waveformCtx.lineTo(i, y);
+      }
+    }
+    
+    _waveformCtx.closePath();
+    _waveformCtx.fill();
+  }
+
   function render() {
     if (!ensureDom()) return;
     const project = ProjectStore.getState();
@@ -173,32 +258,63 @@ const TimelineUI = (() => {
     _eventLayer.innerHTML = '';
     for (let i = 0; i < events.length; i++) {
       const evt = events[i];
-      const nextTime = i < events.length - 1 ? events[i + 1].time : dur;
       const left = dur > 0 ? (evt.time / dur) * 100 : 0;
-      const width = dur > 0 ? Math.max(0.8, ((Math.max(evt.time, nextTime) - evt.time) / dur) * 100) : 0.8;
+      const width = dur > 0 ? ((evt.duration || 5) / dur) * 100 : 0.8;
       const node = project.nodes.find(n => n.id === evt.nodeId);
+      
       const clip = document.createElement('div');
       clip.className = 'timeline-state-clip';
       clip.style.left = `${left}%`;
       clip.style.width = `${width}%`;
-      clip.title = `${TimelineModel.formatTime(evt.time)} → ${node?.name || evt.nodeId}`;
+      clip.title = `${evt.name || node?.name || evt.nodeId}`;
       clip.dataset.eventId = evt.id;
-      clip.textContent = node?.name || evt.nodeId;
-      clip.addEventListener('click', (e) => {
-        e.stopPropagation();
-        _selectedEventId = evt.id;
-        if (AudioEngine?.audioBus?.loaded) {
-          AudioEngine.seek(evt.time);
-          if (typeof VisualEngine !== 'undefined' && VisualEngine.applyStudioStateAtTime) {
-            VisualEngine.applyStudioStateAtTime(evt.time);
-          }
-        }
-        render();
-      });
+      
+      // Trim Handles
+      const leftHandle = document.createElement('div');
+      leftHandle.className = 'timeline-handle left-handle';
+      const rightHandle = document.createElement('div');
+      rightHandle.className = 'timeline-handle right-handle';
+      
+      const label = document.createElement('span');
+      label.className = 'timeline-clip-label';
+      label.textContent = evt.name || node?.name || evt.nodeId;
+      
+      clip.appendChild(leftHandle);
+      clip.appendChild(label);
+      clip.appendChild(rightHandle);
+
       clip.addEventListener('mousedown', (e) => {
         e.stopPropagation();
+        if (_selectedEventId !== evt.id) {
+          // Just select it first time
+          _selectedEventId = evt.id;
+          if (AudioEngine?.audioBus?.loaded) {
+            AudioEngine.seek(evt.time);
+            if (typeof VisualEngine !== 'undefined' && VisualEngine.applyStudioStateAtTime) {
+              VisualEngine.applyStudioStateAtTime(evt.time);
+            }
+          }
+          if (typeof UI !== 'undefined' && UI.buildStateInspector) UI.buildStateInspector(evt);
+          render();
+          return;
+        }
+
+        // Already selected -> Drag
         _draggingEventId = evt.id;
-        _selectedEventId = evt.id;
+        _dragStartEvent = { ...evt }; // snapshot for trimming math
+
+        const rect = _bar.getBoundingClientRect();
+        const mouseRatio = (e.clientX - rect.left) / rect.width;
+        const mouseTime = mouseRatio * dur;
+        _dragOffsetX = mouseTime - evt.time; // how far into the clip the user clicked
+
+        if (e.target.classList.contains('left-handle')) {
+          _draggingHandle = 'left';
+        } else if (e.target.classList.contains('right-handle')) {
+          _draggingHandle = 'right';
+        } else {
+          _draggingHandle = 'body';
+        }
       });
       clip.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -215,26 +331,35 @@ const TimelineUI = (() => {
       const markers = MarkerSystem.getMarkers ? MarkerSystem.getMarkers() : [];
       for (const marker of markers) {
         const p = dur > 0 ? (marker.time / dur) * 100 : 0;
+        
         const m = document.createElement('div');
         m.className = 'timeline-marker-pin';
         m.style.left = `${p}%`;
-        m.style.borderBottomColor = marker.color || '#f59e0b';
-        m.title = `${marker.label} @ ${TimelineModel.formatTime(marker.time)}`;
-        m.dataset.markerId = marker.id;
-        m.addEventListener('click', (e) => {
+        m.style.background = `linear-gradient(to bottom, ${marker.color || '#f59e0b'}, transparent)`;
+
+        const handle = document.createElement('div');
+        handle.className = 'timeline-marker-handle';
+        handle.style.borderTopColor = marker.color || '#f59e0b';
+        handle.title = `${marker.label} @ ${TimelineModel.formatTime(marker.time)}`;
+        handle.dataset.markerId = marker.id;
+        
+        handle.addEventListener('click', (e) => {
           e.stopPropagation();
           if (AudioEngine?.audioBus?.loaded) AudioEngine.seek(marker.time);
         });
-        m.addEventListener('mousedown', (e) => {
+        handle.addEventListener('mousedown', (e) => {
           e.stopPropagation();
           _draggingMarkerId = marker.id;
         });
-        m.addEventListener('contextmenu', (e) => {
+        handle.addEventListener('contextmenu', (e) => {
           e.preventDefault();
           e.stopPropagation();
           MarkerSystem.removeMarker(marker.id);
           render();
+          if (typeof UI !== 'undefined' && UI.renderMarkers) UI.renderMarkers();
         });
+
+        m.appendChild(handle);
         _markerLayer.appendChild(m);
       }
     }
@@ -316,15 +441,40 @@ const TimelineUI = (() => {
   }
 
   function onDragMove(e) {
-    if (!_draggingEventId && !_draggingMarkerId) return;
+    if (!_draggingEventId && !_draggingMarkerId && !_isScrubbing) return;
     if (!AudioEngine?.audioBus?.loaded) return;
     const rect = _bar.getBoundingClientRect();
     const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
     const ratio = rect.width > 0 ? x / rect.width : 0;
     const dur = AudioEngine.audioBus.duration || 0;
     const time = Math.max(0, Math.min(dur, ratio * dur));
-    if (_draggingEventId) {
-      ProjectStore.dispatch({ type: 'timeline/updateStateEvent', id: _draggingEventId, patch: { time } }, { recordHistory: false });
+    
+    if (_isScrubbing) {
+      AudioEngine.seek(time);
+      if (typeof VisualEngine !== 'undefined' && VisualEngine.applyStudioStateAtTime) {
+        VisualEngine.applyStudioStateAtTime(time);
+      }
+    }
+    if (_draggingEventId && _dragStartEvent) {
+      const origEnd = _dragStartEvent.time + (_dragStartEvent.duration || 5);
+      let newTime = _dragStartEvent.time;
+      let newDuration = _dragStartEvent.duration || 5;
+
+      if (_draggingHandle === 'body') {
+        newTime = time - _dragOffsetX;
+        newTime = Math.max(0, Math.min(dur - newDuration, newTime));
+      } else if (_draggingHandle === 'right') {
+        newDuration = Math.max(0.1, time - newTime);
+      } else if (_draggingHandle === 'left') {
+        newTime = Math.max(0, Math.min(origEnd - 0.1, time));
+        newDuration = origEnd - newTime;
+      }
+
+      ProjectStore.dispatch({ 
+        type: 'timeline/updateStateEvent', 
+        id: _draggingEventId, 
+        patch: { time: newTime, duration: newDuration } 
+      }, { recordHistory: false });
     }
     if (_draggingMarkerId && MarkerSystem.moveMarker) {
       MarkerSystem.moveMarker(_draggingMarkerId, time);
@@ -333,10 +483,21 @@ const TimelineUI = (() => {
   }
 
   function onDragEnd() {
+    if (_draggingEventId) {
+      // Dispatch once with history to save the move
+      const evt = ProjectStore.getState().timeline.stateEvents.find(e => e.id === _draggingEventId);
+      if (evt) {
+        ProjectStore.dispatch({ type: 'timeline/updateStateEvent', id: _draggingEventId, patch: { time: evt.time, duration: evt.duration } });
+        if (typeof UI !== 'undefined' && UI.buildStateInspector) UI.buildStateInspector(evt);
+      }
+    }
     _draggingEventId = null;
     _draggingMarkerId = null;
+    _isScrubbing = false;
+    _draggingHandle = null;
+    _dragStartEvent = null;
   }
 
-  return { init, render, update, deleteSelectedEvent };
+  return { init, render, update, deleteSelectedEvent, renderWaveform };
 })();
 

@@ -342,6 +342,40 @@ const AudioEngine = (() => {
         if (!ctx) init();
         if (ctx.state === 'suspended') await ctx.resume();
 
+        // Decode audio for waveform rendering
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+            audioBus.audioBuffer = audioBuffer;
+            
+            // Extract peaks
+            const channelData = audioBuffer.getChannelData(0);
+            const numPeaks = 4000; // Resolution of the waveform
+            const peaks = new Float32Array(numPeaks * 2); // min/max pairs
+            const blockSize = Math.floor(channelData.length / numPeaks);
+            
+            for (let i = 0; i < numPeaks; i++) {
+                let min = 1.0;
+                let max = -1.0;
+                const offset = i * blockSize;
+                for (let j = 0; j < blockSize; j++) {
+                    const sample = channelData[offset + j];
+                    if (sample < min) min = sample;
+                    if (sample > max) max = sample;
+                }
+                peaks[i * 2] = min;
+                peaks[i * 2 + 1] = max;
+            }
+            audioBus.waveformPeaks = peaks;
+            
+            // Notify timeline to re-render
+            if (typeof TimelineUI !== 'undefined' && TimelineUI.renderWaveform) {
+                TimelineUI.renderWaveform();
+            }
+        } catch(e) {
+            console.error("Error decoding audio data for waveform", e);
+        }
+
         // Revoke previous blob URL to prevent memory leak
         if (prevBlobUrl) URL.revokeObjectURL(prevBlobUrl);
         const url = URL.createObjectURL(file);
