@@ -668,7 +668,7 @@ const GeometryForgeMode2 = {
         }
         for (let i = 0; i < count; i++) {
             const m = this.mirrorMeshes[i]; m.visible = true;
-            const angle = ((i + 1) / (count + 1)) * Math.PI * 2;
+            const angle = (i / count) * Math.PI * 2;
             m.position.set(Math.cos(angle + this.time * 0.2) * dist, Math.sin(angle * 0.5 + this.time * 0.1) * dist * 0.3, Math.sin(angle + this.time * 0.2) * dist);
             m.rotation.copy(this.group.rotation);
             if (i % 2 === 0) m.scale.x = -1; else m.scale.setScalar(0.7 + audio.smoothBands.treble * 0.5);
