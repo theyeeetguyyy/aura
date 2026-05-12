@@ -74,7 +74,7 @@ Aura is built on a "State Snapshot" system.
 Aura is built for performance with zero dependencies:
 - **Three.js**: Real-time 3D rendering with custom GLSL shaders.
 - **Web Audio API**: Advanced FFT analysis and low-latency processing.
-- **MediaRecorder API**: Native MP4/WebM video export.
+- **MediaRecorder API**: Native MP4 video export with WebM fallback.
 - **Vanilla JS**: Modular, high-performance architecture.
 
 ---
@@ -92,4 +92,3 @@ We welcome new visual modes!
 <p align="center">
   Made with 🎵 and ✨ by <a href="https://github.com/theyeeetguyyy">theyeeetguyyy</a>
 </p>
-
