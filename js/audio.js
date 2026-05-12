@@ -69,6 +69,9 @@ const AudioEngine = (() => {
     let anticipation = 0;
     let sectionDuration = 0;
     let sectionStartTime = 0;
+    let prevDropSectionActive = false;
+    let prevScreechDetected = false;
+    let prevSirenActive = false;
 
     // BPM estimation
     let beatTimes = [];
@@ -406,6 +409,9 @@ const AudioEngine = (() => {
             bandPrevValues[b] = 0;
             bandFluxHistories[b] = [];
         }
+        prevDropSectionActive = false;
+        prevScreechDetected = false;
+        prevSirenActive = false;
         prevRMS = 0;
         rmsVelocity = 0;
         attackPhaseValue = 0;
@@ -1358,6 +1364,9 @@ const AudioEngine = (() => {
             return;
         }
 
+        audioBus.currentTime = audioElement ? audioElement.currentTime : 0;
+        audioBus.isPlaying = audioElement ? !audioElement.paused : false;
+
         analyser.getByteFrequencyData(freqData);
         analyser.getByteTimeDomainData(timeData);
 
@@ -1396,8 +1405,31 @@ const AudioEngine = (() => {
         if (_analysisFrame % 2 === 0) computeSpectralDynamics();
         if (_analysisFrame % 2 === 0) computeMicroDynamics();
 
-        audioBus.currentTime = audioElement ? audioElement.currentTime : 0;
-        audioBus.isPlaying = audioElement ? !audioElement.paused : false;
+        if (typeof AuraEvents !== 'undefined') {
+            const eventTime = audioBus.currentTime || 0;
+            if (audioBus.beat) AuraEvents.emitBeat(audioBus.beatIntensity || 0, audioBus.bpm || 0, eventTime);
+            if (audioBus.bassBeat) AuraEvents.emitBassImpact(audioBus.bassBeatIntensity || 0, eventTime);
+            if (audioBus.onsetDetected) AuraEvents.emitOnset(audioBus.onsetStrength || 0, eventTime);
+            if (audioBus.gunShotDetected) AuraEvents.emitGunshot(audioBus.gunShotIntensity || 0, eventTime);
+            if (audioBus.sectionChanged) {
+                AuraEvents.emitSectionChange(audioBus.sectionType || '', eventTime, audioBus.sectionEffects || null);
+            }
+            if (audioBus.isDropSection && !prevDropSectionActive) {
+                AuraEvents.emitDropEnter(audioBus.dropSectionIntensity || audioBus.dropIntensity || 0, eventTime, audioBus.dropSectionIntensity || 0);
+            } else if (!audioBus.isDropSection && prevDropSectionActive) {
+                AuraEvents.emitDropExit(eventTime);
+            }
+            if (audioBus.screechDetected && !prevScreechDetected) {
+                AuraEvents.emitScreech(audioBus.screechIntensity || 0, eventTime);
+            }
+            const sirenActive = (audioBus.sirenIntensity || 0) > 0.2;
+            if (sirenActive && !prevSirenActive) {
+                AuraEvents.emitSiren(audioBus.sirenIntensity || 0, eventTime);
+            }
+            prevDropSectionActive = !!audioBus.isDropSection;
+            prevScreechDetected = !!audioBus.screechDetected;
+            prevSirenActive = sirenActive;
+        }
     }
 
     function toggleLoop() {

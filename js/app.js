@@ -36,6 +36,7 @@ const AuraApp = (() => {
     }
 
     function registerModes() {
+        // Core visualizer modes
         VisualEngine.registerMode('frequencyBars', FrequencyBarsMode);
         VisualEngine.registerMode('particleStorm', ParticleStormMode);
         VisualEngine.registerMode('radialBloom', RadialBloomMode);
@@ -44,31 +45,30 @@ const AuraApp = (() => {
         VisualEngine.registerMode('spectrogram', SpectrogramMode);
         VisualEngine.registerMode('kaleidoscope', KaleidoscopeMode);
         VisualEngine.registerMode('shaderTunnel', ShaderTunnelMode);
-        VisualEngine.registerMode('geometryForge', GeometryForgeMode2);
-        VisualEngine.registerMode('hyperforge', HyperforgeMode2);
 
+        // Geometry engines
+        VisualEngine.registerMode('geometryForge', GeometryForgeMode2);
+        VisualEngine.registerMode('hyperforge', HyperforgeMode3);
+        VisualEngine.registerMode('titanforge', TitanforgeMode);
+
+        // Particle & physics systems
         VisualEngine.registerMode('particleManipulation', ParticleManipulationMode);
+        VisualEngine.registerMode('gpgpuParticles', GPGPUParticlesMode);
+
+        // Procedural & mathematical
         VisualEngine.registerMode('mathMode', MathModeMode);
         VisualEngine.registerMode('fractalTree', FractalTreeMode);
         VisualEngine.registerMode('voronoiField', VoronoiFieldMode);
         VisualEngine.registerMode('lissajous', LissajousMode);
         VisualEngine.registerMode('mobiusRings', MobiusRingsMode);
-        VisualEngine.registerMode('gridDistortion', GridDistortionMode);
-
-        VisualEngine.registerMode('starfield', StarfieldMode);
-
-
-        VisualEngine.registerMode('cyberGrid', CyberGridMode);
-        VisualEngine.registerMode('neonPlasma', NeonPlasmaMode);
-
         VisualEngine.registerMode('rhythmicGeometry', RhythmicGeometryMode);
 
-        VisualEngine.registerMode('gpgpuParticles', GPGPUParticlesMode);
-
+        // Environment & atmosphere
+        VisualEngine.registerMode('gridDistortion', GridDistortionMode);
+        VisualEngine.registerMode('starfield', StarfieldMode);
+        VisualEngine.registerMode('cyberGrid', CyberGridMode);
+        VisualEngine.registerMode('neonPlasma', NeonPlasmaMode);
         VisualEngine.registerMode('voidEngine', VoidEngineMode);
-
-        VisualEngine.registerMode('titanforge', TitanforgeMode);
-
     }
 
     function loop() {

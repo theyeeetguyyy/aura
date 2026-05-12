@@ -188,8 +188,8 @@ const GeometryForgeMode2 = {
     },
 
     // ── NOISE ──
-    noise3D(x, y, z) { const n = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453; return (n - Math.floor(n)) * 2 - 1; },
-    fbm(x, y, z, oct) { let v = 0, a = 1, f = 1, t = 0; for (let i = 0; i < oct; i++) { v += this.noise3D(x * f, y * f, z * f) * a; t += a; a *= 0.5; f *= 2.1; } return v / t; },
+    noise3D(x, y, z) { return MathLib.noise3D(x, y, z); },
+    fbm(x, y, z, oct) { return MathLib.fbm(x, y, z, oct); },
 
     // ── GEOMETRY FACTORY ──
     getGeometry(shape, detail, size) {

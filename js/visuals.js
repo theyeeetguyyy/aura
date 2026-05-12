@@ -282,6 +282,13 @@ const VisualEngine = (() => {
         baseFOV = camera.fov;
         // Derive orbit radius from mode's camera distance
         orbitRadius = baseCameraPos.length() || 100;
+
+        if (typeof AuraEvents !== 'undefined' && previousKey !== activeModeKey) {
+            const eventTime = (typeof AudioEngine !== 'undefined' && AudioEngine.audioBus)
+                ? (AudioEngine.audioBus.currentTime || 0)
+                : 0;
+            AuraEvents.emitModeChange(previousKey || '', activeModeKey || '', eventTime);
+        }
     }
 
     function nextMode() {

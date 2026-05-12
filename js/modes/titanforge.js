@@ -121,77 +121,27 @@ const TitanforgeMode = {
     },
 
     // ── NOISE ──
-    noise3D(x, y, z) { const n = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453; return (n - Math.floor(n)) * 2 - 1; },
-    fbm(x, y, z, oct) { let v = 0, a = 1, f = 1, t = 0; for (let i = 0; i < oct; i++) { v += this.noise3D(x * f, y * f, z * f) * a; t += a; a *= 0.5; f *= 2.1; } return v / t; },
+    noise3D(x, y, z) { return MathLib.noise3D(x, y, z); },
+    fbm(x, y, z, oct) { return MathLib.fbm(x, y, z, oct); },
 
     // ── SUPERFORMULA ──
-    superformula(angle, m, n1, n2, n3) {
-        const t1 = Math.abs(Math.cos(m * angle / 4)), t2 = Math.abs(Math.sin(m * angle / 4));
-        const r = Math.pow(Math.pow(t1, n2) + Math.pow(t2, n3), -1 / n1);
-        return isFinite(r) ? r : 0;
-    },
+    superformula(angle, m, n1, n2, n3) { return MathLib.superformula(angle, m, n1, n2, n3); },
 
     // ── GRID HELPER (parametric surface) ──
-    _grid(seg, fn) {
-        const verts = [], indices = [];
-        for (let i = 0; i <= seg; i++) for (let j = 0; j <= seg; j++) { const p = fn(i / seg, j / seg); verts.push(p[0], p[1], p[2]); }
-        for (let i = 0; i < seg; i++) for (let j = 0; j < seg; j++) { const a = i * (seg + 1) + j; indices.push(a, a + 1, a + seg + 1, a + 1, a + seg + 2, a + seg + 1); }
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-        geo.setIndex(indices); geo.computeVertexNormals(); return geo;
+    _grid(seg, fn) { return MathLib.buildGrid(seg, fn); },
+
+    _buildDisplaceFn(mode, audio, amt, speed) {
+        return MathLib.buildDisplaceFn(mode, audio, amt, speed, this.time, 0);
+    },
+
+    _buildColorFn(colorMode, audio, amt) {
+        return ColorLib.buildColorFn(colorMode, audio, amt, this.time, this._colorResult, this._tempColor);
     },
 
     // ── CORE SURFACE GENERATOR (10 shapes) ──
     getCoreSurface(shape, seg, size, m, n1, n2, n3) {
-        switch (shape) {
-            case 'superformula': return this._grid(seg, (u, v) => {
-                const theta = u * Math.PI * 2 - Math.PI, phi = v * Math.PI - Math.PI / 2;
-                const r1 = this.superformula(theta, m, n1, n2, n3), r2 = this.superformula(phi, m, n1, n2, n3);
-                return [r1 * Math.cos(theta) * r2 * Math.cos(phi) * size, r1 * Math.sin(theta) * r2 * Math.cos(phi) * size, r2 * Math.sin(phi) * size];
-            });
-            case 'kleinBottle': return this._grid(seg, (u, v) => {
-                const a = u * Math.PI * 2, b = v * Math.PI * 2, s2 = size * 0.15;
-                let x, y;
-                if (a < Math.PI) { x = (2.5 - 1.5 * Math.cos(a)) * s2 * Math.cos(b) * 6; y = (2.5 - 1.5 * Math.cos(a)) * s2 * Math.sin(b) * 6; }
-                else { x = (-2 + (2 + Math.cos(b)) * Math.cos(a)) * s2 * 6; y = (2 + Math.cos(b)) * Math.sin(a) * s2 * 6; }
-                return [x, y, -Math.sin(b) * (2.5 - 1.5 * Math.cos(a)) * s2 * 3];
-            });
-            case 'enneperSurface': return this._grid(seg, (u, v) => {
-                const a = (u - 0.5) * 3, b = (v - 0.5) * 3, s2 = size * 0.3;
-                return [s2 * (a - a ** 3 / 3 + a * b * b), s2 * (b - b ** 3 / 3 + a * a * b), s2 * (a * a - b * b)];
-            });
-            case 'boysSurface': return this._grid(seg, (u, v) => {
-                const a = u * Math.PI, b = v * Math.PI * 2, s2 = size * 0.5;
-                const sq2 = Math.SQRT2, ca = Math.cos(a);
-                const denom = 2 - sq2 * Math.sin(3 * b) * Math.sin(2 * a) || 1;
-                return [
-                    s2 * (sq2 * ca * ca * Math.cos(2 * b) + ca * Math.sin(b)) / denom,
-                    s2 * (sq2 * ca * ca * Math.sin(2 * b) - ca * Math.cos(b)) / denom,
-                    s2 * 3 * ca * ca / denom
-                ];
-            });
-            case 'trefoilKnot': return this._grid(seg, (u, v) => {
-                const t = u * Math.PI * 2, w = (v - 0.5) * size * 0.12, r = Math.cos(3 * t) + 2;
-                return [
-                    (r * Math.cos(2 * t) + w * Math.cos(2 * t) * Math.cos(3 * t)) * size * 0.25,
-                    (r * Math.sin(2 * t) + w * Math.sin(2 * t) * Math.cos(3 * t)) * size * 0.25,
-                    (Math.sin(3 * t) + w * Math.sin(3 * t)) * size * 0.25
-                ];
-            });
-            case 'catenoid': return this._grid(seg, (u, v) => {
-                const a = (u - 0.5) * 4, b = v * Math.PI * 2, s2 = size * 0.6;
-                return [s2 * Math.cosh(a) * Math.cos(b), s2 * a * 2, s2 * Math.cosh(a) * Math.sin(b)];
-            });
-            case 'torusKnot': return new THREE.TorusKnotGeometry(size * 0.7, size * 0.2, seg * 4, seg);
-            case 'icosahedron': return new THREE.IcosahedronGeometry(size, 3);
-            case 'dodecahedron': return new THREE.DodecahedronGeometry(size, 3);
-            case 'sphere': return new THREE.SphereGeometry(size, seg, seg);
-            default: return this._grid(seg, (u, v) => {
-                const theta = u * Math.PI * 2 - Math.PI, phi = v * Math.PI - Math.PI / 2;
-                const r1 = this.superformula(theta, m, n1, n2, n3), r2 = this.superformula(phi, m, n1, n2, n3);
-                return [r1 * Math.cos(theta) * r2 * Math.cos(phi) * size, r1 * Math.sin(theta) * r2 * Math.cos(phi) * size, r2 * Math.sin(phi) * size];
-            });
-        }
+        if (shape === 'dodecahedron') return new THREE.DodecahedronGeometry(size, 3);
+        return MathLib.getOuterGeo(shape, seg, size, m, n1, n2, n3);
     },
 
     // ── BUILD: CORE ──
@@ -438,6 +388,7 @@ const TitanforgeMode = {
         this._tempQuat = new THREE.Quaternion();
         this._tempScale = new THREE.Vector3();
         this._tempPos = new THREE.Vector3();
+        this._colorResult = new Float32Array(3);
         this.currentCoreShape = ''; this.currentOrbitalCount = 0; this.currentOrbitalShape = '';
         this._dropTriggeredThisDrop = false; this._emissivePulse = 0;
         this._colorStormPhase = 0;
@@ -460,13 +411,14 @@ const TitanforgeMode = {
         const amt = (params.coreDisplaceAmt || 8) * (params.reactivity || 1.5) * (SE.displacementScale || 1);
         const speed = (params.coreDisplaceSpeed || 1.5) * (SE.speed || 1);
         const bass = audio.smoothBands.bass || 0, sub = audio.smoothBands.sub || 0;
-        const mid = audio.smoothBands.mid || 0, rms = audio.rms || 0;
         const breathScale = 1 + (sub + bass) * (params.bassBreath || 2.5) * 0.2;
         const colorMode = params.coreColorMode || 'reactionDiffusion';
 
         const pos = this.coreGeo.attributes.position.array;
         const col = this.coreGeo.attributes.color.array;
         const count = this.coreBasePos.length / 3;
+        const dispFn = this._buildDisplaceFn(mode, audio, amt, speed);
+        const colorFn = this._buildColorFn(colorMode, audio, amt);
 
         for (let i = 0; i < count; i++) {
             const i3 = i * 3;
@@ -477,17 +429,7 @@ const TitanforgeMode = {
             const fIdx = Math.floor(t * audio.frequencyData.length * 0.5);
             const freq = (audio.frequencyData[fIdx] || 0) / 255;
 
-            let disp = 0;
-            switch (mode) {
-                case 'fourier': { const h1 = Math.sin(bx * 0.3 + this.time * speed) * freq; const h2 = Math.sin(by * 0.5 + this.time * speed * 0.7) * mid; const h3 = Math.sin(bz * 0.2 + this.time * speed * 1.3) * (audio.smoothBands.treble || 0); disp = (h1 + h2 + h3) * amt; break; }
-                case 'forceField': { const d2 = Math.sqrt(bx * bx + by * by + bz * bz) || 1; disp = (bass * 20) / (d2 * d2 + 1) * amt * 0.3 + this.fbm(bx * 0.1, by * 0.1, bz * 0.1 + this.time, 3) * amt * 0.3; break; }
-                case 'vortex': { const a2 = Math.atan2(bz, bx) + this.time * speed; const r2 = Math.sqrt(bx * bx + bz * bz); disp = Math.sin(a2 * 3 + r2 * 0.2) * amt * freq; break; }
-                case 'turbulence': { disp = Math.abs(this.fbm(bx * 0.08 + this.time * speed * 0.3, by * 0.08 + this.time * speed * 0.2, bz * 0.08, 4)) * amt * (0.5 + bass * 3); break; }
-                case 'reaction': { const rd = Math.sin(bx * 0.15 + this.time) * Math.cos(by * 0.15 - this.time * 0.7) + Math.sin(bz * 0.1 + this.time * 1.3); disp = rd * amt * 0.3 * (0.3 + freq * 2 + bass * 2); break; }
-                case 'audioSculpt': { disp = freq * amt * 1.5 + (audio.waveformPoints[Math.floor(t * 256)] || 0) * amt; break; }
-                case 'stringTheory': { let h = 0; for (let n = 1; n <= 7; n++) { const bv = (audio.frequencyData[Math.floor(n * 15)] || 0) / 255; h += bv * Math.sin(n * Math.PI * t + this.time * speed * n * 0.3) / n; } disp = h * amt * 2; break; }
-                case 'fluidSim': { const vx = Math.sin(by * 0.2 + this.time * speed); const vy = Math.cos(bx * 0.2 + this.time * speed * 0.7); const vz = Math.sin((bx + bz) * 0.15 + this.time * speed * 1.3); disp = (vx * nx + vy * ny + vz * nz) * amt * (0.3 + bass * 2 + freq); break; }
-            }
+            let disp = dispFn(bx, by, bz, freq, i, count, nx, ny, nz);
 
             // Beat explode
             if (this.explodePhase > 0.01) disp += this.explodePhase * 3;
@@ -500,18 +442,8 @@ const TitanforgeMode = {
             pos[i3 + 2] = (bz + nz * disp) * breathScale;
 
             // ── VERTEX COLORS ──
-            let r = 1, g = 1, b = 1;
-            switch (colorMode) {
-                case 'reactionDiffusion': { const rd = (Math.sin(pos[i3] * 0.2 + this.time) + Math.cos(pos[i3 + 1] * 0.15 + this.time * 0.8)) * 0.5 + 0.5; const c = ParamSystem.getColorThreeHSL(rd * 0.6 + freq * 0.4); r = c.r; g = c.g; b = c.b; break; }
-                case 'audioFreq': { const c = ParamSystem.getColorThreeHSL(Math.min(1, freq + t * 0.2)); r = c.r; g = c.g; b = c.b; break; }
-                case 'curvature': { const cv = Math.min(1, Math.abs(disp) / (amt + 0.01)); const c = ParamSystem.getColorThreeHSL(cv); r = c.r; g = c.g; b = c.b; break; }
-                case 'fire': { const hf = Math.min(1, freq * 0.6 + rms * 0.3); r = Math.min(1, hf * 2); g = hf * 0.6; b = hf * 0.1; break; }
-                case 'ice': { const c2 = Math.min(0.9, freq * 0.5 + 0.3); r = c2 * 0.3; g = c2 * 0.7; b = Math.min(1, c2 * 1.2); break; }
-                case 'plasma': { r = Math.sin(t * 10 + this.time) * 0.5 + 0.5; g = Math.sin(t * 10 + this.time * 1.3 + 2.1) * 0.5 + 0.5; b = Math.sin(t * 10 + this.time * 0.7 + 4.2) * 0.5 + 0.5; break; }
-                case 'void': { const edge = Math.min(1, Math.abs(disp) / (amt + 0.01)); r = edge * 0.3; g = edge * 0.1; b = edge * 0.5 + 0.05; break; }
-                case 'holographic': { const angle = Math.atan2(pos[i3 + 2], pos[i3]) / Math.PI; if (!this._tempColor) this._tempColor = new THREE.Color(); const c = this._tempColor.setHSL((angle + t + this.time * 0.05) % 1, 0.9, Math.min(0.65, 0.3 + freq * 0.3)); r = c.r; g = c.g; b = c.b; break; }
-            }
-            col[i3] = r; col[i3 + 1] = g; col[i3 + 2] = b;
+            const rgb = colorFn(pos[i3], pos[i3 + 1], pos[i3 + 2], disp, freq, t);
+            col[i3] = rgb[0]; col[i3 + 1] = rgb[1]; col[i3 + 2] = rgb[2];
         }
 
         this.coreGeo.attributes.position.needsUpdate = true;
