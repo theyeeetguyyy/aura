@@ -17,6 +17,9 @@ const AuraApp = (() => {
         // Init visual engine
         VisualEngine.init(canvas);
 
+        // Init Orchestrator
+        if (typeof SceneOrchestrator !== 'undefined') SceneOrchestrator.init();
+
         // Register all modes
         registerModes();
 

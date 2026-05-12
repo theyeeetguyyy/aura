@@ -289,9 +289,6 @@ const UI = (() => {
             // Hide the drop zone with fade
             dropZone.classList.add('hidden');
 
-            // Show transport
-            document.getElementById('transport-bar').classList.add('active');
-
             // 1.9: Re-render markers for new file (clears stale markers from old duration)
             renderMarkers();
 
@@ -513,6 +510,9 @@ const UI = (() => {
         const container = document.getElementById('params-content');
         if (!container) return;
         
+        const existingCam = document.getElementById('camera-inspector');
+        if (existingCam) existingCam.remove();
+        
         let inspector = document.getElementById('state-inspector');
         if (!inspector) {
             inspector = document.createElement('div');
@@ -551,13 +551,122 @@ const UI = (() => {
         });
     }
 
+    function buildCameraInspector(evt) {
+        if (!evt) return;
+        const container = document.getElementById('params-content');
+        if (!container) return;
+        
+        const existingState = document.getElementById('state-inspector');
+        if (existingState) existingState.remove();
+        
+        let inspector = document.getElementById('camera-inspector');
+        if (!inspector) {
+            inspector = document.createElement('div');
+            inspector.id = 'camera-inspector';
+            inspector.className = 'param-section';
+            container.insertBefore(inspector, container.firstChild);
+        }
+        
+        inspector.innerHTML = `
+            <h3 class="param-section-title inspector-title">Camera Keyframe</h3>
+            <div class="param-control">
+                <div class="param-row">
+                    <label>Orbit Theta (Y-Rot)</label>
+                    <input type="number" id="cam-theta" value="${parseFloat(evt.val.rot.y).toFixed(3)}" step="0.1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                </div>
+                <div class="param-row">
+                    <label>Orbit Phi (X-Rot)</label>
+                    <input type="number" id="cam-phi" value="${parseFloat(evt.val.rot.x).toFixed(3)}" step="0.1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                </div>
+                <div class="param-row">
+                    <label>Radius (Z-Dist)</label>
+                    <input type="number" id="cam-radius" value="${parseFloat(evt.val.pos.z).toFixed(1)}" step="5" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                </div>
+                <div class="param-row">
+                    <label>FOV</label>
+                    <input type="number" id="cam-fov" value="${parseFloat(evt.val.fov).toFixed(1)}" step="1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                </div>
+                <div class="param-row">
+                    <label>Easing</label>
+                    <select id="cam-easing" class="inspector-select" style="background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;">
+                        <option value="easeInOutCubic" ${evt.easing === 'easeInOutCubic' ? 'selected' : ''}>Smooth (Cubic)</option>
+                        <option value="linear" ${evt.easing === 'linear' ? 'selected' : ''}>Linear</option>
+                        <option value="easeOutExpo" ${evt.easing === 'easeOutExpo' ? 'selected' : ''}>Punch (EaseOut)</option>
+                        <option value="step" ${evt.easing === 'step' ? 'selected' : ''}>Beat Jump (Step)</option>
+                    </select>
+                </div>
+                <div style="margin-top: 10px; display: flex; justify-content: space-between;">
+                    <button id="cam-btn-update" class="timeline-btn action-btn" style="flex:1;">Snap To Current View</button>
+                </div>
+            </div>
+        `;
+        
+        const dispatchUpdate = () => {
+            if (typeof ProjectStore !== 'undefined') {
+                const theta = parseFloat(document.getElementById('cam-theta').value);
+                const phi = parseFloat(document.getElementById('cam-phi').value);
+                const radius = parseFloat(document.getElementById('cam-radius').value);
+                const fov = parseFloat(document.getElementById('cam-fov').value);
+                
+                ProjectStore.dispatch({ 
+                    type: 'timeline/updateCameraEvent', 
+                    id: evt.id, 
+                    patch: { 
+                        val: {
+                            pos: { x: 0, y: 0, z: radius },
+                            rot: { x: phi, y: theta, z: 0 },
+                            fov: fov
+                        }
+                    } 
+                });
+                
+                // Immediately apply to visualize
+                if (typeof VisualEngine !== 'undefined') {
+                    VisualEngine.setOrbitState({ orbitTheta: theta, orbitPhi: phi, orbitRadius: radius, fov: fov });
+                }
+            }
+        };
+
+        document.getElementById('cam-theta').addEventListener('change', dispatchUpdate);
+        document.getElementById('cam-phi').addEventListener('change', dispatchUpdate);
+        document.getElementById('cam-radius').addEventListener('change', dispatchUpdate);
+        document.getElementById('cam-fov').addEventListener('change', dispatchUpdate);
+        
+        document.getElementById('cam-easing').addEventListener('change', (e) => {
+            if (typeof ProjectStore !== 'undefined') {
+                ProjectStore.dispatch({ type: 'timeline/updateCameraEvent', id: evt.id, patch: { easing: e.target.value } });
+            }
+        });
+        
+        document.getElementById('cam-btn-update').addEventListener('click', () => {
+            if (typeof VisualEngine !== 'undefined' && typeof ProjectStore !== 'undefined') {
+                const cam = VisualEngine.getOrbitState();
+                ProjectStore.dispatch({ 
+                    type: 'timeline/updateCameraEvent', 
+                    id: evt.id, 
+                    patch: { 
+                        val: {
+                            pos: { x: 0, y: 0, z: cam.orbitRadius },
+                            rot: { x: cam.orbitPhi, y: cam.orbitTheta, z: 0 },
+                            fov: cam.fov
+                        }
+                    } 
+                });
+                // Re-render inspector
+                buildCameraInspector(ProjectStore.getState().timeline.cameraEvents.find(e => e.id === evt.id));
+            }
+        });
+    }
+
     function buildParamsUI() {
         const container = document.getElementById('params-content');
         
-        // Preserve state inspector if it exists
-        const inspector = document.getElementById('state-inspector');
+        // Preserve inspectors if they exist
+        const stateInspector = document.getElementById('state-inspector');
+        const cameraInspector = document.getElementById('camera-inspector');
         container.innerHTML = '';
-        if (inspector) container.appendChild(inspector);
+        if (stateInspector) container.appendChild(stateInspector);
+        if (cameraInspector) container.appendChild(cameraInspector);
 
         // Global section
         const globalSection = createSection('Global');
@@ -1354,6 +1463,8 @@ const UI = (() => {
         init,
         update,
         buildParamsUI,
+        buildStateInspector,
+        buildCameraInspector,
         updateModeList,
         toggleModesPanel,
         toggleParamsPanel,

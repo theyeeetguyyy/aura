@@ -93,6 +93,37 @@ const ProjectStore = (() => {
         next.meta.modifiedAt = Date.now();
         return next;
       }
+      case 'timeline/addCameraEvent': {
+        const next = ProjectSchema.clone(state);
+        if (!next.timeline.cameraEvents) next.timeline.cameraEvents = [];
+        const id = `cam_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+        next.timeline.cameraEvents.push({
+          id,
+          time: action.time,
+          val: action.val, // { pos: {x,y,z}, rot: {x,y,z}, fov }
+          easing: action.easing || 'easeInOutCubic',
+        });
+        next.timeline.cameraEvents.sort((a, b) => a.time - b.time);
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
+      case 'timeline/updateCameraEvent': {
+        const next = ProjectSchema.clone(state);
+        if (!next.timeline.cameraEvents) return state;
+        const idx = next.timeline.cameraEvents.findIndex(e => e.id === action.id);
+        if (idx < 0) return state;
+        next.timeline.cameraEvents[idx] = { ...next.timeline.cameraEvents[idx], ...action.patch };
+        next.timeline.cameraEvents.sort((a, b) => a.time - b.time);
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
+      case 'timeline/removeCameraEvent': {
+        const next = ProjectSchema.clone(state);
+        if (!next.timeline.cameraEvents) return state;
+        next.timeline.cameraEvents = next.timeline.cameraEvents.filter(e => e.id !== action.id);
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
       case 'nodes/remove': {
         const next = ProjectSchema.clone(state);
         next.nodes = next.nodes.filter(n => n.id !== action.id);

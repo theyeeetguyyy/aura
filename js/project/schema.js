@@ -59,10 +59,12 @@ const ProjectSchema = (() => {
 
       timeline: {
         fps: 60,
-        // events: “at time t, switch to nodeId”
+        // Clips dropped onto the timeline that trigger a node state
         stateEvents: [
           { id: 'evt_1', time: 0, nodeId: 'node_1', transitionSec: 0.75, easing: 'easeInOut' },
         ],
+        // Keyframes for the camera transform track
+        cameraEvents: [],
       },
 
       editor: {

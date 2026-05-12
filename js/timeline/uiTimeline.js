@@ -70,6 +70,10 @@ const TimelineUI = (() => {
     }
 
     _btnAdd.addEventListener('click', () => addStateAtCurrentTime());
+    
+    const btnAddCamera = _root.querySelector('#btn-add-camera');
+    if (btnAddCamera) btnAddCamera.addEventListener('click', () => addCameraEventAtCurrentTime());
+    
     const addMarkerBtn = _root.querySelector('#btn-add-marker-tl');
     const clearMarkersBtn = _root.querySelector('#btn-clear-markers-tl');
     if (addMarkerBtn) addMarkerBtn.addEventListener('click', () => {
@@ -184,6 +188,28 @@ const TimelineUI = (() => {
 
     ProjectStore.dispatch({ type: 'nodes/upsert', node });
     ProjectStore.dispatch({ type: 'timeline/addStateEvent', time: t, nodeId });
+  }
+
+  function addCameraEventAtCurrentTime() {
+    if (!AudioEngine?.audioBus?.loaded) return;
+    const t = AudioEngine.audioBus.currentTime || 0;
+
+    // Grab current camera state
+    const cam = VisualEngine?.getOrbitState ? VisualEngine.getOrbitState() : {
+      orbitTheta: 0,
+      orbitPhi: Math.PI / 2,
+      orbitRadius: 100,
+      fov: VisualEngine?.camera?.fov || 75,
+    };
+
+    // Note: We use Orbit radius as Z proxy for simple NLE
+    const val = {
+      pos: { x: 0, y: 0, z: cam.orbitRadius },
+      rot: { x: cam.orbitPhi, y: cam.orbitTheta, z: 0 },
+      fov: cam.fov
+    };
+
+    ProjectStore.dispatch({ type: 'timeline/addCameraEvent', time: t, val, easing: 'easeInOutCubic' });
   }
 
   function renderWaveform() {
@@ -324,6 +350,56 @@ const TimelineUI = (() => {
       if (evt.id === _selectedEventId) clip.classList.add('selected');
       _eventLayer.appendChild(clip);
     }
+    
+    // camera events on camera layer
+    const camLayer = _root.querySelector('.timeline-camera-events');
+    const camEvents = project.timeline.cameraEvents || [];
+    if (camLayer) {
+      camLayer.innerHTML = '';
+      for (let i = 0; i < camEvents.length; i++) {
+        const evt = camEvents[i];
+        const left = dur > 0 ? (evt.time / dur) * 100 : 0;
+        
+        const clip = document.createElement('div');
+        clip.className = 'timeline-camera-clip';
+        clip.style.left = `${left}%`;
+        clip.title = `Camera KF @ ${TimelineModel.formatTime(evt.time)}\nEase: ${evt.easing}`;
+        clip.dataset.eventId = evt.id;
+        
+        // Simple diamond shape for keyframe
+        const diamond = document.createElement('div');
+        diamond.className = 'camera-kf-diamond';
+        clip.appendChild(diamond);
+        
+        clip.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          if (_selectedEventId !== evt.id) {
+            _selectedEventId = evt.id;
+            if (AudioEngine?.audioBus?.loaded) AudioEngine.seek(evt.time);
+            if (typeof UI !== 'undefined' && UI.buildCameraInspector) UI.buildCameraInspector(evt);
+            render();
+            return;
+          }
+          _draggingEventId = evt.id;
+          _dragStartEvent = { ...evt, isCamera: true };
+          
+          const rect = _bar.getBoundingClientRect();
+          const mouseRatio = (e.clientX - rect.left) / rect.width;
+          const mouseTime = mouseRatio * dur;
+          _dragOffsetX = mouseTime - evt.time;
+          _draggingHandle = 'body';
+        });
+        
+        clip.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          ProjectStore.dispatch({ type: 'timeline/removeCameraEvent', id: evt.id });
+        });
+        
+        if (evt.id === _selectedEventId) clip.classList.add('selected');
+        camLayer.appendChild(clip);
+      }
+    }
 
     // markers on same bar
     _markerLayer.innerHTML = '';
@@ -414,6 +490,7 @@ const TimelineUI = (() => {
       });
       li.addEventListener('click', () => {
         _selectedEventId = evt.id;
+        if (typeof UI !== 'undefined' && UI.buildStateInspector) UI.buildStateInspector(evt);
         render();
       });
       li.addEventListener('dblclick', () => {
@@ -423,6 +500,49 @@ const TimelineUI = (() => {
             VisualEngine.applyStudioStateAtTime(evt.time);
           }
         }
+      });
+      _list.appendChild(li);
+    }
+    
+    // Add camera events to list
+    for (const evt of project.timeline.cameraEvents || []) {
+      const li = document.createElement('div');
+      li.className = 'timeline-event-row camera-row';
+      li.style.borderLeft = '3px solid #10b981'; // Green for camera
+      li.innerHTML = `
+        <div class="tcol time">${TimelineModel.formatTime(evt.time)}</div>
+        <div class="tcol name">🎥 Camera Keyframe</div>
+        <div class="tcol mode">
+          <div class="miniControls" style="margin-left: 0;">
+            <label>Ease</label>
+            <select class="tEase">
+              <option value="easeInOutCubic" ${evt.easing === 'easeInOutCubic' ? 'selected' : ''}>Smooth</option>
+              <option value="linear" ${evt.easing === 'linear' ? 'selected' : ''}>Linear</option>
+              <option value="step" ${evt.easing === 'step' ? 'selected' : ''}>Beat Jump (Step)</option>
+              <option value="easeOutExpo" ${evt.easing === 'easeOutExpo' ? 'selected' : ''}>Punch</option>
+            </select>
+          </div>
+        </div>
+        <button class="tcol del" title="Remove">✕</button>
+      `;
+      if (evt.id === _selectedEventId) li.classList.add('selected');
+
+      const easeSelect = li.querySelector('select.tEase');
+      if (easeSelect) {
+        easeSelect.addEventListener('change', () => {
+          ProjectStore.dispatch({ type: 'timeline/updateCameraEvent', id: evt.id, patch: { easing: easeSelect.value } });
+        });
+      }
+      li.querySelector('button.del').addEventListener('click', () => {
+        ProjectStore.dispatch({ type: 'timeline/removeCameraEvent', id: evt.id });
+      });
+      li.addEventListener('click', () => {
+        _selectedEventId = evt.id;
+        if (typeof UI !== 'undefined' && UI.buildCameraInspector) UI.buildCameraInspector(evt);
+        render();
+      });
+      li.addEventListener('dblclick', () => {
+        if (AudioEngine?.audioBus?.loaded) AudioEngine.seek(evt.time);
       });
       _list.appendChild(li);
     }
@@ -436,7 +556,13 @@ const TimelineUI = (() => {
 
   function deleteSelectedEvent() {
     if (!_selectedEventId) return;
-    ProjectStore.dispatch({ type: 'timeline/removeStateEvent', id: _selectedEventId });
+    const project = ProjectStore.getState();
+    const isCamera = project.timeline.cameraEvents?.find(e => e.id === _selectedEventId);
+    if (isCamera) {
+      ProjectStore.dispatch({ type: 'timeline/removeCameraEvent', id: _selectedEventId });
+    } else {
+      ProjectStore.dispatch({ type: 'timeline/removeStateEvent', id: _selectedEventId });
+    }
     _selectedEventId = null;
   }
 
@@ -470,11 +596,19 @@ const TimelineUI = (() => {
         newDuration = origEnd - newTime;
       }
 
-      ProjectStore.dispatch({ 
-        type: 'timeline/updateStateEvent', 
-        id: _draggingEventId, 
-        patch: { time: newTime, duration: newDuration } 
-      }, { recordHistory: false });
+      if (_dragStartEvent.isCamera) {
+        ProjectStore.dispatch({ 
+          type: 'timeline/updateCameraEvent', 
+          id: _draggingEventId, 
+          patch: { time: newTime } // Camera events only need time, not duration
+        }, { recordHistory: false });
+      } else {
+        ProjectStore.dispatch({ 
+          type: 'timeline/updateStateEvent', 
+          id: _draggingEventId, 
+          patch: { time: newTime, duration: newDuration } 
+        }, { recordHistory: false });
+      }
     }
     if (_draggingMarkerId && MarkerSystem.moveMarker) {
       MarkerSystem.moveMarker(_draggingMarkerId, time);
@@ -483,12 +617,20 @@ const TimelineUI = (() => {
   }
 
   function onDragEnd() {
-    if (_draggingEventId) {
-      // Dispatch once with history to save the move
-      const evt = ProjectStore.getState().timeline.stateEvents.find(e => e.id === _draggingEventId);
+    if (_draggingEventId && _dragStartEvent) {
+      const isCam = _dragStartEvent.isCamera;
+      const type = isCam ? 'timeline/updateCameraEvent' : 'timeline/updateStateEvent';
+      const list = isCam ? ProjectStore.getState().timeline.cameraEvents : ProjectStore.getState().timeline.stateEvents;
+      
+      const evt = list.find(e => e.id === _draggingEventId);
       if (evt) {
-        ProjectStore.dispatch({ type: 'timeline/updateStateEvent', id: _draggingEventId, patch: { time: evt.time, duration: evt.duration } });
-        if (typeof UI !== 'undefined' && UI.buildStateInspector) UI.buildStateInspector(evt);
+        if (isCam) {
+            ProjectStore.dispatch({ type, id: _draggingEventId, patch: { time: evt.time } });
+            if (typeof UI !== 'undefined' && UI.buildCameraInspector) UI.buildCameraInspector(evt);
+        } else {
+            ProjectStore.dispatch({ type, id: _draggingEventId, patch: { time: evt.time, duration: evt.duration } });
+            if (typeof UI !== 'undefined' && UI.buildStateInspector) UI.buildStateInspector(evt);
+        }
       }
     }
     _draggingEventId = null;

@@ -486,6 +486,43 @@ select option {
 .timeline-events {
     position: absolute;
     inset: 0;
+    pointer-events: none;
+}
+.timeline-camera-events {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.timeline-camera-clip {
+    position: absolute;
+    top: 34px; /* below state clips */
+    height: 14px;
+    width: 14px;
+    margin-left: -7px; /* Center diamond on time */
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    pointer-events: auto;
+}
+.timeline-camera-clip .camera-kf-diamond {
+    width: 10px;
+    height: 10px;
+    background: #10b981;
+    transform: rotate(45deg);
+    border: 1px solid #fff;
+    box-shadow: 0 0 5px rgba(16, 185, 129, 0.6);
+    transition: all 0.2s;
+}
+.timeline-camera-clip:hover .camera-kf-diamond {
+    background: #34d399;
+    transform: rotate(45deg) scale(1.2);
+}
+.timeline-camera-clip.selected .camera-kf-diamond {
+    background: #fff;
+    border-color: #10b981;
+    box-shadow: 0 0 10px #10b981;
 }
 .timeline-markers {
     position: absolute;
@@ -515,6 +552,7 @@ select option {
     font-size: 11px;
     cursor: grab;
     transform: translateX(0);
+    pointer-events: auto;
     display: flex;
     align-items: center;
     justify-content: space-between;

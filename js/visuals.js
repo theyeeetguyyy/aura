@@ -154,13 +154,18 @@ const VisualEngine = (() => {
         scene.add(camera);
         camera.add(flashOverlay);
 
+        if (typeof CameraEngine !== 'undefined') CameraEngine.init(camera);
+        if (typeof CameraDirector !== 'undefined') CameraDirector.init();
+
         initPostProcessing();
         window.addEventListener('resize', onResize);
         setupMouseControls(canvas);
     }
 
     function initPostProcessing() {
-        if (!typeof THREE.EffectComposer !== 'undefined') {
+        if (typeof RenderGraph !== 'undefined') {
+            composer = RenderGraph.init(renderer, scene, camera, window.innerWidth, window.innerHeight);
+        } else if (typeof THREE.EffectComposer !== 'undefined') {
             composer = new THREE.EffectComposer(renderer);
             renderPass = new THREE.RenderPass(scene, camera);
             composer.addPass(renderPass);
@@ -210,7 +215,11 @@ const VisualEngine = (() => {
         
         // Resize WebGL target buffer
         renderer.setSize(targetW, targetH, false); // false prevents overriding our CSS style
-        if (composer) composer.setSize(targetW, targetH);
+        if (typeof RenderGraph !== 'undefined') {
+            RenderGraph.resize(targetW, targetH);
+        } else if (composer) {
+            composer.setSize(targetW, targetH);
+        }
     }
 
     function registerMode(key, modeObj) {
@@ -473,135 +482,27 @@ const VisualEngine = (() => {
         const zoomPunch = (params.zoomPunch ?? 0.3) * effects.zoom * masterInt;
         const reactivity = (params.reactivity ?? 1.0) * sectionInt;
 
-        // === CINEMATIC AUTO-CAM & AUTO ROTATE ===
-        if (!isDragging) {
-            if (params.cinematicCamera) {
-                let rSpeed = (params.cameraRotateSpeed || 0.3) * effects.speed;
-                let swaySpeed = 0.5;
-                let swayAmp = 0.05;
-                let targetPhi = Math.PI / 2;
-
-                if (dropChaosActive && dropChaosIntensity > 0) {
-                    // Drone-shot: fast continuous spin, low sway
-                    rSpeed = (rSpeed * 3.0 + dropChaosIntensity * dropLevel * 2.0) * (1 + Math.sin(chaosTime * 7.3) * 0.5);
-                    swaySpeed = 2.0;
-                    swayAmp = 0.15;
-                    targetPhi += Math.sin(chaosTime * swaySpeed) * swayAmp;
-                } else if (audio.isBuildingUp) {
-                    // Build-up: push in (zoom) + dramatic slow rotation
-                    rSpeed = rSpeed * 1.5;
-                    swaySpeed = 1.0;
-                    swayAmp = 0.1;
-                    orbitRadius -= 15 * dt * (audio.sectionProgress || 0.5);
-                    orbitRadius = Math.max(20, orbitRadius);
-                    targetPhi += Math.sin(clock.elapsedTime * swaySpeed) * swayAmp;
-                } else if (audio.isBreakdown || audio.sectionType === 'outro') {
-                    // Pull back slowly
-                    rSpeed = rSpeed * 0.5;
-                    swaySpeed = 0.3;
-                    swayAmp = 0.1;
-                    orbitRadius += 8 * dt;
-                    orbitRadius = Math.min(1500, orbitRadius);
-                    targetPhi += Math.sin(clock.elapsedTime * swaySpeed) * swayAmp;
-                } else if (audio.sectionType === 'intro') {
-                    rSpeed = rSpeed * 0.8;
-                    swaySpeed = 0.4;
-                    swayAmp = 0.15;
-                    targetPhi += Math.sin(clock.elapsedTime * swaySpeed) * swayAmp;
-                } else {
-                    // Verse / default
-                    rSpeed = rSpeed * 1.2 * (1 + audio.energySmooth * 2);
-                    swaySpeed = 0.8;
-                    swayAmp = 0.08;
-                    targetPhi += Math.sin(clock.elapsedTime * swaySpeed) * swayAmp;
-                }
-
-                orbitTheta += rSpeed * dt;
-                orbitPhi += (targetPhi - orbitPhi) * 0.05; // smooth drift
-                orbitDirty = true;
-            } else if (params.cameraAutoRotate) {
-                let speed = (params.cameraRotateSpeed || 0.5) * effects.speed * (1 + audio.energySmooth * 2);
-                if (dropChaosActive && dropChaosIntensity > 0) {
-                    speed *= 1 + dropChaosIntensity * dropLevel * 3 * Math.sin(chaosTime * 7.3);
-                }
-                orbitTheta += speed * dt;
-                orbitDirty = true;
+        // === CAMERA DIRECTOR (Phase 2) ===
+        if (typeof CameraDirector !== 'undefined') {
+            // Forward manual user interactions into the Orbit layer
+            if (orbitDirty && typeof CameraEngine !== 'undefined') {
+                // If user is actively dragging, immediately snap the target
+                CameraEngine.layers.orbit.radius.target = orbitRadius;
+                CameraEngine.layers.orbit.theta = orbitTheta;
+                // Maintain the manual phi base
+                CameraEngine.layers.orbit.phi.target = orbitPhi;
+                orbitDirty = false;
             }
+            
+            CameraDirector.update(dt, audio);
+        } else {
+            // Legacy camera fallback if engine not loaded
+            applyOrbit();
+            camera.position.copy(baseCameraPos);
+            camera.lookAt(0, 0, 0);
+            camera.fov = baseFOV;
+            camera.updateProjectionMatrix();
         }
-
-        // === APPLY USER ORBIT ===
-        applyOrbit();
-
-        // === SCREEN SHAKE — smooth sinusoidal, not random jitter ===
-        if (audio.bassBeat && shakeAmount > 0) {
-            cameraShake.intensity = audio.bassBeatIntensity * shakeAmount * 4 * reactivity;
-        }
-        cameraShake.intensity *= 0.88;
-
-        // CHAOS SHAKE: layered multi-frequency overdrive
-        let chaosShakeX = 0, chaosShakeY = 0, chaosShakeZ = 0;
-        if (dropChaosActive && dropChaosIntensity > 0) {
-            const ci = dropChaosIntensity * dropLevel;
-            const t = chaosTime;
-            // Multi-frequency layered shake — gets wilder with higher dropLevel
-            chaosShakeX = (
-                Math.sin(t * 17.3) * 2.5 +
-                Math.sin(t * 31.7) * 1.8 +
-                Math.sin(t * 53.1) * 0.9 +
-                Math.cos(t * 11.3 + Math.sin(t * 7.1)) * 1.5
-            ) * ci;
-            chaosShakeY = (
-                Math.sin(t * 13.7) * 2.2 +
-                Math.sin(t * 41.3) * 1.6 +
-                Math.cos(t * 29.7) * 1.0 +
-                Math.sin(t * 67.1 + Math.cos(t * 5.3)) * 0.7
-            ) * ci;
-            chaosShakeZ = (
-                Math.sin(t * 9.1) * 1.5 +
-                Math.cos(t * 23.3) * 0.8
-            ) * ci * 0.4;
-        }
-
-        shakeTime += dt * 28;
-        cameraShake.x = (Math.sin(shakeTime * 1.0) * 0.6 + Math.sin(shakeTime * 2.3) * 0.4) * cameraShake.intensity + chaosShakeX;
-        cameraShake.y = (Math.sin(shakeTime * 1.7) * 0.6 + Math.sin(shakeTime * 3.1) * 0.4) * cameraShake.intensity + chaosShakeY;
-        cameraShake.z = Math.sin(shakeTime * 0.9) * cameraShake.intensity * 0.2 + chaosShakeZ;
-
-        camera.position.x = baseCameraPos.x + cameraShake.x;
-        camera.position.y = baseCameraPos.y + cameraShake.y;
-        camera.position.z = baseCameraPos.z + cameraShake.z;
-        camera.lookAt(0, 0, 0);
-
-        // === CAMERA ZOOM PUNCH (section-weighted) ===
-        if (audio.beat && zoomPunch > 0) {
-            cameraZoomPunch = audio.beatIntensity * zoomPunch * 6 * reactivity;
-        }
-        cameraZoomPunch *= 0.88;
-
-        // Anticipation zoom (slow tighten approaching a drop)
-        let anticipationZoom = 0;
-        if (audio.anticipation > 0) {
-            anticipationZoom = audio.anticipation * 8;
-        }
-
-        // CHAOS FOV: rapid oscillations between fish-eye and telephoto
-        let chaosFOV = 0;
-        if (dropChaosActive && dropChaosIntensity > 0) {
-            const ci = dropChaosIntensity * dropLevel;
-            const t = chaosTime;
-            chaosFOV = (
-                Math.sin(t * 8.7) * 12 +
-                Math.sin(t * 19.3) * 6 +
-                Math.sin(t * 3.1) * 8
-            ) * ci;
-            // Beat-sync FOV slam
-            if (audio.beat) {
-                chaosFOV += audio.beatIntensity * 20 * ci;
-            }
-        }
-
-        camera.fov = Math.max(10, Math.min(160, baseFOV - cameraZoomPunch - anticipationZoom + chaosFOV));
-        camera.updateProjectionMatrix();
 
         // === BEAT FLASH — inside WebGL scene, visible in recording ===
         if (flashEnabled && flashAmount > 0) {
@@ -731,19 +632,7 @@ const VisualEngine = (() => {
             scene.background.set(bgColor);
         }
 
-        // Bloom — section-aware
-        if (bloomPass) {
-            const pp = ParamSystem.get('postProcessing');
-            if (pp) {
-                const effects = audioBus.sectionEffects || { bloom: 1 };
-                const masterInt = audioBus.masterIntensity || 1;
-                // Clamp bloom strength to prevent white-out saturation
-                bloomPass.strength = Math.min(2.5, (ParamSystem.get('bloomIntensity') || 0.5) * effects.bloom
-                    + audioBus.bassBeatIntensity * 0.3 * masterInt);
-                bloomPass.threshold = ParamSystem.get('bloomThreshold') || 0.35;
-                bloomPass.radius = ParamSystem.get('bloomRadius') || 0.8;
-            }
-        }
+        // Bloom is now handled by RenderGraph.update()
 
         // Dubstep visual effects (shake, flash, zoom)
         updateEffects(audioBus, {
@@ -790,7 +679,10 @@ const VisualEngine = (() => {
 
         // Render (1.4: disable post-processing on composer error instead of double render)
         try {
-            if (composer && ParamSystem.get('postProcessing')) {
+            if (typeof RenderGraph !== 'undefined' && RenderGraph.composer && ParamSystem.get('postProcessing')) {
+                RenderGraph.update(dt, audioBus);
+                RenderGraph.render(dt);
+            } else if (composer && ParamSystem.get('postProcessing')) {
                 composer.render();
             } else {
                 renderer.setRenderTarget(null);

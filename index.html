@@ -141,6 +141,7 @@
                 <button class="timeline-btn" id="btn-follow-timeline" title="Follow Playhead">Follow</button>
                 <div class="divider"></div>
                 <button class="timeline-btn action-btn" id="btn-add-state" title="Add State">＋ State</button>
+                <button class="timeline-btn action-btn" id="btn-add-camera" title="Add Camera Keyframe">＋ Cam KF</button>
                 <div class="divider"></div>
                 <select id="marker-type-select" class="timeline-marker-type" aria-label="Marker Type">
                     <option value="intro">🎵 Intro</option>
@@ -178,6 +179,7 @@
                 <canvas id="waveform-canvas"></canvas>
                 <div class="timeline-markers"></div>
                 <div class="timeline-events"></div>
+                <div class="timeline-camera-events"></div>
                 <div class="timeline-playhead"></div>
             </div>
         </div>
@@ -293,6 +295,11 @@
     <script src="js/engine/eventBus.js"></script>
     <script src="js/engine/mathLib.js"></script>
     <script src="js/engine/colorLib.js"></script>
+    <script src="js/engine/orchestrator.js"></script>
+    <script src="js/engine/keyframeEngine.js"></script>
+    <script src="js/engine/cameraEngine.js"></script>
+    <script src="js/engine/cameraDirector.js"></script>
+    <script src="js/engine/renderGraph.js"></script>
 
     <!-- VISUAL MODES -->
     <script src="js/modes/frequencyBars.js"></script>
