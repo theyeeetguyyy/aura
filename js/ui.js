@@ -567,24 +567,26 @@ const UI = (() => {
             container.insertBefore(inspector, container.firstChild);
         }
         
+        const v = evt.val || { pos: { x: 0, y: 0, z: 100 }, rot: { x: Math.PI / 2, y: 0, z: 0 }, fov: 75 };
+        
         inspector.innerHTML = `
             <h3 class="param-section-title inspector-title">Camera Keyframe</h3>
             <div class="param-control">
                 <div class="param-row">
                     <label>Orbit Theta (Y-Rot)</label>
-                    <input type="number" id="cam-theta" value="${parseFloat(evt.val.rot.y).toFixed(3)}" step="0.1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                    <input type="number" id="cam-theta" value="${parseFloat(v.rot.y || 0).toFixed(3)}" step="0.1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
                 </div>
                 <div class="param-row">
                     <label>Orbit Phi (X-Rot)</label>
-                    <input type="number" id="cam-phi" value="${parseFloat(evt.val.rot.x).toFixed(3)}" step="0.1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                    <input type="number" id="cam-phi" value="${parseFloat(v.rot.x || 0).toFixed(3)}" step="0.1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
                 </div>
                 <div class="param-row">
                     <label>Radius (Z-Dist)</label>
-                    <input type="number" id="cam-radius" value="${parseFloat(evt.val.pos.z).toFixed(1)}" step="5" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                    <input type="number" id="cam-radius" value="${parseFloat(v.pos.z || 100).toFixed(1)}" step="5" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
                 </div>
                 <div class="param-row">
                     <label>FOV</label>
-                    <input type="number" id="cam-fov" value="${parseFloat(evt.val.fov).toFixed(1)}" step="1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                    <input type="number" id="cam-fov" value="${parseFloat(v.fov || 75).toFixed(1)}" step="1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
                 </div>
                 <div class="param-row">
                     <label>Easing</label>

@@ -146,15 +146,14 @@ const CameraDirector = (() => {
                 const fov = KeyframeEngine.evalTrack(camEvents, t, 'scalar', (v) => v.fov);
 
                 if (pos && rot && typeof fov !== 'undefined') {
-                    // Force the CameraEngine's OrbitLayer to exactly match the timeline keyframe
-                    CameraEngine.layers.orbit.radius.target = pos.z; // using Z as radius proxy for now
-                    CameraEngine.layers.orbit.theta = rot.y;
-                    CameraEngine.layers.orbit.phi.target = rot.x;
-                    
-                    // Override FOV directly on camera
-                    if (typeof VisualEngine !== 'undefined' && VisualEngine.camera) {
-                        VisualEngine.camera.fov = fov;
-                        VisualEngine.camera.updateProjectionMatrix();
+                    // Feed into VisualEngine so it respects the isDragging flag
+                    if (typeof VisualEngine !== 'undefined' && VisualEngine.setOrbitState) {
+                        VisualEngine.setOrbitState({
+                            orbitRadius: pos.z,
+                            orbitTheta: rot.y,
+                            orbitPhi: rot.x,
+                            fov: fov
+                        });
                     }
                     
                     keyframeOverride = true;
