@@ -230,34 +230,37 @@ const ShaderTunnelMode = {
                     if (uColorBands > 0.0) {
                         hue = floor(hue * uColorBands) / uColorBands;
                     }
-                    float val = v * (1.0 + uRMS) * (0.2 + depth * 2.0); // Reduced multiplier to prevent blowout
+                    float val = v * (1.0 + uRMS) * (0.2 + depth * 1.5); // Softer multiplier
                     val = clamp(val, 0.0, 1.0);
 
-                    vec3 color = hsv2rgb(vec3(hue, uSaturation, val));
+                    vec3 baseColor = hsv2rgb(vec3(hue, uSaturation, val));
 
-                    // Edge glow
+                    // Edge darkening
                     float edge = smoothstep(0.0, 0.3, r);
-                    color *= edge;
+                    vec3 color = baseColor * edge;
 
-                    // Ring overlay (clamped to prevent blowout)
-                    ring = clamp(ring, 0.0, 2.5);
-                    color += ring * uGlow * vec3(0.5, 0.3, 1.0) * 0.6;
+                    // Ring overlay (dynamic color instead of hardcoded purple)
+                    ring = clamp(ring, 0.0, 1.5);
+                    vec3 ringColor = hsv2rgb(vec3(fract(hue + 0.05), uSaturation * 0.8, 1.0));
+                    color += ring * uGlow * ringColor * 0.5;
 
-                    // Beat flash
-                    color += uBeatIntensity * 0.1; // Reduced flash
+                    // Beat flash (colorized instead of pure white)
+                    color += uBeatIntensity * 0.08 * ringColor;
 
-                    // Center glow
-                    float centerGlow = exp(-r * 3.0) * uInnerGlow * min(1.0, uBass * 0.7);
-                    color += centerGlow * vec3(0.6, 0.2, 1.0);
+                    // Center glow (dynamic color)
+                    float centerGlow = exp(-r * 3.0) * uInnerGlow * min(1.0, uBass * 0.8);
+                    vec3 centerColor = hsv2rgb(vec3(fract(hue - 0.1), uSaturation, 1.0));
+                    color += centerGlow * centerColor;
 
                     // Fog
                     color *= exp(-depth * 0.3 * uFogDepth);
 
-                    float layerOpacity = 1.0 / (1.0 + layer * 0.5);
-                    totalColor += clamp(color * layerOpacity, 0.0, 1.5);
+                    float layerOpacity = 1.0 / (1.0 + layer * 0.6);
+                    totalColor += color * layerOpacity;
                 }
 
-                totalColor = clamp(totalColor, 0.0, 1.5); // Prevent fully white frames
+                // Soft HDR tone-mapping to prevent pure white washout when layers accumulate
+                totalColor = totalColor / (1.0 + totalColor * 0.4);
                 gl_FragColor = vec4(totalColor, 1.0);
             }
         `;
