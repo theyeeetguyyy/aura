@@ -145,17 +145,54 @@ const MarkerSystem = (() => {
     function isHighEnergy()         { return _sectionIntensity >= 1.0; }
     function isCalm()               { return _sectionIntensity <= 0.5; }
 
-    // ── Marker management (legacy API — backed by ProjectStore now) ──
-    // These are kept so old ui.js calls don't break.
-    function getMarkers()           { return _getNLEMarkers(); }
-    function getTypes()             { return MARKER_TYPES; }
+    // ── Marker management (backed by ProjectStore) ────────
+    function getMarkers() {
+        const raw = _getNLEMarkers();
+        return raw.map(m => {
+            const typeKey = m.markerType || 'custom';
+            const typeDef = MARKER_TYPES[typeKey] || null;
+            return {
+                ...m,
+                color: typeDef ? typeDef.color : '#78909c',
+                icon:  typeDef ? typeDef.icon  : '📌',
+                label: typeDef ? typeDef.label : (m.label || typeKey),
+            };
+        });
+    }
 
-    // Legacy no-op add/remove (timeline UI dispatches to ProjectStore instead)
-    function addMarker()    {}
-    function removeMarker() {}
-    function clearAll()     {}
-    function moveMarker()   {}
-    function renameMarker() {}
+    function getTypes() { return MARKER_TYPES; }
+
+    function addMarker(time, markerType) {
+        if (typeof ProjectStore === 'undefined') return;
+        const typeDef = MARKER_TYPES[markerType] || null;
+        ProjectStore.dispatch({
+            type: 'timeline/addMarker',
+            time,
+            label: typeDef ? typeDef.label : 'Marker',
+            markerType: markerType || 'custom',
+        });
+    }
+
+    function removeMarker(id) {
+        if (typeof ProjectStore === 'undefined') return;
+        ProjectStore.dispatch({ type: 'timeline/removeMarker', id });
+    }
+
+    function clearAll() {
+        if (typeof ProjectStore === 'undefined') return;
+        ProjectStore.dispatch({ type: 'timeline/clearMarkers' });
+    }
+
+    function moveMarker(id, newTime) {
+        if (typeof ProjectStore === 'undefined') return;
+        ProjectStore.dispatch({ type: 'timeline/updateMarker', id, patch: { time: newTime } });
+    }
+
+    function renameMarker(id, label) {
+        if (typeof ProjectStore === 'undefined') return;
+        ProjectStore.dispatch({ type: 'timeline/updateMarker', id, patch: { label } });
+    }
+
     function exportMarkers() { return JSON.stringify(getMarkers()); }
     function importMarkers() { return false; }
 
@@ -170,3 +207,4 @@ const MarkerSystem = (() => {
         exportMarkers, importMarkers,
     };
 })();
+

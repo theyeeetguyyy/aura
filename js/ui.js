@@ -36,10 +36,12 @@ const UI = (() => {
         setupMarkers();
         setupShortcutsModal();
         setupPresets();
+        setupUndoRedoButtons();
         if (typeof TimelineUI !== 'undefined') TimelineUI.init();
         if (typeof GraphUI !== 'undefined') GraphUI.init();
         if (typeof StateLibrary !== 'undefined') StateLibrary.init();
         if (typeof StudioLayout !== 'undefined') StudioLayout.init();
+        if (typeof Autosave !== 'undefined') Autosave.init();
     }
 
     function setupStudioControls() {
@@ -976,6 +978,17 @@ const UI = (() => {
                 return;
             }
 
+            // Escape: close modals, deselect
+            if (e.code === 'Escape') {
+                const shortcutsModal = document.getElementById('shortcuts-modal');
+                if (shortcutsModal?.classList.contains('open')) { shortcutsModal.classList.remove('open'); return; }
+                const settingsModal = document.getElementById('global-settings-modal');
+                if (settingsModal?.classList.contains('open')) { settingsModal.classList.remove('open'); return; }
+                // Deselect timeline event
+                if (typeof TimelineUI !== 'undefined' && TimelineUI.render) { TimelineUI.render(); }
+                return;
+            }
+
             switch (e.code) {
                 case 'Space':
                     e.preventDefault();
@@ -1034,6 +1047,10 @@ const UI = (() => {
                     }
                     break;
                 }
+                case 'Home':
+                    // Home = zoom timeline to fit
+                    if (typeof TimelineUI !== 'undefined' && TimelineUI.zoomToFit) TimelineUI.zoomToFit();
+                    break;
                 case 'KeyG':
                     // G = fullscreen (F was taken by flash)
                     if (!document.fullscreenElement) {
@@ -1236,15 +1253,17 @@ const UI = (() => {
 
     function addMarkerAtCurrentTime() {
         const bus = AudioEngine.audioBus;
-        if (!bus.loaded || bus.duration <= 0) return;
+        if (!bus || !bus.loaded) return;
 
         const typeSelect = document.getElementById('marker-type-select');
         const type = typeSelect ? typeSelect.value : 'drop';
-        const time = bus.currentTime;
+        const label = typeSelect && typeSelect.options ? typeSelect.options[typeSelect.selectedIndex].text : 'Marker';
+        const time = bus.currentTime || 0;
 
-        MarkerSystem.addMarker(time, type);
-        renderMarkers();
-        if (typeof TimelineUI !== 'undefined') TimelineUI.render();
+        if (typeof ProjectStore !== 'undefined') {
+            ProjectStore.dispatch({ type: 'timeline/addMarker', time: time, label: label, markerType: type });
+            if (typeof TimelineUI !== 'undefined') TimelineUI.render();
+        }
     }
 
     function renderMarkers() {
@@ -1450,6 +1469,31 @@ const UI = (() => {
                 renderPresetList();
             });
         });
+    }
+
+    // ── Undo/Redo + Zoom Fit Buttons ──
+    function setupUndoRedoButtons() {
+        const undoBtn = document.getElementById('btn-undo');
+        const redoBtn = document.getElementById('btn-redo');
+        const zoomFitBtn = document.getElementById('btn-zoom-fit');
+
+        if (undoBtn) undoBtn.addEventListener('click', () => {
+            if (typeof ProjectStore !== 'undefined') ProjectStore.undo();
+        });
+        if (redoBtn) redoBtn.addEventListener('click', () => {
+            if (typeof ProjectStore !== 'undefined') ProjectStore.redo();
+        });
+        if (zoomFitBtn) zoomFitBtn.addEventListener('click', () => {
+            if (typeof TimelineUI !== 'undefined' && TimelineUI.zoomToFit) TimelineUI.zoomToFit();
+        });
+
+        // Update button states when store changes
+        if (typeof ProjectStore !== 'undefined') {
+            ProjectStore.subscribe(() => {
+                if (undoBtn) undoBtn.disabled = !ProjectStore.canUndo;
+                if (redoBtn) redoBtn.disabled = !ProjectStore.canRedo;
+            });
+        }
     }
 
     // ── Toast Notification System ──

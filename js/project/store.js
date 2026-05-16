@@ -157,8 +157,7 @@ const ProjectStore = (() => {
           id,
           time: action.time,
           label: action.label || 'Marker',
-          color: action.color || '#78909c',
-          type: action.markerType || 'custom',
+          markerType: action.markerType || 'custom',
         });
         next.timeline.markers.sort((a, b) => a.time - b.time);
         next.meta.modifiedAt = Date.now();
@@ -272,5 +271,7 @@ const ProjectStore = (() => {
   return {
     getState, subscribe, dispatch, undo, redo,
     getActiveVisualClipAtTime, getActiveStateEventAtTime, getNode,
+    get canUndo() { return history.past.length > 0; },
+    get canRedo() { return history.future.length > 0; },
   };
 })();
