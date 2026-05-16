@@ -50,16 +50,16 @@ graph TD
 3. *Why Stems?* Stems allow you to drive specific visual parameters (like Camera Shake or Bloom) solely off the kick drum, while leaving the high-frequency melodies to drive particle speeds.
 
 ### Step 2: Build Your Visual States
-1. Press `Tab` to open the **Library** and select from the **37 available Visual Modes**.
+1. Press `Tab` to open the **Library** and select from the **24 highly curated Visual Modes**.
 2. Press `P` to open the **Parameters Panel**. Adjust colors, particle counts, and geometry complexities.
 3. Right-click any parameter to enable **Live UI Mapping** — automatically link a slider to an audio stem or frequency band!
-4. Once you have a look you like, click **Capture State** (or `Add to Timeline`). This saves your configuration as a concrete block.
+4. Once you have a look you like, click **Capture State** (or `Add to Timeline`). This saves your exact configuration as a concrete block.
 
 ### Step 3: Sequence the NLE Timeline
-Aura features a professional, multi-track timeline:
+Aura features a professional, multi-track timeline at the bottom of the screen:
 *   **Visual Track:** Drag and drop your captured States onto the timeline. **Overlap two states** to automatically create a smooth crossfade blend between entirely different shaders and geometries.
 *   **Camera Track:** Position the camera where you want it using Orbit or WASD, then click **Capture Cam KF**. The engine will interpolate between your keyframes using Smooth, Spline (Catmull-Rom), or Step easing.
-*   **Marker Track:** Press `M` to drop a section marker. Change its type to `Drop`, `Build-up`, `Intro`, `Fakeout`, or `Fill`. **Aura's audio engine is section-aware**; it will read these markers and multiply visual intensity (shake, flash, bloom) based on the current song section.
+*   **Marker Track:** Press `M` to drop a section marker. Change its type to `Intro`, `Build-up`, `Fakeout`, `Drop`, `Fill`, or `Outro`. **Aura's audio engine is section-aware**; it will read these markers and multiply visual intensity (shake, flash, bloom) based on the current song section.
 
 ### Step 4: The Node Graph (Advanced Routing)
 Press `N` to open the **State Node Graph**. Move beyond simple linear A-to-B timeline transitions. You can route multiple visual states together through mathematical blending nodes, triggered conditionally by audio transients.
@@ -78,21 +78,20 @@ Aura has three distinct camera interaction models to ensure you always have the 
 
 *   **⊙ Orbit Mode:** Smooth, mouse-driven orbital controls around the scene origin. Perfect for exploring modes and finding the right composition.
 *   **✈ Free Move Mode (WASD):** First-person fly-through controls. Use `W/A/S/D` to navigate 3D space, capturing dynamic, manual angles.
-*   **⏵ Follow Mode:** Locks the camera to the deterministic keyframe track on the timeline. *Required for timeline playback rendering.*
+*   **⏵ Follow Mode:** Locks the camera to the deterministic keyframe track on the timeline. *Required for timeline playback and final rendering.*
 
 ---
 
-## 🌌 The 37 Visual Modes Library
+## 🌌 The 24 Curated Visual Modes
 
-Aura ships with a vast, highly optimized WebGL/Three.js visual library:
+Aura has been heavily refined and currently ships with **24 highly optimized** WebGL/Three.js visual modes:
 
 | Category | Modes |
 | :--- | :--- |
 | **Core Audio** | `Frequency Bars`, `Waveform Scope`, `Spectrogram`, `Radial Bloom`, `Lissajous` |
-| **Geometry** | `Geometry Shapes`, `Geometry Shapes 2`, `Geometry Forge`, `Rhythmic Geometry`, `Hyperforge 1-3`, `Titanforge`, `Möbius Rings`, `Polyhedron Explode`, `DNA Helix` |
-| **Cosmic** | `Void Engine` (Black Hole), `Starfield`, `Nebula`, `Aurora`, `God Rays` |
-| **Simulations** | `GPGPU Particles` (65k GPU Sim), `SDF Raymarcher`, `Noise Realm`, `Fractal Shader`, `Fractal Tree`, `Math Mode`, `Cyber Grid` |
-| **Abstract** | `Particle Storm`, `Particle Manipulation`, `Terrain Mesh`, `Kaleidoscope`, `Shader Tunnel`, `Dimensional Rift`, `Neon Plasma`, `Laser Show`, `Voronoi Field` |
+| **Geometry** | `Geometry Shapes 2`, `Rhythmic Geometry`, `Hyperforge 3`, `Titanforge`, `Möbius Rings` |
+| **Cosmic/Sim** | `Void Engine` (Black Hole), `Starfield`, `GPGPU Particles`, `Fractal Tree`, `Math Mode`, `Cyber Grid` |
+| **Abstract** | `Particle Storm`, `Particle Manipulation`, `Terrain Mesh`, `Kaleidoscope`, `Shader Tunnel`, `Neon Plasma`, `Voronoi Field`, `Grid Distortion` |
 
 ---
 
@@ -138,7 +137,7 @@ Aura is built for blistering performance with **zero bloated framework dependenc
 We welcome new visual modes and engine improvements! To add a new visualizer:
 1. Fork the repo and create a new file in `js/modes/`.
 2. Follow the standard mode interface (`init`, `update(audio, params, dt)`, `dispose`).
-3. Add your mode to the `visualModes` registry in `js/visuals.js`.
+3. Add your mode to `index.html` and the `visualModes` registry in `js/visuals.js`.
 4. Open a PR!
 
 ---

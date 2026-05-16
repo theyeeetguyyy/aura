@@ -412,7 +412,7 @@ const UI = (() => {
                 // If timeline-follow is on and we are currently playing, inform user.
                 if (AudioEngine?.audioBus?.isPlaying && typeof ProjectStore !== 'undefined') {
                     const follow = !!(ProjectStore.getState().editor && ProjectStore.getState().editor.followTimeline);
-                    if (follow && UI.showToast) UI.showToast('Playback is following Timeline. Pause or toggle Follow: OFF to freely switch modes.', 'info');
+                    // if (follow && UI.showToast) UI.showToast('Playback is following Timeline. Pause or toggle Follow: OFF to freely switch modes.', 'info');
                 }
 
                 // NOTE: mode switch now updates live preview only.
