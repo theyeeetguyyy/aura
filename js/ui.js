@@ -442,7 +442,7 @@ const UI = (() => {
 
                 if (AudioEngine?.audioBus?.isPlaying && typeof ProjectStore !== 'undefined') {
                     const follow = !!(ProjectStore.getState().editor && ProjectStore.getState().editor.followTimeline);
-                    if (follow && UI.showToast) UI.showToast('Playback is following Timeline. Pause or toggle Follow: OFF to Randomize live.', 'info');
+                    // if (follow && UI.showToast) UI.showToast('Playback is following Timeline. Pause or toggle Follow: OFF to Randomize live.', 'info');
                 }
 
                 // NOTE: randomize now updates live preview only.

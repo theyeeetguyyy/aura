@@ -230,7 +230,9 @@ const ShaderTunnelMode = {
                     if (uColorBands > 0.0) {
                         hue = floor(hue * uColorBands) / uColorBands;
                     }
-                    float val = v * (1.0 + uRMS) * (0.2 + depth * 1.5); // Softer multiplier
+                    
+                    // Much softer multiplier to keep the base dark and moody
+                    float val = v * (1.0 + uRMS) * (0.1 + depth * 0.8); 
                     val = clamp(val, 0.0, 1.0);
 
                     vec3 baseColor = hsv2rgb(vec3(hue, uSaturation, val));
@@ -239,28 +241,29 @@ const ShaderTunnelMode = {
                     float edge = smoothstep(0.0, 0.3, r);
                     vec3 color = baseColor * edge;
 
-                    // Ring overlay (dynamic color instead of hardcoded purple)
-                    ring = clamp(ring, 0.0, 1.5);
-                    vec3 ringColor = hsv2rgb(vec3(fract(hue + 0.05), uSaturation * 0.8, 1.0));
-                    color += ring * uGlow * ringColor * 0.5;
+                    // Ring overlay (dimmer and deeply colorized)
+                    ring = clamp(ring, 0.0, 1.0);
+                    vec3 ringColor = hsv2rgb(vec3(fract(hue + 0.05), uSaturation * 0.9, 1.0));
+                    color += ring * uGlow * ringColor * 0.3;
 
-                    // Beat flash (colorized instead of pure white)
-                    color += uBeatIntensity * 0.08 * ringColor;
+                    // Beat flash
+                    color += uBeatIntensity * 0.05 * ringColor;
 
-                    // Center glow (dynamic color)
-                    float centerGlow = exp(-r * 3.0) * uInnerGlow * min(1.0, uBass * 0.8);
+                    // Center glow (tighter falloff, softer intensity)
+                    float centerGlow = exp(-r * 4.0) * uInnerGlow * min(1.0, uBass * 0.5);
                     vec3 centerColor = hsv2rgb(vec3(fract(hue - 0.1), uSaturation, 1.0));
                     color += centerGlow * centerColor;
 
                     // Fog
-                    color *= exp(-depth * 0.3 * uFogDepth);
+                    color *= exp(-depth * 0.4 * uFogDepth);
 
-                    float layerOpacity = 1.0 / (1.0 + layer * 0.6);
+                    // Steep falloff for background layers so they don't over-accumulate
+                    float layerOpacity = 1.0 / (1.0 + layer * 1.5);
                     totalColor += color * layerOpacity;
                 }
 
-                // Soft HDR tone-mapping to prevent pure white washout when layers accumulate
-                totalColor = totalColor / (1.0 + totalColor * 0.4);
+                // Exponential exposure tone-mapping preserves rich colors without blowing out to white
+                totalColor = vec3(1.0) - exp(-totalColor * 1.2);
                 gl_FragColor = vec4(totalColor, 1.0);
             }
         `;
