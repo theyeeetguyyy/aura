@@ -94,12 +94,11 @@ const AuraApp = (() => {
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             running = false;
+            if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
         } else {
-            if (canvas && !_rafId) {
+            if (canvas && !running) {
                 running = true;
                 loop();
-            } else if (canvas) {
-                running = true;
             }
         }
     });

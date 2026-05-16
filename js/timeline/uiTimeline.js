@@ -275,7 +275,7 @@ const TimelineUI = (() => {
         const label = typeDef ? typeDef.label : (mk.label || typeKey);
 
         const pin = document.createElement('div');
-        pin.className = 'timeline-marker-pin';
+        pin.className = 'timeline-marker-pin' + (mk.id === _selectedEventId ? ' selected' : '');
         pin.style.left = `${left}%`;
         pin.style.setProperty('--mk-color', color);
 
@@ -286,7 +286,11 @@ const TimelineUI = (() => {
         handle.innerHTML = `<span class="mk-icon">${icon}</span><span class="mk-label">${label}</span>`;
 
         handle.addEventListener('click', (e) => { e.stopPropagation(); if (AudioEngine?.audioBus?.loaded) AudioEngine.seek(mk.time); });
-        handle.addEventListener('mousedown', (e) => { e.stopPropagation(); _draggingMarkerId = mk.id; });
+        handle.addEventListener('mousedown', (e) => { 
+            e.stopPropagation(); 
+            if (_selectedEventId !== mk.id) { _selectedEventId = mk.id; render(); return; }
+            _draggingMarkerId = mk.id; 
+        });
         handle.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); ProjectStore.dispatch({ type: 'timeline/removeMarker', id: mk.id }); render(); });
         pin.appendChild(handle);
         _markerLayer.appendChild(pin);
@@ -407,6 +411,16 @@ const TimelineUI = (() => {
       }
     }
     _draggingEventId = null; _draggingMarkerId = null; _isScrubbing = false; _draggingHandle = null; _dragStartEvent = null;
+  }
+
+  function deleteSelectedEvent() {
+    if (!_selectedEventId) return false;
+    ProjectStore.dispatch({ type: 'timeline/removeVisualClip', id: _selectedEventId });
+    ProjectStore.dispatch({ type: 'timeline/removeCameraKeyframe', id: _selectedEventId });
+    ProjectStore.dispatch({ type: 'timeline/removeMarker', id: _selectedEventId });
+    _selectedEventId = null;
+    render();
+    return true;
   }
 
   return { init, render, update, deleteSelectedEvent, renderWaveform };

@@ -976,6 +976,17 @@ const UI = (() => {
                 return;
             }
 
+            // Escape: close modals, deselect
+            if (e.code === 'Escape') {
+                const shortcutsModal = document.getElementById('shortcuts-modal');
+                if (shortcutsModal?.classList.contains('open')) { shortcutsModal.classList.remove('open'); return; }
+                const settingsModal = document.getElementById('global-settings-modal');
+                if (settingsModal?.classList.contains('open')) { settingsModal.classList.remove('open'); return; }
+                // Deselect timeline event
+                if (typeof TimelineUI !== 'undefined' && TimelineUI.render) { TimelineUI.render(); }
+                return;
+            }
+
             switch (e.code) {
                 case 'Space':
                     e.preventDefault();
@@ -1236,15 +1247,17 @@ const UI = (() => {
 
     function addMarkerAtCurrentTime() {
         const bus = AudioEngine.audioBus;
-        if (!bus.loaded || bus.duration <= 0) return;
+        if (!bus || !bus.loaded) return;
 
         const typeSelect = document.getElementById('marker-type-select');
         const type = typeSelect ? typeSelect.value : 'drop';
-        const time = bus.currentTime;
+        const label = typeSelect && typeSelect.options ? typeSelect.options[typeSelect.selectedIndex].text : 'Marker';
+        const time = bus.currentTime || 0;
 
-        MarkerSystem.addMarker(time, type);
-        renderMarkers();
-        if (typeof TimelineUI !== 'undefined') TimelineUI.render();
+        if (typeof ProjectStore !== 'undefined') {
+            ProjectStore.dispatch({ type: 'timeline/addMarker', time: time, label: label, markerType: type });
+            if (typeof TimelineUI !== 'undefined') TimelineUI.render();
+        }
     }
 
     function renderMarkers() {

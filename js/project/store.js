@@ -157,8 +157,7 @@ const ProjectStore = (() => {
           id,
           time: action.time,
           label: action.label || 'Marker',
-          color: action.color || '#78909c',
-          type: action.markerType || 'custom',
+          markerType: action.markerType || 'custom',
         });
         next.timeline.markers.sort((a, b) => a.time - b.time);
         next.meta.modifiedAt = Date.now();
