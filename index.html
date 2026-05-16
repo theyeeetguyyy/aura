@@ -191,15 +191,26 @@
                     <input type="range" id="vol-bar" min="0" max="100" value="80" title="Volume">
                 </div>
                 <div class="tg-divider"></div>
+                <button class="transport-btn small-btn" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↩</button>
+                <button class="transport-btn small-btn" id="btn-redo" title="Redo (Ctrl+Y)" disabled>↪</button>
+                <div class="tg-divider"></div>
                 <button class="transport-btn small-btn" id="btn-record" title="Record video (R)">⏺</button>
                 <button class="transport-btn small-btn" id="btn-flash" title="Beat Flash toggle (F)">⚡</button>
                 <button class="transport-btn small-btn" id="btn-screenshot" title="Screenshot (Ctrl+S)">📸</button>
+                <button class="transport-btn small-btn" id="btn-zoom-fit" title="Zoom to Fit (Home)">⊞</button>
                 <div class="tg-divider"></div>
                 <button class="timeline-btn icon-btn" id="btn-save-project" title="Save Project">💾</button>
                 <button class="timeline-btn icon-btn" id="btn-load-project" title="Load Project">📂</button>
                 <input type="file" id="project-file-input" accept=".json,.aura.json" style="display:none" />
                 <button class="timeline-btn icon-btn" id="btn-toggle-timeline" title="Toggle Details Panel">▾ Details</button>
             </div>
+        </div>
+
+        <!-- Autosave recovery banner -->
+        <div id="autosave-banner" class="autosave-banner" style="display:none">
+            <span>🔄 Recovered unsaved project from last session.</span>
+            <button id="autosave-restore" class="autosave-btn">Restore</button>
+            <button id="autosave-dismiss" class="autosave-btn dismiss">Dismiss</button>
         </div>
         <div class="timeline-bar-wrapper" id="timeline-bar-wrapper">
             <div class="timeline-track-labels">
@@ -359,6 +370,7 @@
     <script src="js/project/schema.js"></script>
     <script src="js/project/store.js"></script>
     <script src="js/project/serialize.js"></script>
+    <script src="js/project/autosave.js"></script>
     <script src="js/graph/graphModel.js"></script>
     <script src="js/graph/graphEvaluator.js"></script>
     <script src="js/graph/uiGraph.js"></script>

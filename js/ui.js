@@ -36,10 +36,12 @@ const UI = (() => {
         setupMarkers();
         setupShortcutsModal();
         setupPresets();
+        setupUndoRedoButtons();
         if (typeof TimelineUI !== 'undefined') TimelineUI.init();
         if (typeof GraphUI !== 'undefined') GraphUI.init();
         if (typeof StateLibrary !== 'undefined') StateLibrary.init();
         if (typeof StudioLayout !== 'undefined') StudioLayout.init();
+        if (typeof Autosave !== 'undefined') Autosave.init();
     }
 
     function setupStudioControls() {
@@ -1045,6 +1047,10 @@ const UI = (() => {
                     }
                     break;
                 }
+                case 'Home':
+                    // Home = zoom timeline to fit
+                    if (typeof TimelineUI !== 'undefined' && TimelineUI.zoomToFit) TimelineUI.zoomToFit();
+                    break;
                 case 'KeyG':
                     // G = fullscreen (F was taken by flash)
                     if (!document.fullscreenElement) {
@@ -1463,6 +1469,31 @@ const UI = (() => {
                 renderPresetList();
             });
         });
+    }
+
+    // ── Undo/Redo + Zoom Fit Buttons ──
+    function setupUndoRedoButtons() {
+        const undoBtn = document.getElementById('btn-undo');
+        const redoBtn = document.getElementById('btn-redo');
+        const zoomFitBtn = document.getElementById('btn-zoom-fit');
+
+        if (undoBtn) undoBtn.addEventListener('click', () => {
+            if (typeof ProjectStore !== 'undefined') ProjectStore.undo();
+        });
+        if (redoBtn) redoBtn.addEventListener('click', () => {
+            if (typeof ProjectStore !== 'undefined') ProjectStore.redo();
+        });
+        if (zoomFitBtn) zoomFitBtn.addEventListener('click', () => {
+            if (typeof TimelineUI !== 'undefined' && TimelineUI.zoomToFit) TimelineUI.zoomToFit();
+        });
+
+        // Update button states when store changes
+        if (typeof ProjectStore !== 'undefined') {
+            ProjectStore.subscribe(() => {
+                if (undoBtn) undoBtn.disabled = !ProjectStore.canUndo;
+                if (redoBtn) redoBtn.disabled = !ProjectStore.canRedo;
+            });
+        }
     }
 
     // ── Toast Notification System ──

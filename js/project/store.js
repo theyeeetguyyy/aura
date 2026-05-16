@@ -271,5 +271,7 @@ const ProjectStore = (() => {
   return {
     getState, subscribe, dispatch, undo, redo,
     getActiveVisualClipAtTime, getActiveStateEventAtTime, getNode,
+    get canUndo() { return history.past.length > 0; },
+    get canRedo() { return history.future.length > 0; },
   };
 })();

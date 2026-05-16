@@ -1,21 +1,25 @@
 // ============================================================
-// AURA — Timeline UI v2
+// AURA — Timeline UI v3
 // Dual-track: Visual clips | Camera keyframes | Markers
-// All references use v2 schema (visualTrack / cameraTrack)
+// Zoom & scroll, playhead auto-follow
 // ============================================================
 
 const TimelineUI = (() => {
   let _root, _bar, _playhead, _eventLayer, _camLayer, _markerLayer, _list;
   let _btnAdd, _btnSave, _btnLoad, _fileInput;
   let _waveformCanvas, _waveformCtx;
+  let _tracksWrapper = null;
   let _selectedEventId = null;
   let _draggingEventId = null;
   let _draggingMarkerId = null;
   let _draggingHandle = null;
   let _dragOffsetX = 0;
   let _dragStartEvent = null;
-  let _zoomLevel = 1;
   let _isScrubbing = false;
+
+  // Zoom & scroll state
+  let _zoomLevel = 1;
+  let _autoFollow = true;
 
   function ensureDom() {
     _root = document.getElementById('timeline-dock');
@@ -31,6 +35,7 @@ const TimelineUI = (() => {
     _btnLoad = _root.querySelector('#btn-load-project');
     _fileInput = _root.querySelector('#project-file-input');
     _waveformCanvas = _root.querySelector('#waveform-canvas');
+    _tracksWrapper = _root.querySelector('.timeline-tracks');
     if (_waveformCanvas) _waveformCtx = _waveformCanvas.getContext('2d');
     return !!(_bar && _playhead && _list && _btnAdd && _btnSave && _btnLoad && _fileInput);
   }
@@ -76,25 +81,47 @@ const TimelineUI = (() => {
       catch (err) { console.error(err); if (typeof UI !== 'undefined' && UI.showToast) UI.showToast('Failed to load project.', 'error'); }
     });
 
-    // Scrub
+    // Scrub on bar click
     _bar.addEventListener('mousedown', (e) => {
       if (e.target.closest('.timeline-state-clip') || e.target.closest('.timeline-camera-clip') || e.target.closest('.timeline-marker-pin')) return;
       if (!AudioEngine?.audioBus?.loaded) return;
       _isScrubbing = true;
+      _autoFollow = false; // user is manually scrubbing
       scrubTo(e);
     });
 
-    // Zoom
-    const wrapper = _root.querySelector('.timeline-bar-wrapper') || _root.querySelector('.timeline-tracks');
+    // Zoom (Ctrl/Shift+Wheel) and horizontal scroll (plain Wheel)
+    const wrapper = _tracksWrapper || _root.querySelector('.timeline-bar-wrapper');
     if (wrapper) {
       wrapper.addEventListener('wheel', (e) => {
         if (e.ctrlKey || e.metaKey || e.shiftKey) {
           e.preventDefault();
-          _zoomLevel = Math.max(1, Math.min(30, _zoomLevel * (e.deltaY < 0 ? 1.2 : 0.8)));
+          const oldZoom = _zoomLevel;
+          _zoomLevel = Math.max(1, Math.min(50, _zoomLevel * (e.deltaY < 0 ? 1.25 : 0.8)));
+
+          // Zoom toward mouse pointer
+          const rect = wrapper.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const scrollBefore = wrapper.scrollLeft;
+          const mouseRatio = (scrollBefore + mouseX) / (rect.width * oldZoom);
+
           _bar.style.minWidth = `${_zoomLevel * 100}%`;
+          wrapper.scrollLeft = mouseRatio * rect.width * _zoomLevel - mouseX;
+
           renderWaveform();
+          _autoFollow = false;
         } else {
+          // Horizontal scroll
+          e.preventDefault();
           wrapper.scrollLeft += e.deltaY;
+          _autoFollow = false;
+        }
+      }, { passive: false });
+
+      // Re-enable auto-follow on double-click
+      wrapper.addEventListener('dblclick', (e) => {
+        if (e.target === wrapper || e.target === _bar) {
+          _autoFollow = true;
         }
       });
     }
@@ -128,6 +155,23 @@ const TimelineUI = (() => {
     return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  // ── Zoom helpers ───────────────────────────────────
+  function getZoomLevel() { return _zoomLevel; }
+
+  function setZoomLevel(z) {
+    _zoomLevel = Math.max(1, Math.min(50, z));
+    if (_bar) _bar.style.minWidth = `${_zoomLevel * 100}%`;
+    renderWaveform();
+  }
+
+  function zoomToFit() {
+    _zoomLevel = 1;
+    if (_bar) _bar.style.minWidth = '100%';
+    if (_tracksWrapper) _tracksWrapper.scrollLeft = 0;
+    _autoFollow = true;
+    renderWaveform();
+  }
+
   // ── Add Actions ─────────────────────────────────────
   function addVisualClipAtCurrentTime() {
     if (!AudioEngine?.audioBus?.loaded) return;
@@ -135,7 +179,6 @@ const TimelineUI = (() => {
     const modeKey = VisualEngine?.activeModeKey || 'geometryForge';
     const nodeId = `node_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 
-    // Get camera pos/lookAt from current state
     let camState = { pos: { x: 0, y: 0, z: 100 }, lookAt: { x: 0, y: 0, z: 0 }, fov: 75 };
     if (VisualEngine?.camera) {
       const c = VisualEngine.camera;
@@ -184,6 +227,18 @@ const TimelineUI = (() => {
     const dur = getDur();
     const t = AudioEngine?.audioBus?.currentTime || 0;
     _playhead.style.left = `${pct(t, dur)}%`;
+
+    // Auto-follow: keep playhead visible during playback
+    if (_autoFollow && _tracksWrapper && _zoomLevel > 1 && AudioEngine?.audioBus?.isPlaying) {
+      const wrapperW = _tracksWrapper.clientWidth;
+      const contentW = _bar.offsetWidth;
+      const playheadPx = (t / Math.max(0.01, dur)) * contentW;
+      const margin = wrapperW * 0.3; // keep 30% margin on right
+      const idealScroll = playheadPx - wrapperW + margin;
+      const clamped = Math.max(0, Math.min(contentW - wrapperW, idealScroll));
+      // Smooth scroll
+      _tracksWrapper.scrollLeft += (clamped - _tracksWrapper.scrollLeft) * 0.15;
+    }
   }
 
   // ── Full Render ─────────────────────────────────────
@@ -196,6 +251,9 @@ const TimelineUI = (() => {
     const dur = getDur();
 
     _root.classList.add('active');
+
+    // Apply zoom
+    _bar.style.minWidth = `${_zoomLevel * 100}%`;
 
     // Collapse on first init
     if (!_root.dataset.tlInit) {
@@ -286,10 +344,10 @@ const TimelineUI = (() => {
         handle.innerHTML = `<span class="mk-icon">${icon}</span><span class="mk-label">${label}</span>`;
 
         handle.addEventListener('click', (e) => { e.stopPropagation(); if (AudioEngine?.audioBus?.loaded) AudioEngine.seek(mk.time); });
-        handle.addEventListener('mousedown', (e) => { 
-            e.stopPropagation(); 
+        handle.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
             if (_selectedEventId !== mk.id) { _selectedEventId = mk.id; render(); return; }
-            _draggingMarkerId = mk.id; 
+            _draggingMarkerId = mk.id;
         });
         handle.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); ProjectStore.dispatch({ type: 'timeline/removeMarker', id: mk.id }); render(); });
         pin.appendChild(handle);
@@ -358,14 +416,13 @@ const TimelineUI = (() => {
 
   // ── Delete Selected ─────────────────────────────────
   function deleteSelectedEvent() {
-    if (!_selectedEventId) return;
-    const p = ProjectStore.getState();
-    if ((p.timeline.cameraTrack || []).find(e => e.id === _selectedEventId)) {
-      ProjectStore.dispatch({ type: 'timeline/removeCameraKeyframe', id: _selectedEventId });
-    } else {
-      ProjectStore.dispatch({ type: 'timeline/removeVisualClip', id: _selectedEventId });
-    }
+    if (!_selectedEventId) return false;
+    ProjectStore.dispatch({ type: 'timeline/removeVisualClip', id: _selectedEventId });
+    ProjectStore.dispatch({ type: 'timeline/removeCameraKeyframe', id: _selectedEventId });
+    ProjectStore.dispatch({ type: 'timeline/removeMarker', id: _selectedEventId });
     _selectedEventId = null;
+    render();
+    return true;
   }
 
   // ── Drag ────────────────────────────────────────────
@@ -413,15 +470,5 @@ const TimelineUI = (() => {
     _draggingEventId = null; _draggingMarkerId = null; _isScrubbing = false; _draggingHandle = null; _dragStartEvent = null;
   }
 
-  function deleteSelectedEvent() {
-    if (!_selectedEventId) return false;
-    ProjectStore.dispatch({ type: 'timeline/removeVisualClip', id: _selectedEventId });
-    ProjectStore.dispatch({ type: 'timeline/removeCameraKeyframe', id: _selectedEventId });
-    ProjectStore.dispatch({ type: 'timeline/removeMarker', id: _selectedEventId });
-    _selectedEventId = null;
-    render();
-    return true;
-  }
-
-  return { init, render, update, deleteSelectedEvent, renderWaveform };
+  return { init, render, update, deleteSelectedEvent, renderWaveform, getZoomLevel, setZoomLevel, zoomToFit };
 })();
