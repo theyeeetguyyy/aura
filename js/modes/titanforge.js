@@ -408,7 +408,9 @@ const TitanforgeMode = {
     updateCore(audio, params, dt, SE) {
         if (!this.coreGeo || !this.coreBasePos) return;
         const mode = params.coreDisplaceMode || 'fourier';
-        const amt = (params.coreDisplaceAmt || 8) * (params.reactivity || 1.5) * (SE.displacementScale || 1);
+        
+        const amt = (params.coreDisplaceAmt || 8) * (params.reactivity || 1.5);
+        
         const speed = (params.coreDisplaceSpeed || 1.5) * (SE.speed || 1);
         const bass = audio.smoothBands.bass || 0, sub = audio.smoothBands.sub || 0;
         const breathScale = 1 + (sub + bass) * (params.bassBreath || 2.5) * 0.2;

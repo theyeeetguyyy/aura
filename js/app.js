@@ -6,7 +6,7 @@
 const AuraApp = (() => {
     let running = false;
     let canvas = null;
-    let _rafId = null; // 7.1: Track RAF handle to prevent double-loop
+    let _rafId = null;
 
     function init() {
         canvas = document.getElementById('aura-canvas');
@@ -91,7 +91,6 @@ const AuraApp = (() => {
     }
 
     // Pause RAF loop when tab is hidden — saves 100% CPU/GPU
-    // 7.1: Uses _rafId to prevent double-loop race condition
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             running = false;
@@ -100,7 +99,7 @@ const AuraApp = (() => {
                 running = true;
                 loop();
             } else if (canvas) {
-                running = true; // loop already running, just un-pause it
+                running = true;
             }
         }
     });
