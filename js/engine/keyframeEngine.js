@@ -25,6 +25,25 @@ const KeyframeEngine = (() => {
         };
     }
 
+    function catmullRom(p0, p1, p2, p3, t) {
+        const t2 = t * t;
+        const t3 = t2 * t;
+        return 0.5 * (
+            (2 * p1) +
+            (-p0 + p2) * t +
+            (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+            (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+        );
+    }
+
+    function catmullRomVector3(p0, p1, p2, p3, t) {
+        return {
+            x: catmullRom(p0.x || 0, p1.x || 0, p2.x || 0, p3.x || 0, t),
+            y: catmullRom(p0.y || 0, p1.y || 0, p2.y || 0, p3.y || 0, t),
+            z: catmullRom(p0.z || 0, p1.z || 0, p2.z || 0, p3.z || 0, t)
+        };
+    }
+
     function lerpEuler(e1, e2, amt) {
         if (!e1 || !e2) return e1 || e2;
         return {
@@ -75,6 +94,28 @@ const KeyframeEngine = (() => {
         const amt = easeFn(rawT);
         const v1 = valSelector(kf1.val);
         const v2 = valSelector(kf2.val);
+
+        if (kf1.easing === 'catmullRom') {
+            // Find kf0 and kf3
+            let kf0Index = Math.max(0, trackData.indexOf(kf1) - 1);
+            let kf3Index = Math.min(trackData.length - 1, trackData.indexOf(kf2) + 1);
+            
+            const kf0 = trackData[kf0Index];
+            const kf3 = trackData[kf3Index];
+
+            const v0 = valSelector(kf0.val);
+            const v3 = valSelector(kf3.val);
+
+            // Use simple lerp for non-vector3 values in catmullRom for now, 
+            // since catmullRom mainly benefits camera paths
+            if (valueType === 'vector3') {
+                return catmullRomVector3(v0, v1, v2, v3, rawT);
+            } else if (valueType === 'euler') {
+                return lerpEuler(v1, v2, rawT);
+            } else {
+                return catmullRom(v0, v1, v2, v3, rawT);
+            }
+        }
 
         if (valueType === 'vector3') {
             return lerpVector3(v1, v2, amt);

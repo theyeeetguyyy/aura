@@ -1,34 +1,8 @@
 // ============================================================
-// AURA — Visual Engine v2
-// Mode registry, Three.js scene, DUBSTEP EFFECTS:
-// screen shake, camera zoom punch, flash, drop reactions
+// AURA — Visual Engine v3
+// Clean: no predictions, no autonomous camera, 100% music-synced.
+// Camera is keyframe-driven. Visuals freeze when audio paused.
 // ============================================================
-
-// ── SECTION BEHAVIOR CONTRACT ──────────────────────────────
-const SECTION_BEHAVIORS = {
-    intro: { displaceModeHint: 'noise', rotationMultiplier: 0.4, particleEmissionRate: 0.2, colorSaturationMult: 0.7, beatReactivity: 0.2, bloomGlowMult: 0.5, halfTimeMode: false, trailLength: 'short' },
-    verse: { displaceModeHint: 'frequency', rotationMultiplier: 0.6, particleEmissionRate: 0.5, colorSaturationMult: 0.85, beatReactivity: 0.5, bloomGlowMult: 0.7, halfTimeMode: false, trailLength: 'short' },
-    buildup: { displaceModeHint: 'spike', rotationMultiplier: 1.0, particleEmissionRate: 0.8, colorSaturationMult: 1.1, beatReactivity: 0.8, bloomGlowMult: 1.0, halfTimeMode: false, trailLength: 'medium', useSectionProgressRamp: true },
-    fakeout: { displaceModeHint: 'breathe', rotationMultiplier: 0.1, particleEmissionRate: 0.05, colorSaturationMult: 0.4, beatReactivity: 0.0, bloomGlowMult: 0.2, halfTimeMode: false, trailLength: 'none', onEnter: 'hard-cut-to-minimal' },
-    drop: { displaceModeHint: 'shatter', rotationMultiplier: 3.5, particleEmissionRate: 3.0, colorSaturationMult: 2.5, beatReactivity: 3.0, bloomGlowMult: 3.5, halfTimeMode: true, trailLength: 'long', onEnter: 'morph-explode', gunShotReaction: 'spike-max', screechReaction: 'chromatic', sirenReaction: 'stretch-up' },
-    drop2: { displaceModeHint: 'glitch', rotationMultiplier: 5.0, particleEmissionRate: 4.0, colorSaturationMult: 3.0, beatReactivity: 4.0, bloomGlowMult: 5.0, halfTimeMode: true, trailLength: 'long', onEnter: 'morph-explode', gunShotReaction: 'spike-max' },
-    breakdown: { displaceModeHint: 'melt', rotationMultiplier: 0.5, particleEmissionRate: 0.4, colorSaturationMult: 1.0, beatReactivity: 0.3, bloomGlowMult: 1.4, halfTimeMode: false, trailLength: 'long', wobbleReaction: 'displace-lfo' },
-    bridge: { displaceModeHint: 'ripple', rotationMultiplier: 0.5, particleEmissionRate: 0.4, beatReactivity: 0.4, bloomGlowMult: 0.8, halfTimeMode: false, trailLength: 'medium' },
-    climax: { displaceModeHint: 'harmonics', rotationMultiplier: 6.0, particleEmissionRate: 5.0, colorSaturationMult: 3.5, beatReactivity: 5.0, bloomGlowMult: 6.0, halfTimeMode: false, trailLength: 'long', onEnter: 'morph-explode', screechReaction: 'chromatic', sirenReaction: 'stretch-up' },
-    outro: { displaceModeHint: 'breathe', rotationMultiplier: 0.2, particleEmissionRate: 0.1, colorSaturationMult: 0.5, beatReactivity: 0.1, bloomGlowMult: 0.3, halfTimeMode: false, trailLength: 'long' },
-};
-
-// ── MODULE-SCOPE COLOR MAPS (7.7: Never allocate inside frame loop) ──
-const _fogColorMap = {
-    cool: new THREE.Color(0x000520),
-    neutral: new THREE.Color(0x000000),
-    warm: new THREE.Color(0x150500),
-    hot: new THREE.Color(0x1a0000),
-    ethereal: new THREE.Color(0x0a0015),
-    extreme: new THREE.Color(0x200000),
-};
-const _colorTempHue = { cool: 240, neutral: 280, warm: 30, hot: 5, ethereal: 300, extreme: 0 };
-const _tempColor = new THREE.Color(); // reusable scratch color
 
 // ── BEAT-SYNC UTILITIES ────────────────────────────────────
 function beatPulse(phase, width = 0.12) {
@@ -37,17 +11,12 @@ function beatPulse(phase, width = 0.12) {
     if (phase > trailing) return (phase - trailing) / width;
     return 0;
 }
-function barPulse(barPhase, width = 0.06) {
-    return beatPulse(barPhase, width);
-}
-function halfTimePulse(barPhase, width = 0.10) {
-    const phase2 = (barPhase * 2) % 1;
-    return beatPulse(phase2, width);
-}
+function barPulse(barPhase, width = 0.06) { return beatPulse(barPhase, width); }
+function halfTimePulse(barPhase, width = 0.10) { return beatPulse((barPhase * 2) % 1, width); }
 function beatSaw(phase) { return phase; }
 function beatSine(phase) { return 0.5 + 0.5 * Math.sin(phase * Math.PI * 2); }
 
-// ── MATERIAL DISPOSAL HELPER (7.8: Disposes all textures) ──
+// ── MATERIAL DISPOSAL HELPER ──
 function disposeMaterial(mat) {
     ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap',
         'aoMap', 'envMap', 'alphaMap', 'lightMap'].forEach(slot => {
@@ -55,6 +24,8 @@ function disposeMaterial(mat) {
         });
     mat.dispose();
 }
+
+const _tempColor = new THREE.Color();
 
 const VisualEngine = (() => {
     let renderer = null;
@@ -74,47 +45,42 @@ const VisualEngine = (() => {
     let renderPass = null;
     let bloomPass = null;
 
-    // === DUBSTEP EFFECTS STATE ===
-    let baseCameraPos = new THREE.Vector3(0, 0, 100);
-    let cameraShake = { x: 0, y: 0, z: 0, intensity: 0 };
-    let shakeTime = 0;
-    let cameraZoomPunch = 0;
+    // Flash overlay
     let flashOverlay = null;
     let flashIntensity = 0;
-    let flashEnabled = true;   // toggled by UI button
-    let strobeCounter = 0;
+    let flashEnabled = true;
     let baseFOV = 75;
 
     // Mouse orbit & zoom state
-    let orbitTheta = 0;      // horizontal angle
-    let orbitPhi = Math.PI / 2; // vertical angle (start at equator)
+    let orbitTheta = 0;
+    let orbitPhi = Math.PI / 2;
     let orbitRadius = 100;
     let isDragging = false;
     let touchDragging = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
-    let orbitDirty = false;  // true if user has manually orbited
+    let orbitDirty = false;
 
-    // === DROP CHAOS STATE ===
-    let dropChaosActive = false;
-    let dropChaosIntensity = 0;   // 0 = calm, 1 = full chaos
-    let chaosTime = 0;            // accumulated time for chaos animations
-    let preChaosExposure = 1.2;
-    let preChaosBaseFOV = 75;
-    const CHAOS_ATTACK = 6.0;     // fast ramp in (reach 1.0 in ~0.15s)
-    const CHAOS_RELEASE = 1.2;    // slow ramp out (~0.8s)
+    // Preview mode: 'orbit' | 'move' | 'follow'
+    let previewMode = 'orbit';
 
-    // Aura Studio: timeline-driven state application
+    // Free-move camera state (WASD)
+    let freeMoveVelocity = { x: 0, y: 0, z: 0 };
+    let freeMoveYaw = 0;
+    let freeMovePitch = 0;
+    let keysDown = new Set();
+
+    // Camera position for non-follow modes
+    let baseCameraPos = new THREE.Vector3(0, 0, 100);
+
+    // Timeline-driven state
     let _lastAppliedEventId = null;
 
     function init(canvas) {
         clock = new THREE.Clock();
 
         renderer = new THREE.WebGLRenderer({
-            canvas,
-            antialias: true,
-            alpha: false,
-            preserveDrawingBuffer: true
+            canvas, antialias: true, alpha: false, preserveDrawingBuffer: true
         });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -129,37 +95,24 @@ const VisualEngine = (() => {
         camera.position.set(0, 0, 100);
         camera.lookAt(0, 0, 0);
 
-        // Flash overlay — child of camera so it:
-        //   1. Always covers the full view regardless of orbit angle
-        //   2. Lives in the WebGL scene → captured by canvas.captureStream → visible in recordings
-        //   3. Never touches the DOM → can't overlap UI panels
-        //
-        // Plane is oversized (4x4 units at z=-0.5 from camera).
-        // At FOV=75°, the visible frustum at z=0.5 is ~0.77 wide, so 4 units massively overcovers it.
+        // Flash overlay (in-scene for recording capture)
         const flashGeo = new THREE.PlaneGeometry(4, 4);
         const flashMat = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0,
-            blending: THREE.AdditiveBlending,
-            depthTest: false,
-            depthWrite: false,
-            side: THREE.DoubleSide
+            color: 0xffffff, transparent: true, opacity: 0,
+            blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, side: THREE.DoubleSide
         });
         flashOverlay = new THREE.Mesh(flashGeo, flashMat);
-        flashOverlay.position.set(0, 0, -0.5); // 0.5 units in front of camera lens
+        flashOverlay.position.set(0, 0, -0.5);
         flashOverlay.renderOrder = 9999;
-
-        // Add camera to scene so its children (the flash) get rendered
         scene.add(camera);
         camera.add(flashOverlay);
 
         if (typeof CameraEngine !== 'undefined') CameraEngine.init(camera);
-        if (typeof CameraDirector !== 'undefined') CameraDirector.init();
 
         initPostProcessing();
         window.addEventListener('resize', onResize);
         setupMouseControls(canvas);
+        setupKeyboardControls();
     }
 
     function initPostProcessing() {
@@ -169,13 +122,9 @@ const VisualEngine = (() => {
             composer = new THREE.EffectComposer(renderer);
             renderPass = new THREE.RenderPass(scene, camera);
             composer.addPass(renderPass);
-            
             if (typeof THREE.UnrealBloomPass !== 'undefined') {
                 bloomPass = new THREE.UnrealBloomPass(
-                    new THREE.Vector2(window.innerWidth, window.innerHeight),
-                    0.8,  // strength
-                    0.8,  // radius
-                    0.1   // threshold
+                    new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.8, 0.1
                 );
                 composer.addPass(bloomPass);
             }
@@ -189,55 +138,37 @@ const VisualEngine = (() => {
 
         if (aspectTarget === '16:9 (Landscape)') {
             const aspect = 16 / 9;
-            if (targetW / targetH > aspect) {
-                targetW = targetH * aspect;
-            } else {
-                targetH = targetW / aspect;
-            }
+            if (targetW / targetH > aspect) targetW = targetH * aspect;
+            else targetH = targetW / aspect;
         } else if (aspectTarget === '9:16 (Vertical)') {
             const aspect = 9 / 16;
-            if (targetW / targetH > aspect) {
-                targetW = targetH * aspect;
-            } else {
-                targetH = targetW / aspect;
-            }
+            if (targetW / targetH > aspect) targetW = targetH * aspect;
+            else targetH = targetW / aspect;
         }
 
         targetW = Math.floor(targetW / 2) * 2;
         targetH = Math.floor(targetH / 2) * 2;
 
-        // Resize Canvas CSS visually
         renderer.domElement.style.width = targetW + 'px';
         renderer.domElement.style.height = targetH + 'px';
-
         camera.aspect = targetW / targetH;
         camera.updateProjectionMatrix();
-        
-        // Resize WebGL target buffer
-        renderer.setSize(targetW, targetH, false); // false prevents overriding our CSS style
-        if (typeof RenderGraph !== 'undefined') {
-            RenderGraph.resize(targetW, targetH);
-        } else if (composer) {
-            composer.setSize(targetW, targetH);
-        }
+        renderer.setSize(targetW, targetH, false);
+        if (typeof RenderGraph !== 'undefined') RenderGraph.resize(targetW, targetH);
+        else if (composer) composer.setSize(targetW, targetH);
     }
 
-    function registerMode(key, modeObj) {
-        modes[key] = modeObj;
-        modeKeys.push(key);
-    }
-
+    function registerMode(key, modeObj) { modes[key] = modeObj; modeKeys.push(key); }
     function getModeKeys() { return [...modeKeys]; }
     function getModeName(key) { return modes[key]?.name || key; }
 
     function setMode(key) {
         if (!modes[key]) { console.warn(`Mode "${key}" not found`); return; }
         const previousKey = activeModeKey;
-        const previousMode = activeMode;
 
         if (activeMode && activeMode.destroy) activeMode.destroy(scene);
 
-        // Clear scene but protect the camera (and its flash child)
+        // Clear scene but protect camera
         const toRemove = scene.children.filter(obj => obj !== camera);
         for (const obj of toRemove) {
             obj.traverse(child => {
@@ -252,80 +183,49 @@ const VisualEngine = (() => {
 
         activeModeKey = key;
         activeMode = modes[key];
-        modeErrorReported = false; // 1.3: Reset error throttle on mode switch
+        modeErrorReported = false;
         ParamSystem.setModeSchema(activeMode.params || {});
 
-        // Reset camera to mode default
         baseCameraPos.set(0, 0, 100);
         camera.position.copy(baseCameraPos);
         camera.lookAt(0, 0, 0);
         baseFOV = 75;
-
-        // Reset orbit
         orbitDirty = false;
         orbitRadius = 100;
         orbitTheta = 0;
         orbitPhi = Math.PI / 2;
 
-        // Reset chaos state on mode switch
-        dropChaosActive = false;
-        dropChaosIntensity = 0;
-        chaosTime = 0;
-
-        // 7.5: Error boundary around mode init
         try {
             if (activeMode.init) activeMode.init(scene, camera, renderer);
         } catch (err) {
             console.error(`Mode "${key}" failed to init:`, err);
-            // Revert to previous mode if available
-            if (previousKey && previousMode && previousKey !== key) {
-                activeModeKey = previousKey;
-                activeMode = previousMode;
-                ParamSystem.setModeSchema(activeMode.params || {});
-                return;
-            }
         }
 
-        // Remember the mode's camera position as base
         baseCameraPos.copy(camera.position);
         baseFOV = camera.fov;
-        // Derive orbit radius from mode's camera distance
         orbitRadius = baseCameraPos.length() || 100;
 
         if (typeof AuraEvents !== 'undefined' && previousKey !== activeModeKey) {
-            const eventTime = (typeof AudioEngine !== 'undefined' && AudioEngine.audioBus)
-                ? (AudioEngine.audioBus.currentTime || 0)
-                : 0;
+            const eventTime = AudioEngine?.audioBus?.currentTime || 0;
             AuraEvents.emitModeChange(previousKey || '', activeModeKey || '', eventTime);
         }
     }
 
-    function nextMode() {
-        const idx = modeKeys.indexOf(activeModeKey);
-        setMode(modeKeys[(idx + 1) % modeKeys.length]);
-        return activeModeKey;
-    }
-
-    function prevMode() {
-        const idx = modeKeys.indexOf(activeModeKey);
-        setMode(modeKeys[(idx - 1 + modeKeys.length) % modeKeys.length]);
-        return activeModeKey;
-    }
+    function nextMode() { const idx = modeKeys.indexOf(activeModeKey); setMode(modeKeys[(idx + 1) % modeKeys.length]); return activeModeKey; }
+    function prevMode() { const idx = modeKeys.indexOf(activeModeKey); setMode(modeKeys[(idx - 1 + modeKeys.length) % modeKeys.length]); return activeModeKey; }
 
     // ── MOUSE ORBIT & ZOOM ─────────────────────────────────
-
     function setupMouseControls(canvas) {
-        // Scroll to zoom
         canvas.addEventListener('wheel', (e) => {
+            if (previewMode !== 'orbit') return;
             e.preventDefault();
-            const zoomSpeed = 0.08;
-            orbitRadius *= (1 + Math.sign(e.deltaY) * zoomSpeed);
+            orbitRadius *= (1 + Math.sign(e.deltaY) * 0.08);
             orbitRadius = Math.max(10, Math.min(2000, orbitRadius));
             orbitDirty = true;
         }, { passive: false });
 
-        // Left-click drag to rotate — only if directly on canvas (1.5)
         canvas.addEventListener('mousedown', (e) => {
+            if (previewMode === 'follow') return;
             if (e.button === 0 && e.target === canvas) {
                 isDragging = true;
                 lastMouseX = e.clientX;
@@ -340,344 +240,244 @@ const VisualEngine = (() => {
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
 
-            const sensitivity = 0.005;
-            orbitTheta -= dx * sensitivity;
-            orbitPhi -= dy * sensitivity;
-            // Clamp phi to avoid flipping (5° to 175°)
-            orbitPhi = Math.max(0.087, Math.min(Math.PI - 0.087, orbitPhi));
-            orbitDirty = true;
-        });
-
-        window.addEventListener('mouseup', (e) => {
-            if (e.button === 0) isDragging = false;
-        });
-
-        // 8.1: Touch support for orbit (single finger drag) & zoom (pinch)
-        let lastTouchX = 0, lastTouchY = 0;
-        let pinchStartDist = 0;
-
-        canvas.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 1) {
-                touchDragging = true;
-                lastTouchX = e.touches[0].clientX;
-                lastTouchY = e.touches[0].clientY;
-            } else if (e.touches.length === 2) {
-                touchDragging = false;
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                pinchStartDist = Math.sqrt(dx * dx + dy * dy);
-            }
-        }, { passive: true });
-
-        canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            if (e.touches.length === 1 && touchDragging) {
-                const dx = e.touches[0].clientX - lastTouchX;
-                const dy = e.touches[0].clientY - lastTouchY;
-                lastTouchX = e.touches[0].clientX;
-                lastTouchY = e.touches[0].clientY;
+            if (previewMode === 'orbit') {
                 const sensitivity = 0.005;
                 orbitTheta -= dx * sensitivity;
                 orbitPhi -= dy * sensitivity;
                 orbitPhi = Math.max(0.087, Math.min(Math.PI - 0.087, orbitPhi));
                 orbitDirty = true;
+            } else if (previewMode === 'move') {
+                freeMoveYaw -= dx * 0.003;
+                freeMovePitch -= dy * 0.003;
+                freeMovePitch = Math.max(-1.5, Math.min(1.5, freeMovePitch));
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => { if (e.button === 0) isDragging = false; });
+
+        // Touch support
+        let lastTouchX = 0, lastTouchY = 0, pinchStartDist = 0;
+        canvas.addEventListener('touchstart', (e) => {
+            if (previewMode === 'follow') return;
+            if (e.touches.length === 1) { touchDragging = true; lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY; }
+            else if (e.touches.length === 2) { touchDragging = false; const dx = e.touches[0].clientX - e.touches[1].clientX; const dy = e.touches[0].clientY - e.touches[1].clientY; pinchStartDist = Math.sqrt(dx*dx+dy*dy); }
+        }, { passive: true });
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length === 1 && touchDragging) {
+                const dx = e.touches[0].clientX - lastTouchX; const dy = e.touches[0].clientY - lastTouchY;
+                lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+                orbitTheta -= dx * 0.005; orbitPhi -= dy * 0.005;
+                orbitPhi = Math.max(0.087, Math.min(Math.PI - 0.087, orbitPhi)); orbitDirty = true;
             } else if (e.touches.length === 2) {
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (pinchStartDist > 0) {
-                    const scale = pinchStartDist / dist;
-                    orbitRadius *= scale;
-                    orbitRadius = Math.max(10, Math.min(2000, orbitRadius));
-                    orbitDirty = true;
-                }
+                const dx = e.touches[0].clientX - e.touches[1].clientX; const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.sqrt(dx*dx+dy*dy);
+                if (pinchStartDist > 0) { orbitRadius *= pinchStartDist / dist; orbitRadius = Math.max(10, Math.min(2000, orbitRadius)); orbitDirty = true; }
                 pinchStartDist = dist;
             }
         }, { passive: false });
+        canvas.addEventListener('touchend', () => { touchDragging = false; pinchStartDist = 0; }, { passive: true });
+    }
 
-        canvas.addEventListener('touchend', () => {
-            touchDragging = false;
-            pinchStartDist = 0;
-        }, { passive: true });
+    // ── WASD FREE-MOVE CONTROLS ────────────────────────────
+    function setupKeyboardControls() {
+        window.addEventListener('keydown', (e) => { keysDown.add(e.code); });
+        window.addEventListener('keyup', (e) => { keysDown.delete(e.code); });
+    }
+
+    function updateFreeMove(dt) {
+        if (previewMode !== 'move') return;
+        const speed = 80 * dt;
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+
+        if (keysDown.has('KeyW')) camera.position.addScaledVector(forward, speed);
+        if (keysDown.has('KeyS')) camera.position.addScaledVector(forward, -speed);
+        if (keysDown.has('KeyA')) camera.position.addScaledVector(right, -speed);
+        if (keysDown.has('KeyD')) camera.position.addScaledVector(right, speed);
+        if (keysDown.has('KeyQ')) camera.position.y -= speed;
+        if (keysDown.has('KeyE')) camera.position.y += speed;
+
+        camera.rotation.order = 'YXZ';
+        camera.rotation.y = freeMoveYaw;
+        camera.rotation.x = freeMovePitch;
     }
 
     function applyOrbit() {
         if (!orbitDirty) return;
-        // Spherical to cartesian
         baseCameraPos.x = orbitRadius * Math.sin(orbitPhi) * Math.sin(orbitTheta);
         baseCameraPos.y = orbitRadius * Math.cos(orbitPhi);
         baseCameraPos.z = orbitRadius * Math.sin(orbitPhi) * Math.cos(orbitTheta);
-        orbitDirty = false; // 1.2: Reset so applyOrbit doesn't run every frame
+        orbitDirty = false;
     }
 
     function getOrbitState() {
-        return {
-            orbitTheta,
-            orbitPhi,
-            orbitRadius,
-            fov: camera ? camera.fov : baseFOV
-        };
+        return { orbitTheta, orbitPhi, orbitRadius, fov: camera ? camera.fov : baseFOV };
     }
 
     function setOrbitState(state) {
         if (!state) return;
-        if (isDragging || touchDragging) return; // FIX: Don't snap camera if user is manually dragging it
+        if (isDragging || touchDragging) return;
         if (typeof state.orbitTheta === 'number') orbitTheta = state.orbitTheta;
         if (typeof state.orbitPhi === 'number') orbitPhi = state.orbitPhi;
         if (typeof state.orbitRadius === 'number') orbitRadius = Math.max(10, Math.min(2000, state.orbitRadius));
-        if (typeof state.fov === 'number' && camera) {
-            baseFOV = state.fov;
-            camera.fov = state.fov;
-            camera.updateProjectionMatrix();
-        }
+        if (typeof state.fov === 'number' && camera) { baseFOV = state.fov; camera.fov = state.fov; camera.updateProjectionMatrix(); }
         orbitDirty = true;
         applyOrbit();
     }
 
-    // ── DUBSTEP EFFECTS v3 — Section-aware ──────────────────
-
-    function updateEffects(audio, params, dt) {
-        // Get section-specific effect multipliers from marker system
-        const effects = (typeof MarkerSystem !== 'undefined' && MarkerSystem.getSmoothedEffects)
-            ? MarkerSystem.getSmoothedEffects()
-            : { shake: 1, flash: 1, zoom: 1, bloom: 1, speed: 1, particleScale: 1, displacementScale: 1 };
-
-        const masterInt = audio.masterIntensity || 1.0;
-        const sectionInt = audio.sectionIntensity || 1.0;
-
-        // ═══════════════════════════════════════════════════════
-        // DROP CHAOS MODE — triggered by timeline drop markers
-        // ═══════════════════════════════════════════════════════
-        const isDropNow = audio.isDropSection || false;
-        const dropLevel = audio.dropSectionIntensity || 0;
-
-        if (isDropNow && !dropChaosActive) {
-            // === ENTER CHAOS ===
-            dropChaosActive = true;
-            preChaosExposure = renderer.toneMappingExposure;
-            preChaosBaseFOV = baseFOV;
-        } else if (!isDropNow && dropChaosActive && dropChaosIntensity < 0.01) {
-            // === EXIT CHAOS (fully faded out) ===
-            dropChaosActive = false;
-            dropChaosIntensity = 0;
-            chaosTime = 0;
-        }
-
-        // Smooth ramp chaos intensity
-        if (isDropNow) {
-            dropChaosIntensity += (1 - dropChaosIntensity) * CHAOS_ATTACK * dt;
-            dropChaosIntensity = Math.min(1, dropChaosIntensity);
-        } else {
-            dropChaosIntensity -= dropChaosIntensity * CHAOS_RELEASE * dt;
-            if (dropChaosIntensity < 0.005) dropChaosIntensity = 0;
-        }
-
-        if (dropChaosActive) {
-            chaosTime += dt;
-        }
-
-        // Use marker-specific multipliers for each effect
-        const shakeAmount = (params.screenShake ?? 0.4) * effects.shake * masterInt;
-        const flashAmount = (params.beatFlash ?? 0.4) * effects.flash * masterInt;
-        const zoomPunch = (params.zoomPunch ?? 0.3) * effects.zoom * masterInt;
-        const reactivity = (params.reactivity ?? 1.0) * sectionInt;
-
-        // === CAMERA DIRECTOR (Phase 2) ===
-        if (typeof CameraDirector !== 'undefined') {
-            // Forward manual user interactions into the Orbit layer
-            if (orbitDirty && typeof CameraEngine !== 'undefined') {
-                // If user is actively dragging, immediately snap the target
-                CameraEngine.layers.orbit.radius.target = orbitRadius;
-                CameraEngine.layers.orbit.theta = orbitTheta;
-                // Maintain the manual phi base
-                CameraEngine.layers.orbit.phi.target = orbitPhi;
-                orbitDirty = false;
+    function setPreviewMode(mode) {
+        if (['orbit', 'move', 'follow'].includes(mode)) {
+            previewMode = mode;
+            if (mode === 'move') {
+                freeMoveYaw = orbitTheta;
+                freeMovePitch = 0;
             }
-            
-            CameraDirector.update(dt, audio);
+        }
+    }
+
+    // ── EFFECTS (user-controlled only) ──────────────────────
+    function updateEffects(audio, params, dt) {
+        // Only react to audio when playing
+        if (!audio.isPlaying) return;
+
+        const shakeAmount = params.screenShake ?? 0;
+        const flashAmount = params.beatFlash ?? 0;
+        const zoomPunch = params.zoomPunch ?? 0;
+
+        // Camera shake (driven by user's screenShake param + bass beats)
+        if (shakeAmount > 0 && audio.bassBeat && typeof CameraEngine !== 'undefined') {
+            CameraEngine.triggerShake(audio.bassBeatIntensity * shakeAmount * 2.0);
+        }
+
+        // Zoom punch on bass beat
+        if (zoomPunch > 0 && audio.bassBeat && typeof CameraEngine !== 'undefined') {
+            CameraEngine.triggerZoomPulse(-audio.bassBeatIntensity * zoomPunch * 5);
+        }
+
+        // Beat flash
+        if (flashEnabled && flashAmount > 0 && audio.bassBeat) {
+            flashIntensity = Math.max(flashIntensity, audio.bassBeatIntensity * flashAmount * 0.5);
+        }
+
+        // Decay flash
+        flashIntensity *= 0.8;
+        if (flashOverlay) {
+            flashOverlay.visible = flashEnabled;
+            flashOverlay.material.opacity = flashEnabled ? Math.min(0.7, flashIntensity) : 0;
+            if (flashEnabled && flashIntensity > 0.05) {
+                const c = ParamSystem.getColorThree(audio.rms + (clock?.elapsedTime || 0) * 0.2);
+                flashOverlay.material.color.lerp(c, 0.3);
+            }
+        }
+
+        // Exposure
+        renderer.toneMappingExposure += (1.2 - renderer.toneMappingExposure) * 0.1;
+
+        // Fog density scales with distance
+        if (scene.fog) {
+            const distanceScale = 100 / Math.max(1, orbitRadius);
+            scene.fog.density += (0.001 * distanceScale - scene.fog.density) * 0.05;
+        }
+    }
+
+    // ── CAMERA UPDATE (based on preview mode) ──────────────
+    function updateCamera(dt, audioBus) {
+        if (previewMode === 'follow') {
+            // Timeline-driven camera
+            if (typeof ProjectStore !== 'undefined' && typeof CameraEngine !== 'undefined') {
+                const project = ProjectStore.getState();
+                const cameraTrack = project.timeline?.cameraTrack || project.timeline?.cameraEvents || [];
+                if (cameraTrack.length > 0) {
+                    const t = audioBus.currentTime || 0;
+                    CameraEngine.evaluateTrack(cameraTrack, t);
+                }
+            }
+            if (typeof CameraEngine !== 'undefined') CameraEngine.applyToCamera(dt);
+        } else if (previewMode === 'move') {
+            updateFreeMove(dt);
         } else {
-            // Legacy camera fallback if engine not loaded
+            // Orbit mode
             applyOrbit();
             camera.position.copy(baseCameraPos);
             camera.lookAt(0, 0, 0);
             camera.fov = baseFOV;
             camera.updateProjectionMatrix();
         }
-
-        // === BEAT FLASH — inside WebGL scene, visible in recording ===
-        if (flashEnabled && flashAmount > 0) {
-            if (audio.isDrop) {
-                flashIntensity = audio.dropIntensity * flashAmount * 1.2;
-            } else if (audio.bassBeat) {
-                flashIntensity = Math.max(flashIntensity, audio.bassBeatIntensity * flashAmount * 0.35);
-            }
-        }
-
-        // CHAOS FLASH: aggressive strobing with color cycling
-        if (dropChaosActive && dropChaosIntensity > 0 && flashEnabled) {
-            const ci = dropChaosIntensity * dropLevel;
-            const t = chaosTime;
-            // Fast strobe pattern
-            const strobeWave = Math.pow(Math.abs(Math.sin(t * 15)), 0.3);
-            flashIntensity = Math.max(flashIntensity, strobeWave * ci * 0.7);
-            // On beat: massive flash spike
-            if (audio.beat) {
-                flashIntensity = Math.max(flashIntensity, audio.beatIntensity * ci * 1.5);
-            }
-        }
-
-        flashIntensity *= dropChaosActive ? 0.85 : 0.8; // Slightly slower decay during chaos
-
-        if (flashOverlay) {
-            flashOverlay.visible = flashEnabled;
-            flashOverlay.material.opacity = flashEnabled ? Math.min(0.7, flashIntensity) : 0;
-            if (flashEnabled && flashIntensity > 0.05) {
-                const c = ParamSystem.getColorThree(audio.rms + clock.elapsedTime * 0.2);
-                flashOverlay.material.color.lerp(c, 0.3);
-            }
-            // CHAOS COLOR: rapid hue cycling on flash
-            if (dropChaosActive && dropChaosIntensity > 0 && flashEnabled) {
-                const chaosHue = (chaosTime * 2.5) % 1; // full cycle every ~0.4s
-                _tempColor.setHSL(chaosHue, 1.0, 0.6);
-                flashOverlay.material.color.lerp(_tempColor, dropChaosIntensity * 0.5);
-            }
-            // 6.1: Color temperature → flash color
-            const tempHue = _colorTempHue[audio.colorTemp] ?? 280;
-            _tempColor.setHSL(tempHue / 360, 0.9, 0.6);
-            if (flashEnabled) flashOverlay.material.color.lerp(_tempColor, 0.05);
-        }
-
-        // === EXPOSURE — section-aware + chaos ===
-        let targetExposure = 1.2;
-        if (audio.dropDecay > 0.1) {
-            targetExposure = 1.2 + audio.dropDecay * 1.5 * effects.flash;
-        }
-        if (audio.isHighEnergy) {
-            targetExposure *= 1.1;
-        }
-        if (audio.isCalm) {
-            targetExposure *= 0.85;
-        }
-        // CHAOS EXPOSURE: massive spikes on beat, oscillating baseline
-        if (dropChaosActive && dropChaosIntensity > 0) {
-            const ci = dropChaosIntensity * dropLevel;
-            targetExposure += Math.sin(chaosTime * 6) * 0.8 * ci;
-            if (audio.beat) {
-                targetExposure += audio.beatIntensity * 3.0 * ci;
-            }
-            targetExposure = Math.max(0.3, targetExposure);
-        }
-        renderer.toneMappingExposure += (targetExposure - renderer.toneMappingExposure) * (dropChaosActive ? 0.2 : 0.1);
-
-        // === FOG — adapts to section energy + colorTemp + chaos ===
-        if (scene.fog) {
-            let fogTarget = audio.isHighEnergy ? 0.0005 : (audio.isCalm ? 0.003 : 0.001);
-            // CHAOS FOG: pulsing density
-            if (dropChaosActive && dropChaosIntensity > 0) {
-                const ci = dropChaosIntensity * dropLevel;
-                fogTarget *= 1 + Math.sin(chaosTime * 4.3) * 2.0 * ci;
-                fogTarget = Math.max(0.0001, fogTarget);
-            }
-            // Scale fog density inversely with distance to keep brightness consistent when zooming out
-            const distanceScale = 100 / Math.max(1, orbitRadius);
-            scene.fog.density += (fogTarget * distanceScale - scene.fog.density) * 0.05;
-            // 6.2: Color temperature → fog color
-            const targetFogColor = _fogColorMap[audio.colorTemp] || _fogColorMap.neutral;
-            scene.fog.color.lerp(targetFogColor, 0.03);
-        }
     }
 
     // ── MAIN UPDATE ────────────────────────────────────────
-
     function update() {
-        const dt = Math.min(clock.getDelta(), 0.05); // 1.1: Clamp to 50ms max (prevents tab-switch explosion)
+        const dt = Math.min(clock.getDelta(), 0.05);
         const audioBus = AudioEngine.audioBus;
 
-        // ── Aura Studio: Apply timeline state at current time ──
-        // This makes timeline evaluation the source of truth for mode/params.
-        // Timeline should not constantly override manual edits while paused.
-        // We follow the timeline while playing; scrubbing will apply state via TimelineUI.
-        if (typeof ProjectStore !== 'undefined' && typeof GraphEvaluator !== 'undefined' && audioBus && audioBus.loaded && audioBus.isPlaying) {
+        // ★ CRITICAL FIX: When not playing, dt_visual = 0 → visuals freeze
+        const dt_visual = audioBus.isPlaying ? dt : 0;
+
+        // Timeline-driven state application — ONLY active in 'follow' mode
+        // Orbit and Move modes give the user full manual control
+        if (previewMode === 'follow' &&
+            typeof ProjectStore !== 'undefined' &&
+            typeof GraphEvaluator !== 'undefined' &&
+            audioBus?.loaded && audioBus.isPlaying) {
             try {
                 const project = ProjectStore.getState();
-                const follow = !!(project.editor && project.editor.followTimeline);
-                if (!follow) {
-                    // User wants manual control during playback
-                    // (export/offline rendering will always force deterministic evaluation later)
-                    // Still render normal visuals using current ParamSystem state.
-                    // So just skip timeline application.
-                    // Note: scrub calls applyStudioStateAtTime() explicitly.
-                    // eslint-disable-next-line no-empty
-                } else {
                 const t = audioBus.currentTime || 0;
                 const res = GraphEvaluator.evalAtTime(project, t);
-                if (res && res.blended && res.appliedEventId) {
+                if (res?.blended?.appliedEventId || res?.blended?.b) {
                     applyBlendedState(res.blended);
                     _lastAppliedEventId = res.appliedEventId;
                 }
-                }
-            } catch (e) {
-                // Keep rendering even if timeline state has issues
-                // (errors are logged once per frame anyway by the browser)
-            }
+            } catch (e) { /* keep rendering */ }
         }
 
-        // Background color — 6.3: tint toward colorTemp when section active
+        // Background color
         const bgColor = ParamSystem.get('backgroundColor') || '#000000';
-        if (audioBus.sectionType && audioBus.colorTemp !== 'neutral') {
-            const tempTint = _fogColorMap[audioBus.colorTemp] || _fogColorMap.neutral;
-            const userBg = _tempColor.set(bgColor);
-            scene.background.copy(userBg).lerp(tempTint, 0.15 * (audioBus.transitionFade || 0));
-        } else {
-            scene.background.set(bgColor);
-        }
+        scene.background.set(bgColor);
 
-        // Bloom is now handled by RenderGraph.update()
+        // Update camera based on preview mode
+        updateCamera(dt, audioBus);
 
-        // Dubstep visual effects (shake, flash, zoom)
-        updateEffects(audioBus, {
-            ...ParamSystem.getAllGlobal(),
-            ...ParamSystem.getAllMode()
-        }, dt);
+        // Effects (only apply when playing)
+        updateEffects(audioBus, { ...ParamSystem.getAllGlobal(), ...ParamSystem.getAllMode() }, dt);
 
-        // Update active mode — inject section effects into params
+        // Update active mode — ★ use dt_visual so visuals freeze when paused
         if (activeMode && activeMode.update) {
             try {
-                const sectionEffects = audioBus.sectionEffects || {};
-                const baseParams = {
-                    ...ParamSystem.getAllGlobal(),
-                    ...ParamSystem.getAllMode(),
-                    _displacementScale: sectionEffects.displacementScale ?? 1,
-                    _particleScale: sectionEffects.particleScale ?? 1,
-                    _speedScale: sectionEffects.speed ?? 1,
-                };
+                const baseParams = { ...ParamSystem.getAllGlobal(), ...ParamSystem.getAllMode() };
 
-                // Apply dynamic Audio Modulations (Parameter Routing)
-                const mappings = ParamSystem.getMappings();
-                for (const key in mappings) {
-                    const map = mappings[key];
-                    let audioVal = 0;
-                    if (map.band === 'onset') audioVal = audioBus.onsetStrength;
-                    else if (map.band === 'envelope') audioVal = audioBus.envelope;
-                    else audioVal = audioBus.smoothBands[map.band] || audioBus.rawBands[map.band] || 0;
-                    
-                    if (baseParams[key] !== undefined && typeof baseParams[key] === 'number') {
-                        // Apply modulation and clamp slightly to avoid exploding engine 
-                        baseParams[key] += audioVal * map.amount;
+                // Apply audio modulation mappings (only when playing)
+                if (audioBus.isPlaying) {
+                    const mappings = ParamSystem.getMappings();
+                    for (const key in mappings) {
+                        const map = mappings[key];
+                        let audioVal = 0;
+                        if (map.band === 'onset') audioVal = audioBus.onsetStrength;
+                        else if (map.band === 'envelope') audioVal = audioBus.envelope;
+                        else if (map.band === 'rms') audioVal = audioBus.rms;
+                        else if (map.band === 'beatPhase') audioVal = audioBus.beatPhase;
+                        else audioVal = audioBus.smoothBands[map.band] || audioBus.rawBands[map.band] || 0;
+
+                        // Apply stem reactivity scaling
+                        const stemMap = { sub: 'stemReactivity_drums', bass: 'stemReactivity_bass', lowMid: 'stemReactivity_mids', mid: 'stemReactivity_mids', highMid: 'stemReactivity_highs', treble: 'stemReactivity_highs', brilliance: 'stemReactivity_highs' };
+                        if (stemMap[map.band]) {
+                            audioVal *= (ParamSystem.get(stemMap[map.band]) || 1.0);
+                        }
+
+                        if (baseParams[key] !== undefined && typeof baseParams[key] === 'number') {
+                            baseParams[key] += audioVal * map.amount;
+                        }
                     }
                 }
 
-                activeMode.update(audioBus, baseParams, dt);
+                activeMode.update(audioBus, baseParams, dt_visual);
                 modeErrorReported = false;
             } catch (err) {
-                if (!modeErrorReported) {
-                    console.warn(`Mode "${activeModeKey}" error:`, err.message);
-                    modeErrorReported = true;
-                }
+                if (!modeErrorReported) { console.warn(`Mode "${activeModeKey}" error:`, err.message); modeErrorReported = true; }
             }
         }
 
-        // Render (1.4: disable post-processing on composer error instead of double render)
+        // Render
         try {
             if (typeof RenderGraph !== 'undefined' && RenderGraph.composer && ParamSystem.get('postProcessing')) {
                 RenderGraph.update(dt, audioBus);
@@ -689,7 +489,7 @@ const VisualEngine = (() => {
                 renderer.render(scene, camera);
             }
         } catch (err) {
-            console.warn('Composer error, disabling post-processing:', err);
+            console.warn('Composer error:', err);
             ParamSystem.set('postProcessing', false);
             renderer.setRenderTarget(null);
             renderer.render(scene, camera);
@@ -699,59 +499,34 @@ const VisualEngine = (() => {
     function applyBlendedState(blended) {
         const a = blended.a;
         const b = blended.b;
-        const type = blended.type || 'transform';
         let t = blended.t;
 
-        // Handle transition types
-        if (type === 'cut') {
-            t = t < 0.5 ? 0 : 1;
-        } else if (type === 'crossfade') {
-            // For now, crossfade is numeric blend, but we could add a screen-space fade later.
-            t = blended.t;
-        }
+        if (blended.type === 'cut') t = t < 0.5 ? 0 : 1;
 
-        // Mode transition behavior:
-        // keep source mode for first half, then switch to destination mode.
-        // This reduces hard jump-cuts when clips transition between different modes.
         const modeA = a?.visual?.modeKey || null;
         const modeB = b?.visual?.modeKey || null;
         const desiredMode = (modeA && modeB && modeA !== modeB && t < 0.5) ? modeA : modeB;
         if (desiredMode && desiredMode !== activeModeKey) setMode(desiredMode);
 
-        // Params blending (numeric only)
-        const ag = a?.visual?.globalParams || null;
-        const bg = b?.visual?.globalParams || null;
-        if (ag && bg) {
-            const mix = GraphModel.deepBlend(ag, bg, t);
-            for (const [k, v] of Object.entries(mix)) ParamSystem.set(k, v);
-        } else if (bg) {
-            for (const [k, v] of Object.entries(bg)) ParamSystem.set(k, v);
-        }
+        // Blend params
+        const ag = a?.visual?.globalParams, bg = b?.visual?.globalParams;
+        if (ag && bg) { const mix = GraphModel.deepBlend(ag, bg, t); for (const [k, v] of Object.entries(mix)) ParamSystem.set(k, v); }
+        else if (bg) { for (const [k, v] of Object.entries(bg)) ParamSystem.set(k, v); }
 
-        const am = a?.visual?.modeParams || null;
-        const bm = b?.visual?.modeParams || null;
-        if (am && bm) {
-            const mix = GraphModel.deepBlend(am, bm, t);
-            for (const [k, v] of Object.entries(mix)) ParamSystem.set(k, v);
-        } else if (bm) {
-            for (const [k, v] of Object.entries(bm)) ParamSystem.set(k, v);
-        }
+        const am = a?.visual?.modeParams, bm = b?.visual?.modeParams;
+        if (am && bm) { const mix = GraphModel.deepBlend(am, bm, t); for (const [k, v] of Object.entries(mix)) ParamSystem.set(k, v); }
+        else if (bm) { for (const [k, v] of Object.entries(bm)) ParamSystem.set(k, v); }
 
-        // Mappings: take target mappings (blending mappings isn’t meaningful)
+        // Mappings
         const mappings = b?.visual?.mappings;
         if (mappings && typeof mappings === 'object' && ParamSystem.setMapping) {
             const current = ParamSystem.getMappings ? ParamSystem.getMappings() : {};
-            const keys = Object.keys(current);
-            for (const key of keys) ParamSystem.setMapping(key, null, 0, current[key]?.type);
-            for (const [k, m] of Object.entries(mappings)) {
-                if (!m) continue;
-                ParamSystem.setMapping(k, m.band, m.amount, m.type);
-            }
+            for (const key of Object.keys(current)) ParamSystem.setMapping(key, null, 0, current[key]?.type);
+            for (const [k, m] of Object.entries(mappings)) { if (m) ParamSystem.setMapping(k, m.band, m.amount, m.type); }
         }
 
-        // Camera blending between states (prevents zoom jumps/cropping)
-        const ac = a?.camera || null;
-        const bc = b?.camera || null;
+        // Camera blending
+        const ac = a?.camera, bc = b?.camera;
         if (bc) {
             let c = bc;
             if (ac) c = GraphModel.deepBlend(ac, bc, t);
@@ -760,36 +535,22 @@ const VisualEngine = (() => {
     }
 
     return {
-        init,
-        registerMode,
-        getModeKeys,
-        getModeName,
-        setMode,
-        nextMode,
-        prevMode,
-        update,
+        init, registerMode, getModeKeys, getModeName, setMode, nextMode, prevMode, update,
         toggleFlash() { flashEnabled = !flashEnabled; return flashEnabled; },
-        // Beat-sync utilities exposed for modes
-        beatPulse,
-        barPulse,
-        halfTimePulse,
-        beatSaw,
-        beatSine,
-        SECTION_BEHAVIORS,
+        beatPulse, barPulse, halfTimePulse, beatSaw, beatSine,
         get flashEnabled() { return flashEnabled; },
         get activeModeKey() { return activeModeKey; },
         get activeMode() { return activeMode; },
         get scene() { return scene; },
         get camera() { return camera; },
         get renderer() { return renderer; },
-        getOrbitState,
-        setOrbitState,
-        // Aura Studio: allow one-shot application on scrub/seek
+        get previewMode() { return previewMode; },
+        getOrbitState, setOrbitState, setPreviewMode,
         applyStudioStateAtTime(t) {
             if (typeof ProjectStore === 'undefined' || typeof GraphEvaluator === 'undefined') return;
             const project = ProjectStore.getState();
             const res = GraphEvaluator.evalAtTime(project, t || 0);
-            if (res && res.blended) applyBlendedState(res.blended);
+            if (res?.blended) applyBlendedState(res.blended);
         }
     };
 })();

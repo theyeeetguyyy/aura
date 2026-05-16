@@ -409,9 +409,7 @@ const TitanforgeMode = {
         if (!this.coreGeo || !this.coreBasePos) return;
         const mode = params.coreDisplaceMode || 'fourier';
         
-        // ORCHESTRATOR: Scale displacement by global scene budget
-        const orchMult = typeof SceneOrchestrator !== 'undefined' ? SceneOrchestrator.getDisplacementScale() : 1;
-        const amt = (params.coreDisplaceAmt || 8) * (params.reactivity || 1.5) * (SE.displacementScale || 1) * orchMult;
+        const amt = (params.coreDisplaceAmt || 8) * (params.reactivity || 1.5);
         
         const speed = (params.coreDisplaceSpeed || 1.5) * (SE.speed || 1);
         const bass = audio.smoothBands.bass || 0, sub = audio.smoothBands.sub || 0;

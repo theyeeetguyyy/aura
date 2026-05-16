@@ -9,7 +9,9 @@ const GraphEvaluator = (() => {
   }
 
   function evalAtTime(project, t) {
-    const events = project?.timeline?.stateEvents || [];
+    // Support both v2 (visualTrack) and v1 (stateEvents)
+    const events = project?.timeline?.visualTrack || project?.timeline?.stateEvents || [];
+
     if (events.length === 0) return { node: null, blended: null, appliedEventId: null };
 
     // Find all active clips at time t

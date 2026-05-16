@@ -587,9 +587,7 @@ const HyperforgeMode3 = {
         const mode      = this._dropDisplaceActive || params.displaceMode || 'fourier';
         const dropMult  = this._dropDisplaceActive ? (params.dropIntensityMult || 1.5) : 1;
         
-        // ORCHESTRATOR: Scale displacement by global scene budget
-        const orchMult  = typeof SceneOrchestrator !== 'undefined' ? SceneOrchestrator.getDisplacementScale() : 1;
-        const amt       = (params.displaceAmt || 8) * (params.reactivity || 1.5) * (SE.displacementScale ?? 1) * dropMult * orchMult;
+        const amt       = (params.displaceAmt || 8) * (params.reactivity || 1.5) * dropMult;
         
         const speed     = (params.displaceSpeed || 1.5) * (SE.speed ?? 1);
         const bass      = audio.smoothBands.bass || 0;

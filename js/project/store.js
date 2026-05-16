@@ -1,29 +1,22 @@
 // ============================================================
-// AURA — Project Store (v1)
+// AURA — Project Store v2
 // Reducer-style state container with undo/redo
+// Updated for dual timeline: visualTrack + cameraTrack + markers
 // ============================================================
 
 const ProjectStore = (() => {
   const MAX_HISTORY = 50;
 
-  /** @type {{past:any[], present:any, future:any[]}} */
   let history = {
     past: [],
     present: ProjectSchema.createEmptyProject(),
     future: [],
   };
 
-  /** @type {Set<Function>} */
   const listeners = new Set();
 
-  function getState() {
-    return history.present;
-  }
-
-  function subscribe(fn) {
-    listeners.add(fn);
-    return () => listeners.delete(fn);
-  }
+  function getState() { return history.present; }
+  function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
   function emit() {
     for (const fn of listeners) {
@@ -39,114 +32,173 @@ const ProjectStore = (() => {
 
   function reduce(state, action) {
     switch (action.type) {
-      case 'project/new': {
+
+      case 'project/new':
         return ProjectSchema.createEmptyProject();
-      }
+
       case 'project/load': {
-        return action.project;
+        // Migrate old projects on load
+        const loaded = ProjectSchema.migrate ? ProjectSchema.migrate(action.project) : action.project;
+        return loaded;
       }
+
       case 'project/meta': {
         const next = ProjectSchema.clone(state);
         next.meta = { ...next.meta, ...action.meta, modifiedAt: Date.now() };
         return next;
       }
+
       case 'editor/set': {
         const next = ProjectSchema.clone(state);
         next.editor = { ...(next.editor || {}), ...(action.editor || {}) };
         next.meta.modifiedAt = Date.now();
         return next;
       }
+
       case 'audio/meta': {
         const next = ProjectSchema.clone(state);
         next.audio = { ...next.audio, ...action.audio, modifiedAt: Date.now() };
         next.meta.modifiedAt = Date.now();
         return next;
       }
-      case 'timeline/addStateEvent': {
+
+      // ── VISUAL TRACK ─────────────────────────────────────
+      case 'timeline/addVisualClip': {
         const next = ProjectSchema.clone(state);
-        const id = `evt_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
-        next.timeline.stateEvents.push({
+        const id = `clip_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+        next.timeline.visualTrack.push({
           id,
-          name: '',
+          name: action.name || '',
           time: action.time,
           duration: typeof action.duration === 'number' ? action.duration : 5.0,
           nodeId: action.nodeId,
           transitionType: action.transitionType || 'transform',
           easing: action.easing || 'easeInOut',
+          transitionSec: action.transitionSec || 0.75,
         });
-        next.timeline.stateEvents.sort((a, b) => a.time - b.time);
+        next.timeline.visualTrack.sort((a, b) => a.time - b.time);
         next.meta.modifiedAt = Date.now();
         return next;
+      }
+
+      case 'timeline/updateVisualClip': {
+        const next = ProjectSchema.clone(state);
+        const idx = next.timeline.visualTrack.findIndex(e => e.id === action.id);
+        if (idx < 0) return state;
+        next.timeline.visualTrack[idx] = { ...next.timeline.visualTrack[idx], ...action.patch };
+        next.timeline.visualTrack.sort((a, b) => a.time - b.time);
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
+
+      case 'timeline/removeVisualClip': {
+        const next = ProjectSchema.clone(state);
+        next.timeline.visualTrack = next.timeline.visualTrack.filter(e => e.id !== action.id);
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
+
+      // Legacy aliases (backward compat)
+      case 'timeline/addStateEvent': {
+        return reduce(state, { ...action, type: 'timeline/addVisualClip', nodeId: action.nodeId });
       }
       case 'timeline/updateStateEvent': {
-        const next = ProjectSchema.clone(state);
-        const idx = next.timeline.stateEvents.findIndex(e => e.id === action.id);
-        if (idx < 0) return state;
-        next.timeline.stateEvents[idx] = { ...next.timeline.stateEvents[idx], ...action.patch };
-        next.timeline.stateEvents.sort((a, b) => a.time - b.time);
-        next.meta.modifiedAt = Date.now();
-        return next;
+        return reduce(state, { ...action, type: 'timeline/updateVisualClip' });
       }
       case 'timeline/removeStateEvent': {
-        const next = ProjectSchema.clone(state);
-        next.timeline.stateEvents = next.timeline.stateEvents.filter(e => e.id !== action.id);
-        next.meta.modifiedAt = Date.now();
-        return next;
+        return reduce(state, { ...action, type: 'timeline/removeVisualClip' });
       }
-      case 'timeline/addCameraEvent': {
+
+      // ── CAMERA TRACK ──────────────────────────────────────
+      case 'timeline/addCameraKeyframe': {
         const next = ProjectSchema.clone(state);
-        if (!next.timeline.cameraEvents) next.timeline.cameraEvents = [];
         const id = `cam_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
-        next.timeline.cameraEvents.push({
+        next.timeline.cameraTrack.push({
           id,
           time: action.time,
-          val: action.val, // { pos: {x,y,z}, rot: {x,y,z}, fov }
+          val: action.val, // { pos: {x,y,z}, lookAt: {x,y,z}, fov }
           easing: action.easing || 'easeInOutCubic',
         });
-        next.timeline.cameraEvents.sort((a, b) => a.time - b.time);
+        next.timeline.cameraTrack.sort((a, b) => a.time - b.time);
         next.meta.modifiedAt = Date.now();
         return next;
       }
-      case 'timeline/updateCameraEvent': {
+
+      case 'timeline/updateCameraKeyframe': {
         const next = ProjectSchema.clone(state);
-        if (!next.timeline.cameraEvents) return state;
-        const idx = next.timeline.cameraEvents.findIndex(e => e.id === action.id);
+        const idx = next.timeline.cameraTrack.findIndex(e => e.id === action.id);
         if (idx < 0) return state;
-        next.timeline.cameraEvents[idx] = { ...next.timeline.cameraEvents[idx], ...action.patch };
-        next.timeline.cameraEvents.sort((a, b) => a.time - b.time);
+        next.timeline.cameraTrack[idx] = { ...next.timeline.cameraTrack[idx], ...action.patch };
+        next.timeline.cameraTrack.sort((a, b) => a.time - b.time);
         next.meta.modifiedAt = Date.now();
         return next;
       }
-      case 'timeline/removeCameraEvent': {
+
+      case 'timeline/removeCameraKeyframe': {
         const next = ProjectSchema.clone(state);
-        if (!next.timeline.cameraEvents) return state;
-        next.timeline.cameraEvents = next.timeline.cameraEvents.filter(e => e.id !== action.id);
+        next.timeline.cameraTrack = next.timeline.cameraTrack.filter(e => e.id !== action.id);
         next.meta.modifiedAt = Date.now();
         return next;
       }
+
+      // Legacy aliases
+      case 'timeline/addCameraEvent':
+        return reduce(state, { ...action, type: 'timeline/addCameraKeyframe' });
+      case 'timeline/updateCameraEvent':
+        return reduce(state, { ...action, type: 'timeline/updateCameraKeyframe' });
+      case 'timeline/removeCameraEvent':
+        return reduce(state, { ...action, type: 'timeline/removeCameraKeyframe' });
+
+      // ── MARKERS ──────────────────────────────────────────
+      case 'timeline/addMarker': {
+        const next = ProjectSchema.clone(state);
+        const id = `mkr_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+        next.timeline.markers.push({
+          id,
+          time: action.time,
+          label: action.label || 'Marker',
+          color: action.color || '#78909c',
+          type: action.markerType || 'custom',
+        });
+        next.timeline.markers.sort((a, b) => a.time - b.time);
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
+
+      case 'timeline/updateMarker': {
+        const next = ProjectSchema.clone(state);
+        const idx = next.timeline.markers.findIndex(m => m.id === action.id);
+        if (idx < 0) return state;
+        next.timeline.markers[idx] = { ...next.timeline.markers[idx], ...action.patch };
+        next.timeline.markers.sort((a, b) => a.time - b.time);
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
+
+      case 'timeline/removeMarker': {
+        const next = ProjectSchema.clone(state);
+        next.timeline.markers = next.timeline.markers.filter(m => m.id !== action.id);
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
+
+      case 'timeline/clearMarkers': {
+        const next = ProjectSchema.clone(state);
+        next.timeline.markers = [];
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
+
+      // ── NODES ────────────────────────────────────────────
       case 'nodes/remove': {
         const next = ProjectSchema.clone(state);
         next.nodes = next.nodes.filter(n => n.id !== action.id);
-        // Remove any events referencing it
-        next.timeline.stateEvents = next.timeline.stateEvents.filter(e => e.nodeId !== action.id);
-        // Remove edges referencing it
+        next.timeline.visualTrack = next.timeline.visualTrack.filter(e => e.nodeId !== action.id);
         next.edges = (next.edges || []).filter(e => e.from !== action.id && e.to !== action.id);
         next.meta.modifiedAt = Date.now();
         return next;
       }
-      case 'graph/addEdge': {
-        const next = ProjectSchema.clone(state);
-        next.edges = next.edges || [];
-        next.edges.push(action.edge);
-        next.meta.modifiedAt = Date.now();
-        return next;
-      }
-      case 'graph/removeEdge': {
-        const next = ProjectSchema.clone(state);
-        next.edges = (next.edges || []).filter(e => e.id !== action.id);
-        next.meta.modifiedAt = Date.now();
-        return next;
-      }
+
       case 'nodes/upsert': {
         const next = ProjectSchema.clone(state);
         const idx = next.nodes.findIndex(n => n.id === action.node.id);
@@ -155,6 +207,22 @@ const ProjectStore = (() => {
         next.meta.modifiedAt = Date.now();
         return next;
       }
+
+      case 'graph/addEdge': {
+        const next = ProjectSchema.clone(state);
+        next.edges = next.edges || [];
+        next.edges.push(action.edge);
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
+
+      case 'graph/removeEdge': {
+        const next = ProjectSchema.clone(state);
+        next.edges = (next.edges || []).filter(e => e.id !== action.id);
+        next.meta.modifiedAt = Date.now();
+        return next;
+      }
+
       default:
         return state;
     }
@@ -172,45 +240,37 @@ const ProjectStore = (() => {
   function undo() {
     if (history.past.length === 0) return;
     const previous = history.past[history.past.length - 1];
-    const past = history.past.slice(0, -1);
-    const future = [history.present].concat(history.future);
-    history = { past, present: previous, future };
+    history = { past: history.past.slice(0, -1), present: previous, future: [history.present].concat(history.future) };
     emit();
   }
 
   function redo() {
     if (history.future.length === 0) return;
     const next = history.future[0];
-    const future = history.future.slice(1);
-    const past = history.past.concat([history.present]);
-    history = { past, present: next, future };
+    history = { past: history.past.concat([history.present]), present: next, future: history.future.slice(1) };
     emit();
   }
 
   // Selectors
-  function getActiveStateEventAtTime(t) {
-    const events = history.present.timeline.stateEvents;
+  function getActiveVisualClipAtTime(t) {
+    const clips = history.present.timeline.visualTrack || [];
     let active = null;
-    for (let i = 0; i < events.length; i++) {
-      if (events[i].time <= t) active = events[i];
+    for (let i = 0; i < clips.length; i++) {
+      if (clips[i].time <= t) active = clips[i];
       else break;
     }
     return active;
   }
+
+  // Legacy alias
+  function getActiveStateEventAtTime(t) { return getActiveVisualClipAtTime(t); }
 
   function getNode(nodeId) {
     return history.present.nodes.find(n => n.id === nodeId) || null;
   }
 
   return {
-    getState,
-    subscribe,
-    dispatch,
-    undo,
-    redo,
-    // selectors
-    getActiveStateEventAtTime,
-    getNode,
+    getState, subscribe, dispatch, undo, redo,
+    getActiveVisualClipAtTime, getActiveStateEventAtTime, getNode,
   };
 })();
-

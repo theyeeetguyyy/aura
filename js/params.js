@@ -1,38 +1,33 @@
 // ============================================================
-// AURA — Parameter System
-// Generic param schema → auto-generated UI controls
+// AURA — Parameter System v2
+// Removed auto-camera params. Added stem reactivity + manual BPM.
 // ============================================================
 
 const ParamSystem = (() => {
-    // Global params applied across all modes
     const globalDefaults = {
+        // Stem Reactivity (maps to frequency bands)
+        stemReactivity_drums: { type: 'range', min: 0, max: 3, default: 1.0, step: 0.05, label: '🥁 Drums Reactivity' },
+        stemReactivity_bass: { type: 'range', min: 0, max: 3, default: 1.0, step: 0.05, label: '🎸 Bass Reactivity' },
+        stemReactivity_mids: { type: 'range', min: 0, max: 3, default: 1.0, step: 0.05, label: '🎹 Mids Reactivity' },
+        stemReactivity_highs: { type: 'range', min: 0, max: 3, default: 1.0, step: 0.05, label: '🎼 Highs Reactivity' },
+
+        // Global visual controls
         reactivity: { type: 'range', min: 0, max: 5, default: 1.0, step: 0.05, label: '⚡ Reactivity' },
         smoothing: { type: 'range', min: 0, max: 0.99, default: 0.75, step: 0.01, label: '〰️ Smoothing' },
-        screenShake: { type: 'range', min: 0, max: 5, default: 0.4, step: 0.1, label: '💥 Screen Shake' },
-        beatFlash: { type: 'range', min: 0, max: 3, default: 0.4, step: 0.1, label: '⚡ Beat Flash' },
-        zoomPunch: { type: 'range', min: 0, max: 3, default: 0.3, step: 0.1, label: '🔍 Zoom Punch' },
+        screenShake: { type: 'range', min: 0, max: 5, default: 0.0, step: 0.1, label: '💥 Screen Shake' },
+        beatFlash: { type: 'range', min: 0, max: 3, default: 0.0, step: 0.1, label: '⚡ Beat Flash' },
+        zoomPunch: { type: 'range', min: 0, max: 3, default: 0.0, step: 0.1, label: '🔍 Zoom Punch' },
+
+        // Post-processing
+        postProcessing: { type: 'toggle', default: false, label: '🎬 Post Processing' },
         bloomIntensity: { type: 'range', min: 0, max: 3, default: 0.5, step: 0.1, label: '✨ Bloom Intensity' },
         bloomThreshold: { type: 'range', min: 0, max: 1, default: 0.35, step: 0.05, label: '🔆 Bloom Threshold' },
         bloomRadius: { type: 'range', min: 0, max: 2, default: 0.8, step: 0.1, label: '🌫️ Bloom Radius' },
         chromaticAberration: { type: 'range', min: 0, max: 0.05, default: 0.0, step: 0.001, label: '🌈 Chromatic Aberration' },
         filmGrain: { type: 'range', min: 0, max: 0.5, default: 0.02, step: 0.01, label: '🎞️ Film Grain' },
         glitchIntensity: { type: 'range', min: 0, max: 1.0, default: 0.0, step: 0.05, label: '📺 Glitch Intensity' },
-        cinematicCamera: { type: 'toggle', default: true, label: '🎥 Cinematic Auto-Cam' },
-        cameraIntent: { 
-            type: 'select', 
-            options: ['auto', 'neutral', 'oppressive', 'violent', 'dreamlike', 'claustrophobic', 'hover'],
-            default: 'auto',
-            label: '🎥 Camera Intent'
-        },
-        cameraPosX: { type: 'range', min: -500, max: 500, default: 0, step: 1, label: 'Camera X' },
-        cameraPosY: { type: 'range', min: -500, max: 500, default: 0, step: 1, label: 'Camera Y' },
-        cameraPosZ: { type: 'range', min: 0, max: 1500, default: 100, step: 1, label: 'Camera Z' },
-        cameraRotX: { type: 'range', min: -3.14, max: 3.14, default: 0, step: 0.01, label: 'Camera Pitch' },
-        cameraRotY: { type: 'range', min: -3.14, max: 3.14, default: 0, step: 0.01, label: 'Camera Yaw' },
-        cameraRotZ: { type: 'range', min: -3.14, max: 3.14, default: 0, step: 0.01, label: 'Camera Roll' },
-        cameraAutoRotate: { type: 'toggle', default: false, label: 'Auto Rotate Camera' },
-        cameraRotateSpeed: { type: 'range', min: 0, max: 5, default: 0.3, step: 0.1, label: 'Rotate Speed' },
-        postProcessing: { type: 'toggle', default: false, label: 'Post Processing' },
+
+        // Display
         liveUIMapping: { type: 'toggle', default: true, label: 'Live UI Slider Sync' },
         backgroundColor: { type: 'color', default: '#000000', label: 'Background' },
         colorPalette: {
@@ -49,16 +44,13 @@ const ParamSystem = (() => {
         }
     };
 
-    // Current values
     let globalValues = {};
     let modeValues = {};
     let currentModeSchema = {};
-    let paramMappings = {}; // { paramKey: { band: 'sub', amount: 1.0, type: 'mode'|'global' } }
+    let paramMappings = {};
 
-    // 2.2: Pre-allocated color cache for hot-path getColorThreeHSL
-    let _cachedColor = null; // initialized lazily after THREE is available
+    let _cachedColor = null;
 
-    // Palette definitions (HSL arrays)
     const palettes = {
         rainbow: (t) => `hsl(${t * 360}, 85%, 60%)`,
         fire: (t) => `hsl(${t * 60}, 100%, ${40 + t * 30}%)`,
@@ -69,7 +61,7 @@ const ParamSystem = (() => {
         cyberpunk: (t) => `hsl(${280 + t * 100}, 100%, ${40 + t * 30}%)`,
         aurora: (t) => `hsl(${120 + t * 120}, 80%, ${40 + t * 30}%)`,
         sunset: (t) => `hsl(${t * 40 + 10}, 90%, ${45 + t * 25}%)`,
-        synthwave: (t) => `hsl(${300 + t * 60}, 100%, ${35 + t * 35}%)`  // 1.8: Distinct purple-pink gradient
+        synthwave: (t) => `hsl(${300 + t * 60}, 100%, ${35 + t * 35}%)`
     };
 
     function getColor(t, palette) {
@@ -81,26 +73,18 @@ const ParamSystem = (() => {
     function getColorHSL(t, palette) {
         const p = palette || globalValues.colorPalette || 'cyberpunk';
         const hueMap = {
-            rainbow: t * 360,
-            fire: t * 60,
-            ocean: 180 + t * 60,
-            neon: 280 + t * 80,
-            pastel: t * 360,
-            monochrome: 0,
-            cyberpunk: 280 + t * 100,
-            aurora: 120 + t * 120,
-            sunset: t * 40 + 10,
-            synthwave: 300 + t * 60
+            rainbow: t * 360, fire: t * 60, ocean: 180 + t * 60, neon: 280 + t * 80,
+            pastel: t * 360, monochrome: 0, cyberpunk: 280 + t * 100,
+            aurora: 120 + t * 120, sunset: t * 40 + 10, synthwave: 300 + t * 60
         };
         return { h: hueMap[p] || t * 360, s: 0.85, l: 0.55 };
     }
 
-    // 2.2: Reuse cached THREE.Color to avoid GC pressure
     function getColorThreeHSL(t, palette) {
         const hsl = getColorHSL(t, palette);
         if (!_cachedColor) _cachedColor = new THREE.Color();
         _cachedColor.setHSL(hsl.h / 360, hsl.s, hsl.l);
-        return _cachedColor; // Caller must clone if storing: color.clone()
+        return _cachedColor;
     }
 
     function getColorThree(t, palette) {
@@ -135,20 +119,11 @@ const ParamSystem = (() => {
         }
     }
 
-    function getAllMode() {
-        return { ...modeValues };
-    }
-
-    function getAllGlobal() {
-        return { ...globalValues };
-    }
+    function getAllMode() { return { ...modeValues }; }
+    function getAllGlobal() { return { ...globalValues }; }
 
     function exportPreset() {
-        return JSON.stringify({ 
-            global: globalValues, 
-            mode: modeValues,
-            mappings: paramMappings
-        }, null, 2);
+        return JSON.stringify({ global: globalValues, mode: modeValues, mappings: paramMappings }, null, 2);
     }
 
     function importPreset(json) {
@@ -164,7 +139,6 @@ const ParamSystem = (() => {
         }
     }
 
-    // Random parameter exploration
     function randomize() {
         for (const [key, schema] of Object.entries(currentModeSchema)) {
             if (schema.type === 'range') {
@@ -186,20 +160,12 @@ const ParamSystem = (() => {
     }
 
     function setMapping(key, band, amount, type) {
-        if (!band || amount === 0) {
-            delete paramMappings[key];
-            return;
-        }
+        if (!band || amount === 0) { delete paramMappings[key]; return; }
         paramMappings[key] = { band, amount, type: type || 'mode' };
     }
 
-    function getMapping(key) {
-        return paramMappings[key];
-    }
-
-    function getMappings() {
-        return paramMappings;
-    }
+    function getMapping(key) { return paramMappings[key]; }
+    function getMappings() { return paramMappings; }
 
     initGlobals();
 
@@ -208,23 +174,10 @@ const ParamSystem = (() => {
         globalValues,
         get currentModeSchema() { return currentModeSchema; },
         get modeValues() { return modeValues; },
-        getColor,
-        getColorHSL,
-        getColorThree,
-        getColorThreeHSL,
-        initGlobals,
-        setModeSchema,
-        get,
-        set,
-        getAllMode,
-        getAllGlobal,
-        exportPreset,
-        importPreset,
-        randomize,
-        palettes,
-        setMapping,
-        getMapping,
-        getMappings,
-        handleModeChange
+        getColor, getColorHSL, getColorThree, getColorThreeHSL,
+        initGlobals, setModeSchema, get, set,
+        getAllMode, getAllGlobal,
+        exportPreset, importPreset, randomize,
+        palettes, setMapping, getMapping, getMappings, handleModeChange
     };
 })();

@@ -48,9 +48,12 @@ const Recorder = (() => {
             ext = 'webm';
         }
 
+        const qualityEl = document.getElementById('settings-export-quality');
+        const videoBitsPerSecond = qualityEl ? parseInt(qualityEl.value) || 100000000 : 100000000;
+
         mediaRecorder = new MediaRecorder(combinedStream, {
             mimeType,
-            videoBitsPerSecond: 100000000, // 100 Mbps for 4K-ready sharpness
+            videoBitsPerSecond,
             audioBitsPerSecond: 320000 // 320 kbps for studio audio quality
         });
 

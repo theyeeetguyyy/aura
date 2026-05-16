@@ -74,8 +74,7 @@ const UI = (() => {
 
         openBtn.addEventListener('click', () => {
             if (liveMap) liveMap.checked = !!ParamSystem.get('liveUIMapping');
-            if (bpmAuto) bpmAuto.checked = !!AudioEngine.audioBus.autoBpm;
-            if (bpmManual) bpmManual.value = String(AudioEngine.audioBus.manualBpm || 140);
+            if (bpmManual) bpmManual.value = String(AudioEngine.audioBus.bpm || 140);
             if (followTimeline && typeof ProjectStore !== 'undefined') {
                 const p = ProjectStore.getState();
                 followTimeline.checked = !!(p.editor && p.editor.followTimeline);
@@ -160,18 +159,26 @@ const UI = (() => {
         // 4.10: Create REC overlay
         createRecOverlay();
 
-        if (bpmAuto) {
-            bpmAuto.addEventListener('change', () => {
-                if (AudioEngine.setAutoBpm) AudioEngine.setAutoBpm(bpmAuto.checked);
-            });
-        }
         if (bpmManual) {
             bpmManual.addEventListener('change', () => {
-                const v = Math.max(60, Math.min(220, Number(bpmManual.value || 140)));
+                const v = Math.max(40, Math.min(300, Number(bpmManual.value || 140)));
                 bpmManual.value = String(v);
-                if (AudioEngine.setManualBpm) AudioEngine.setManualBpm(v);
+                AudioEngine.setManualBpm(v);
             });
         }
+
+        // Tap BPM
+        const tapBtn = document.getElementById('btn-tap-bpm');
+        if (tapBtn) {
+            tapBtn.addEventListener('click', () => {
+                const newBpm = AudioEngine.tapBPM ? AudioEngine.tapBPM() : null;
+                if (newBpm && bpmManual) bpmManual.value = String(newBpm);
+            });
+        }
+
+        // Screenshot button
+        const ssBtn = document.getElementById('btn-screenshot');
+        if (ssBtn) ssBtn.addEventListener('click', () => screenshot());
     }
 
     function updatePlayButton() {
@@ -245,10 +252,8 @@ const UI = (() => {
     // ── File Import ────────────────────────────────────────
     function setupFileImport() {
         const fileInput = document.getElementById('file-input');
-        const importBtn = document.getElementById('btn-import');
 
-        importBtn.addEventListener('click', () => fileInput.click());
-
+        // Single-file change handler
         fileInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (file) await handleFile(file);
@@ -567,31 +572,48 @@ const UI = (() => {
             container.insertBefore(inspector, container.firstChild);
         }
         
-        const v = evt.val || { pos: { x: 0, y: 0, z: 100 }, rot: { x: Math.PI / 2, y: 0, z: 0 }, fov: 75 };
+        const v = evt.val || { pos: { x: 0, y: 0, z: 100 }, lookAt: { x: 0, y: 0, z: 0 }, fov: 75 };
         
         inspector.innerHTML = `
             <h3 class="param-section-title inspector-title">Camera Keyframe</h3>
             <div class="param-control">
-                <div class="param-row">
-                    <label>Orbit Theta (Y-Rot)</label>
-                    <input type="number" id="cam-theta" value="${parseFloat(v.rot.y || 0).toFixed(3)}" step="0.1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                <div style="display:flex; gap:4px; margin-bottom:8px;">
+                    <div style="flex:1;">
+                        <label style="font-size:10px;color:#aaa;">Pos X</label>
+                        <input type="number" id="cam-px" value="${parseFloat(v.pos.x || 0).toFixed(1)}" step="5" class="inspector-input" style="width:100%; padding:4px;" />
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:10px;color:#aaa;">Pos Y</label>
+                        <input type="number" id="cam-py" value="${parseFloat(v.pos.y || 0).toFixed(1)}" step="5" class="inspector-input" style="width:100%; padding:4px;" />
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:10px;color:#aaa;">Pos Z</label>
+                        <input type="number" id="cam-pz" value="${parseFloat(v.pos.z || 100).toFixed(1)}" step="5" class="inspector-input" style="width:100%; padding:4px;" />
+                    </div>
                 </div>
-                <div class="param-row">
-                    <label>Orbit Phi (X-Rot)</label>
-                    <input type="number" id="cam-phi" value="${parseFloat(v.rot.x || 0).toFixed(3)}" step="0.1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
-                </div>
-                <div class="param-row">
-                    <label>Radius (Z-Dist)</label>
-                    <input type="number" id="cam-radius" value="${parseFloat(v.pos.z || 100).toFixed(1)}" step="5" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                <div style="display:flex; gap:4px; margin-bottom:8px;">
+                    <div style="flex:1;">
+                        <label style="font-size:10px;color:#aaa;">Target X</label>
+                        <input type="number" id="cam-tx" value="${parseFloat(v.lookAt.x || 0).toFixed(1)}" step="5" class="inspector-input" style="width:100%; padding:4px;" />
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:10px;color:#aaa;">Target Y</label>
+                        <input type="number" id="cam-ty" value="${parseFloat(v.lookAt.y || 0).toFixed(1)}" step="5" class="inspector-input" style="width:100%; padding:4px;" />
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:10px;color:#aaa;">Target Z</label>
+                        <input type="number" id="cam-tz" value="${parseFloat(v.lookAt.z || 0).toFixed(1)}" step="5" class="inspector-input" style="width:100%; padding:4px;" />
+                    </div>
                 </div>
                 <div class="param-row">
                     <label>FOV</label>
-                    <input type="number" id="cam-fov" value="${parseFloat(v.fov || 75).toFixed(1)}" step="1" class="inspector-input" style="width: 60px; background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;" />
+                    <input type="number" id="cam-fov" value="${parseFloat(v.fov || 75).toFixed(1)}" step="1" class="inspector-input" style="width: 60px;" />
                 </div>
                 <div class="param-row">
                     <label>Easing</label>
-                    <select id="cam-easing" class="inspector-select" style="background: rgba(0,0,0,0.5); color: white; border: 1px solid #333; padding: 4px;">
+                    <select id="cam-easing" class="inspector-select">
                         <option value="easeInOutCubic" ${evt.easing === 'easeInOutCubic' ? 'selected' : ''}>Smooth (Cubic)</option>
+                        <option value="catmullRom" ${evt.easing === 'catmullRom' ? 'selected' : ''}>Spline (Catmull-Rom)</option>
                         <option value="linear" ${evt.easing === 'linear' ? 'selected' : ''}>Linear</option>
                         <option value="easeOutExpo" ${evt.easing === 'easeOutExpo' ? 'selected' : ''}>Punch (EaseOut)</option>
                         <option value="step" ${evt.easing === 'step' ? 'selected' : ''}>Beat Jump (Step)</option>
@@ -605,57 +627,64 @@ const UI = (() => {
         
         const dispatchUpdate = () => {
             if (typeof ProjectStore !== 'undefined') {
-                const theta = parseFloat(document.getElementById('cam-theta').value);
-                const phi = parseFloat(document.getElementById('cam-phi').value);
-                const radius = parseFloat(document.getElementById('cam-radius').value);
-                const fov = parseFloat(document.getElementById('cam-fov').value);
+                const px = parseFloat(document.getElementById('cam-px').value) || 0;
+                const py = parseFloat(document.getElementById('cam-py').value) || 0;
+                const pz = parseFloat(document.getElementById('cam-pz').value) || 0;
+                const tx = parseFloat(document.getElementById('cam-tx').value) || 0;
+                const ty = parseFloat(document.getElementById('cam-ty').value) || 0;
+                const tz = parseFloat(document.getElementById('cam-tz').value) || 0;
+                const fov = parseFloat(document.getElementById('cam-fov').value) || 75;
                 
                 ProjectStore.dispatch({ 
-                    type: 'timeline/updateCameraEvent', 
+                    type: 'timeline/updateCameraKeyframe', 
                     id: evt.id, 
                     patch: { 
                         val: {
-                            pos: { x: 0, y: 0, z: radius },
-                            rot: { x: phi, y: theta, z: 0 },
+                            pos: { x: px, y: py, z: pz },
+                            lookAt: { x: tx, y: ty, z: tz },
                             fov: fov
                         }
                     } 
                 });
                 
-                // Immediately apply to visualize
-                if (typeof VisualEngine !== 'undefined') {
-                    VisualEngine.setOrbitState({ orbitTheta: theta, orbitPhi: phi, orbitRadius: radius, fov: fov });
+                // Timeline will auto-evaluate if follow mode is on.
+                if (typeof VisualEngine !== 'undefined' && VisualEngine.applyStudioStateAtTime && AudioEngine?.audioBus) {
+                    VisualEngine.applyStudioStateAtTime(AudioEngine.audioBus.currentTime || 0);
                 }
             }
         };
 
-        document.getElementById('cam-theta').addEventListener('change', dispatchUpdate);
-        document.getElementById('cam-phi').addEventListener('change', dispatchUpdate);
-        document.getElementById('cam-radius').addEventListener('change', dispatchUpdate);
-        document.getElementById('cam-fov').addEventListener('change', dispatchUpdate);
+        ['cam-px', 'cam-py', 'cam-pz', 'cam-tx', 'cam-ty', 'cam-tz', 'cam-fov'].forEach(id => {
+            document.getElementById(id).addEventListener('change', dispatchUpdate);
+        });
         
         document.getElementById('cam-easing').addEventListener('change', (e) => {
             if (typeof ProjectStore !== 'undefined') {
-                ProjectStore.dispatch({ type: 'timeline/updateCameraEvent', id: evt.id, patch: { easing: e.target.value } });
+                ProjectStore.dispatch({ type: 'timeline/updateCameraKeyframe', id: evt.id, patch: { easing: e.target.value } });
             }
         });
         
         document.getElementById('cam-btn-update').addEventListener('click', () => {
             if (typeof VisualEngine !== 'undefined' && typeof ProjectStore !== 'undefined') {
-                const cam = VisualEngine.getOrbitState();
+                const cam = VisualEngine.camera;
+                // Forward vector for lookAt
+                const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+                const lookAt = cam.position.clone().add(dir.multiplyScalar(100));
+                
                 ProjectStore.dispatch({ 
-                    type: 'timeline/updateCameraEvent', 
+                    type: 'timeline/updateCameraKeyframe', 
                     id: evt.id, 
                     patch: { 
                         val: {
-                            pos: { x: 0, y: 0, z: cam.orbitRadius },
-                            rot: { x: cam.orbitPhi, y: cam.orbitTheta, z: 0 },
+                            pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
+                            lookAt: { x: lookAt.x, y: lookAt.y, z: lookAt.z },
                             fov: cam.fov
                         }
                     } 
                 });
                 // Re-render inspector
-                buildCameraInspector(ProjectStore.getState().timeline.cameraEvents.find(e => e.id === evt.id));
+                const list = ProjectStore.getState().timeline.cameraTrack || ProjectStore.getState().timeline.cameraEvents;
+                buildCameraInspector(list.find(e => e.id === evt.id));
             }
         });
     }
@@ -989,8 +1018,8 @@ const UI = (() => {
                 case 'KeyM':
                     addMarkerAtCurrentTime();
                     break;
-                case 'KeyD': {
-                    // 5.9: Toggle debug HUD
+                case 'Backquote': {
+                    // ` = Toggle debug HUD (remapped from D to avoid WASD conflict)
                     debugHUDVisible = !debugHUDVisible;
                     if (_debugHUD) _debugHUD.style.display = debugHUDVisible ? 'block' : 'none';
                     break;

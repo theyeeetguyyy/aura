@@ -61,23 +61,24 @@ const AudioEngine = (() => {
 
     let _tapTimes = [];
 
-    // ── v3: Structure analysis state ──
-    let volumeLevel = 1.0;
+    // Manual BPM only — no auto-detection
+    let manualBpm = 140;
+    let autoBpm = false; // always false — kept for legacy code paths
+    let beatTimes = [];
+    let estimatedBPM = 140;
+
+    // Section awareness state
     let prevSectionType = null;
-    let sectionTransitionTime = 0;
-    let transitionFade = 0;
-    let anticipation = 0;
-    let sectionDuration = 0;
     let sectionStartTime = 0;
+    let sectionTransitionTime = 0;
+    let transitionFade = 1;
+    let anticipation = 0;
+    let volumeLevel = 0.8;
+
+    // Event tracking state (used in reset + section awareness)
     let prevDropSectionActive = false;
     let prevScreechDetected = false;
     let prevSirenActive = false;
-
-    // BPM estimation
-    let beatTimes = [];
-    let estimatedBPM = 140;
-    let autoBpm = true;
-    let manualBpm = 140;
 
     // Spectral analysis
     let spectralFlatness = 0;
@@ -220,24 +221,7 @@ const AudioEngine = (() => {
         modulationDepth: 0,       // amplitude modulation / tremolo (0-1)
         microVariation: 0,        // frame-to-frame jitter index (0-1)
 
-        // ── v3: Structure-aware data ──
-        sectionType: null,
-        sectionIntensity: 1.0,
-        sectionProgress: 0,
-        isHighEnergy: false,
-        isCalm: false,
-        isBuildingUp: false,
-        isBreakdown: false,
-
-        // Anticipation
-        anticipation: 0,
-        transitionFade: 0,
-
-        // Volume-weighted intensity
-        volumeScale: 1.0,
-        masterIntensity: 1.0,
-
-        // BPM
+        // BPM (manual only)
         bpm: 140,
         beatPhase: 0,
 
@@ -252,30 +236,21 @@ const AudioEngine = (() => {
         duration: 0,
         loaded: false,
 
-        // Section effects from markers (populated by updateSectionAwareness)
+        // Backward compat stubs (modes may read these; always false/neutral now)
         sectionEffects: { shake: 1, flash: 1, zoom: 1, bloom: 1, speed: 1, particleScale: 1, displacementScale: 1 },
-        colorTemp: 'neutral',
-        sectionChanged: false,
-        prevSectionType: null,
-
-        // Drop chaos state (from markers)
         isDropSection: false,
         dropSectionIntensity: 0,
-
-        // Tearout-specific detectors
+        isHighEnergy: false,
+        masterIntensity: 1.0,
         gunShotDetected: false,
         gunShotIntensity: 0,
-        gunShotDecay: 0,
-        sirenRising: 0,
-        sirenFalling: 0,
-        sirenIntensity: 0,
-        sirenFrequency: 0,
         screechDetected: false,
         screechIntensity: 0,
-        screechPitch: 0,
         subSustain: 0,
         hasSustainedBass: false,
-        subSustainPeak: 0
+        wobbleLFO: 0,
+        sirenRising: 0,
+        sirenIntensity: 0,
     };
 
     // Band ranges (fftSize=4096, sampleRate=44100, bin ≈ 10.77 Hz)
@@ -1272,12 +1247,14 @@ const AudioEngine = (() => {
         const intensity = MarkerSystem.getSectionIntensity();
 
         // Section state
-        audioBus.sectionType = section ? section.type : null;
+        audioBus.sectionType      = section ? section.type : null;
         audioBus.sectionIntensity = intensity;
-        audioBus.isHighEnergy = section ? section.intensity >= 1.0 : false;
-        audioBus.isCalm = section ? section.intensity <= 0.5 : false;
-        audioBus.isBuildingUp = section ? section.type === 'buildup' : false;
-        audioBus.isBreakdown = section ? section.type === 'breakdown' : false;
+        audioBus.isHighEnergy     = intensity >= 1.0;
+        audioBus.isCalm           = intensity <= 0.5;
+        audioBus.isBuildingUp     = section ? section.type === 'buildup' : false;
+        audioBus.isFill           = section ? section.type === 'fill'    : false;
+        audioBus.isFakeout        = section ? section.type === 'fakeout' : false;
+        audioBus.isDrop           = (audioBus.isDrop || false); // kept from beat detection
 
         // Track section changes + one-shot sectionChanged flag
         const currentType = section ? section.type : null;
@@ -1367,11 +1344,12 @@ const AudioEngine = (() => {
         audioBus.currentTime = audioElement ? audioElement.currentTime : 0;
         audioBus.isPlaying = audioElement ? !audioElement.paused : false;
 
+        // Always use manual BPM
+        audioBus.bpm = manualBpm;
+
         analyser.getByteFrequencyData(freqData);
         analyser.getByteTimeDomainData(timeData);
 
-        // Manual BPM override
-        if (!autoBpm) audioBus.bpm = manualBpm;
 
         // Core analysis (v3) — runs every frame
         computeBands();
@@ -1410,25 +1388,6 @@ const AudioEngine = (() => {
             if (audioBus.beat) AuraEvents.emitBeat(audioBus.beatIntensity || 0, audioBus.bpm || 0, eventTime);
             if (audioBus.bassBeat) AuraEvents.emitBassImpact(audioBus.bassBeatIntensity || 0, eventTime);
             if (audioBus.onsetDetected) AuraEvents.emitOnset(audioBus.onsetStrength || 0, eventTime);
-            if (audioBus.gunShotDetected) AuraEvents.emitGunshot(audioBus.gunShotIntensity || 0, eventTime);
-            if (audioBus.sectionChanged) {
-                AuraEvents.emitSectionChange(audioBus.sectionType || '', eventTime, audioBus.sectionEffects || null);
-            }
-            if (audioBus.isDropSection && !prevDropSectionActive) {
-                AuraEvents.emitDropEnter(audioBus.dropSectionIntensity || audioBus.dropIntensity || 0, eventTime, audioBus.dropSectionIntensity || 0);
-            } else if (!audioBus.isDropSection && prevDropSectionActive) {
-                AuraEvents.emitDropExit(eventTime);
-            }
-            if (audioBus.screechDetected && !prevScreechDetected) {
-                AuraEvents.emitScreech(audioBus.screechIntensity || 0, eventTime);
-            }
-            const sirenActive = (audioBus.sirenIntensity || 0) > 0.2;
-            if (sirenActive && !prevSirenActive) {
-                AuraEvents.emitSiren(audioBus.sirenIntensity || 0, eventTime);
-            }
-            prevDropSectionActive = !!audioBus.isDropSection;
-            prevScreechDetected = !!audioBus.screechDetected;
-            prevSirenActive = sirenActive;
         }
     }
 
@@ -1454,23 +1413,27 @@ const AudioEngine = (() => {
         return manualBpm;
     }
 
+    // Stem reactivity scaling — multiply band energy by user's reactivity slider
+    function getReactivity(band) {
+        const energy = audioBus.smoothBands[band] || 0;
+        const stemMap = {
+            sub: 'stemReactivity_drums', bass: 'stemReactivity_bass',
+            lowMid: 'stemReactivity_mids', mid: 'stemReactivity_mids',
+            highMid: 'stemReactivity_highs', treble: 'stemReactivity_highs',
+            brilliance: 'stemReactivity_highs',
+        };
+        const sliderKey = stemMap[band];
+        const scale = (sliderKey && typeof ParamSystem !== 'undefined') ? (ParamSystem.get(sliderKey) || 1.0) : 1.0;
+        return energy * scale;
+    }
+
     return {
-        init,
-        loadFile,
-        play,
-        pause,
-        togglePlay,
-        seek,
-        seekRelative,
-        setVolume,
-        getVolume,
-        getAudioStream,
-        toggleLoop,
-        isLooping,
-        setAutoBpm,
-        setManualBpm,
-        update,
+        init, loadFile, play, pause, togglePlay,
+        seek, seekRelative, setVolume, getVolume, getAudioStream,
+        toggleLoop, isLooping,
+        setManualBpm(bpm) { manualBpm = Math.max(40, Math.min(300, Math.round(Number(bpm) || 140))); audioBus.bpm = manualBpm; return manualBpm; },
         tapBPM,
+        update, getReactivity,
         audioBus,
         get audioElement() { return audioElement; },
         get context() { return ctx; }

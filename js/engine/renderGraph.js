@@ -216,30 +216,9 @@ const RenderGraph = (() => {
             bloomStrength += (audioBus.bassBeatIntensity || 0) * 0.3 * masterInt;
         }
 
-        // Cinematic Overrides from Orchestrator / Director
-        let orchBloomScale = 1.0;
-        if (typeof SceneOrchestrator !== 'undefined') {
-            orchBloomScale = SceneOrchestrator.getBloomScale();
-            const state = SceneOrchestrator.getCurrentState();
-            
-            // Tension state: increase grain and CA
-            if (state === SceneOrchestrator.STATES.TENSION) {
-                grainAmount += 0.05;
-                caAmount += 0.005;
-            }
-            
-            // Drop state: extreme bloom and slight glitch
-            if (state === SceneOrchestrator.STATES.DROP) {
-                if (audioBus && audioBus.bassBeat) {
-                    glitchAmount = (audioBus.bassBeatIntensity || 0) * 0.5;
-                    caAmount += (audioBus.bassBeatIntensity || 0) * 0.02;
-                }
-            }
-        }
-
         // Apply uniforms
         if (_bloomPass) {
-            _bloomPass.strength = Math.min(2.5, bloomStrength * orchBloomScale);
+            _bloomPass.strength = Math.min(2.5, bloomStrength);
             _bloomPass.radius = bloomRadius;
             _bloomPass.threshold = bloomThreshold;
         }

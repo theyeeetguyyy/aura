@@ -33,22 +33,35 @@
     <!-- THREE.JS CANVAS -->
     <canvas id="aura-canvas"></canvas>
 
-    <!-- DROP ZONE / WELCOME -->
+    <!-- IMPORT LANDING -->
     <div id="drop-zone">
         <div class="drop-content">
             <div class="drop-icon">🎵</div>
-            <h1 class="drop-title">AURA</h1>
-            <p class="drop-subtitle">Drop your music file here or click import</p>
-            <button id="btn-import" aria-label="Import Audio File">Import Audio</button>
-            <p class="drop-formats">Supports MP3, WAV, FLAC, OGG, M4A, AAC</p>
+            <h1 class="drop-title">AURA Studio</h1>
+            <p class="drop-subtitle">Choose how you want to import your audio</p>
+            <div class="import-mode-cards">
+                <div class="import-card" id="btn-import-single">
+                    <div class="import-card-icon">🎧</div>
+                    <div class="import-card-title">Single File</div>
+                    <div class="import-card-desc">Drop or pick one audio file — MP3, WAV, FLAC, OGG, M4A</div>
+                </div>
+                <div class="import-card" id="btn-import-stems">
+                    <div class="import-card-icon">🎛️</div>
+                    <div class="import-card-title">Stems</div>
+                    <div class="import-card-desc">Upload individual stems (drums, bass, mids, highs) for per-band control</div>
+                </div>
+            </div>
             <p id="loading-text"></p>
         </div>
-        <!-- LARGE CREATOR TAG (INTRO SCREEN) -->
         <div class="creator-tag-intro">made by theyeetguy</div>
     </div>
 
-    <!-- HIDDEN FILE INPUT -->
+    <!-- HIDDEN FILE INPUTS -->
     <input type="file" id="file-input" accept=".mp3,.wav,.ogg,.flac,.m4a,.aac,.wma">
+    <input type="file" id="stem-file-drums" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
+    <input type="file" id="stem-file-bass" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
+    <input type="file" id="stem-file-mids" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
+    <input type="file" id="stem-file-highs" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
 
     <!-- PANEL TOGGLE BUTTONS -->
     <button class="panel-toggle" id="btn-modes" title="Modes (Tab)">◆</button>
@@ -126,61 +139,92 @@
     <!-- NLE TIMELINE DOCK -->
     <div id="timeline-dock" class="timeline-dock">
         <div class="timeline-toprow">
-            <!-- Left: Playback & Info -->
-            <div class="timeline-group">
-                <button class="transport-btn" id="btn-play" title="Play/Pause (Space)">▶</button>
-                <button class="transport-btn loop-btn" id="btn-loop" title="Loop (L)">🔁</button>
+
+            <!-- LEFT GROUP: Playback -->
+            <div class="timeline-group tg-play">
+                <button class="transport-btn" id="btn-play" title="Play / Pause (Space)">▶</button>
+                <button class="transport-btn small-btn loop-btn" id="btn-loop" title="Loop (L)">🔁</button>
                 <div class="timeline-time-info">
                     <span id="time-display">0:00 / 0:00</span>
                     <span id="bpm-display" class="bpm-badge">-- BPM</span>
                 </div>
             </div>
 
-            <!-- Middle: Timeline Tools & Actions -->
-            <div class="timeline-group timeline-actions center">
-                <button class="timeline-btn" id="btn-follow-timeline" title="Follow Playhead">Follow</button>
-                <div class="divider"></div>
-                <button class="timeline-btn action-btn" id="btn-add-state" title="Add State">＋ State</button>
-                <button class="timeline-btn action-btn" id="btn-add-camera" title="Add Camera Keyframe">＋ Cam KF</button>
-                <div class="divider"></div>
-                <select id="marker-type-select" class="timeline-marker-type" aria-label="Marker Type">
-                    <option value="intro">🎵 Intro</option>
-                    <option value="verse">🎤 Verse</option>
-                    <option value="buildup" selected>📈 Build-up</option>
-                    <option value="drop">💥 DROP</option>
-                    <option value="breakdown">🌀 Breakdown</option>
-                    <option value="climax">⚡ Climax</option>
-                    <option value="outro">🎬 Outro</option>
-                </select>
-                <button class="timeline-btn action-btn" id="btn-add-marker-tl" title="Add Marker (M)">＋ Mark</button>
-                <button class="timeline-btn" id="btn-clear-markers-tl" title="Clear Markers">Clear</button>
+            <div class="tg-divider"></div>
+
+            <!-- CAMERA GROUP: Camera Mode -->
+            <div class="timeline-group tg-camera">
+                <span class="tg-label">CAM</span>
+                <button class="pmt-btn active" id="pmt-orbit" title="Orbit — mouse drag to rotate">⊙ Orbit</button>
+                <button class="pmt-btn" id="pmt-move" title="Free Move — WASD to fly">✈ Move</button>
+                <button class="pmt-btn" id="pmt-follow" title="Follow — camera follows keyframe timeline">⏵ Follow</button>
             </div>
 
-            <!-- Right: System & Record -->
-            <div class="timeline-group right">
+            <div class="tg-divider"></div>
+
+            <!-- TRACK GROUP: Add to Timeline -->
+            <div class="timeline-group tg-tracks">
+                <span class="tg-label">ADD</span>
+                <button class="timeline-btn action-btn" id="btn-add-state" title="Capture current visual state at playhead">＋ State</button>
+                <button class="timeline-btn action-btn" id="btn-add-camera" title="Capture current camera position as keyframe">📷 Cam KF</button>
+                <div class="tg-divider-thin"></div>
+                <select id="marker-type-select" class="timeline-marker-type" aria-label="Marker Type">
+                    <option value="intro">🌅 Intro</option>
+                    <option value="buildup" selected>📈 Build-up</option>
+                    <option value="fakeout">🎭 Fakeout</option>
+                    <option value="drop">💥 DROP</option>
+                    <option value="fill">🔥 Fill</option>
+                    <option value="outro">🌙 Outro</option>
+                </select>
+
+                <button class="timeline-btn action-btn" id="btn-add-marker-tl" title="Add Marker at playhead (M)">＋ Mark</button>
+                <button class="timeline-btn danger-btn" id="btn-clear-markers-tl" title="Clear all markers">✕ Clear</button>
+            </div>
+
+            <!-- SPACER -->
+            <div class="tg-spacer"></div>
+
+            <!-- RIGHT GROUP: System -->
+            <div class="timeline-group tg-system">
                 <div class="volume-mini">
                     <span class="volume-icon">🔊</span>
                     <input type="range" id="vol-bar" min="0" max="100" value="80" title="Volume">
                 </div>
-                <div class="divider"></div>
-                <button class="transport-btn small-btn" id="btn-record" title="Record (R)">⏺</button>
-                <button class="transport-btn small-btn" id="btn-flash" title="Beat Flash (F)">⚡</button>
+                <div class="tg-divider"></div>
+                <button class="transport-btn small-btn" id="btn-record" title="Record video (R)">⏺</button>
+                <button class="transport-btn small-btn" id="btn-flash" title="Beat Flash toggle (F)">⚡</button>
                 <button class="transport-btn small-btn" id="btn-screenshot" title="Screenshot (Ctrl+S)">📸</button>
-                <div class="divider"></div>
-                <button class="timeline-btn" id="btn-save-project" title="Save Project">💾</button>
-                <button class="timeline-btn" id="btn-load-project" title="Load Project">📂</button>
+                <div class="tg-divider"></div>
+                <button class="timeline-btn icon-btn" id="btn-save-project" title="Save Project">💾</button>
+                <button class="timeline-btn icon-btn" id="btn-load-project" title="Load Project">📂</button>
                 <input type="file" id="project-file-input" accept=".json,.aura.json" style="display:none" />
-                <button class="timeline-btn" id="btn-toggle-timeline" title="Toggle List">▾</button>
+                <button class="timeline-btn icon-btn" id="btn-toggle-timeline" title="Toggle Details Panel">▾ Details</button>
             </div>
         </div>
         <div class="timeline-bar-wrapper" id="timeline-bar-wrapper">
-            <div class="timeline-time-ruler" id="timeline-time-ruler"></div>
-            <div class="timeline-bar" id="timeline-bar">
-                <canvas id="waveform-canvas"></canvas>
-                <div class="timeline-markers"></div>
-                <div class="timeline-events"></div>
-                <div class="timeline-camera-events"></div>
-                <div class="timeline-playhead"></div>
+            <div class="timeline-track-labels">
+                <div class="tl-label" id="tl-label-visual">🎨 Visual</div>
+                <div class="tl-label" id="tl-label-camera">📷 Camera</div>
+                <div class="tl-label" id="tl-label-markers">📌 Markers</div>
+            </div>
+            <div class="timeline-tracks">
+                <div class="timeline-time-ruler" id="timeline-time-ruler"></div>
+                <div class="timeline-bar" id="timeline-bar">
+                    <canvas id="waveform-canvas"></canvas>
+                    <!-- Visual track row -->
+                    <div class="timeline-track-row" id="timeline-visual-track">
+                        <div class="timeline-events"></div>
+                    </div>
+                    <!-- Camera keyframe row -->
+                    <div class="timeline-track-row timeline-camera-row" id="timeline-camera-track">
+                        <div class="timeline-camera-events"></div>
+                    </div>
+                    <!-- Markers row -->
+                    <div class="timeline-track-row timeline-marker-row" id="timeline-marker-track">
+                        <div class="timeline-markers"></div>
+                    </div>
+                    <div class="timeline-playhead"></div>
+                </div>
             </div>
         </div>
         <div class="timeline-list">
@@ -213,13 +257,18 @@
                         <option value="matte">Matte Black</option>
                     </select>
                 </label>
-                <label class="settings-row checkbox">
-                    <span>Auto BPM</span>
-                    <input type="checkbox" id="bpm-auto" checked>
-                </label>
                 <label class="settings-row">
                     <span>Manual BPM</span>
-                    <input type="number" id="bpm-manual" min="60" max="220" step="1" value="140" />
+                    <input type="number" id="bpm-manual" min="40" max="300" step="1" value="140" />
+                    <button class="tap-bpm-btn" id="btn-tap-bpm">Tap</button>
+                </label>
+                <label class="settings-row">
+                    <span>Export Quality</span>
+                    <select id="settings-export-quality">
+                        <option value="100000000">Max Quality (100Mbps)</option>
+                        <option value="50000000">High Quality (50Mbps)</option>
+                        <option value="10000000">Web Quality (10Mbps)</option>
+                    </select>
                 </label>
                 <label class="settings-row checkbox">
                     <span>Live UI Mapping</span>
@@ -241,27 +290,55 @@
                 <h2>⌨️ Keyboard Shortcuts</h2>
                 <button class="shortcuts-close" id="shortcuts-close">✕</button>
             </div>
+
+            <div class="shortcuts-section-label">Playback</div>
             <div class="shortcuts-grid">
                 <div class="shortcut-item"><kbd>Space</kbd><span>Play / Pause</span></div>
                 <div class="shortcut-item"><kbd>L</kbd><span>Toggle Loop</span></div>
-                <div class="shortcut-item"><kbd>Tab</kbd><span>Toggle Modes Panel</span></div>
-                <div class="shortcut-item"><kbd>P</kbd><span>Toggle Params Panel</span></div>
-                <div class="shortcut-item"><kbd>1-9</kbd><span>Quick Mode Switch</span></div>
-                <div class="shortcut-item"><kbd>[ ]</kbd><span>Prev / Next Mode</span></div>
                 <div class="shortcut-item"><kbd>← →</kbd><span>Seek ±5 seconds</span></div>
                 <div class="shortcut-item"><kbd>↑ ↓</kbd><span>Volume Up / Down</span></div>
-                <div class="shortcut-item"><kbd>M</kbd><span>Add Timeline Marker</span></div>
-                <div class="shortcut-item"><kbd>Ctrl+Wheel</kbd><span>Zoom Timeline</span></div>
-                <div class="shortcut-item"><kbd>Shift+Wheel</kbd><span>Pan Timeline</span></div>
+            </div>
 
-                <div class="shortcut-item"><kbd>R</kbd><span>Start/Stop Recording</span></div>
+            <div class="shortcuts-section-label">Camera Modes</div>
+            <div class="shortcuts-grid">
+                <div class="shortcut-item"><kbd>⊙ Orbit</kbd><span>Drag to orbit scene</span></div>
+                <div class="shortcut-item"><kbd>✈ Move</kbd><span>Free-fly (WASD)</span></div>
+                <div class="shortcut-item"><kbd>⏵ Follow</kbd><span>Timeline drives cam + states</span></div>
+            </div>
+
+            <div class="shortcuts-section-label">Free Move (Move mode only)</div>
+            <div class="shortcuts-grid">
+                <div class="shortcut-item"><kbd>W / S</kbd><span>Fly forward / back</span></div>
+                <div class="shortcut-item"><kbd>A / D</kbd><span>Strafe left / right</span></div>
+                <div class="shortcut-item"><kbd>Mouse drag</kbd><span>Look around</span></div>
+            </div>
+
+            <div class="shortcuts-section-label">Timeline</div>
+            <div class="shortcuts-grid">
+                <div class="shortcut-item"><kbd>M</kbd><span>Add Marker at playhead</span></div>
+                <div class="shortcut-item"><kbd>Ctrl+Wheel</kbd><span>Zoom timeline</span></div>
+                <div class="shortcut-item"><kbd>Wheel</kbd><span>Pan timeline</span></div>
+                <div class="shortcut-item"><kbd>Del / Bksp</kbd><span>Delete selected clip</span></div>
+                <div class="shortcut-item"><kbd>Ctrl+Z</kbd><span>Undo</span></div>
+                <div class="shortcut-item"><kbd>Ctrl+Y</kbd><span>Redo</span></div>
+            </div>
+
+            <div class="shortcuts-section-label">View &amp; UI</div>
+            <div class="shortcuts-grid">
+                <div class="shortcut-item"><kbd>Tab</kbd><span>Toggle Modes Panel</span></div>
+                <div class="shortcut-item"><kbd>P</kbd><span>Toggle Params Panel</span></div>
+                <div class="shortcut-item"><kbd>N</kbd><span>Toggle Graph Panel</span></div>
+                <div class="shortcut-item"><kbd>1–9</kbd><span>Quick Mode Switch</span></div>
+                <div class="shortcut-item"><kbd>[ ]</kbd><span>Prev / Next Mode</span></div>
                 <div class="shortcut-item"><kbd>F</kbd><span>Toggle Beat Flash</span></div>
+                <div class="shortcut-item"><kbd>R</kbd><span>Start / Stop Recording</span></div>
                 <div class="shortcut-item"><kbd>G</kbd><span>Toggle Fullscreen</span></div>
-                <div class="shortcut-item"><kbd>D</kbd><span>Toggle Debug HUD</span></div>
                 <div class="shortcut-item"><kbd>Ctrl+S</kbd><span>Screenshot</span></div>
+                <div class="shortcut-item"><kbd>`</kbd><span>Toggle Debug HUD</span></div>
             </div>
         </div>
     </div>
+
 
     <!-- THREE.JS + POST-PROCESSING FROM CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -291,14 +368,11 @@
     <script src="js/timeline/uiTimeline.js"></script>
     <script src="js/ui.js"></script>
 
-    <!-- ENGINE MODULES (shared libraries for modes) -->
     <script src="js/engine/eventBus.js"></script>
     <script src="js/engine/mathLib.js"></script>
     <script src="js/engine/colorLib.js"></script>
-    <script src="js/engine/orchestrator.js"></script>
     <script src="js/engine/keyframeEngine.js"></script>
     <script src="js/engine/cameraEngine.js"></script>
-    <script src="js/engine/cameraDirector.js"></script>
     <script src="js/engine/renderGraph.js"></script>
 
     <!-- VISUAL MODES -->
@@ -327,9 +401,93 @@
     <script src="js/modes/voidEngine.js"></script>
     <script src="js/modes/titanforge.js"></script>
 
+
+    <!-- STEM MANAGER MODAL -->
+    <div id="stem-manager-modal" class="settings-modal" style="display:none">
+        <div class="settings-modal-content stem-modal-content">
+            <div class="settings-modal-header">
+                <h2>🎛️ Stem Import</h2>
+                <button class="settings-close" id="stem-manager-close">✕</button>
+            </div>
+            <p class="stem-modal-hint">Upload one file per stem — all files must have the same length.</p>
+            <div class="stem-list">
+                <div class="stem-row" data-stem="drums">
+                    <div class="stem-row-header">
+                        <span class="stem-icon">🥁</span>
+                        <span class="stem-name">Drums</span>
+                        <label class="stem-enabled-toggle"><input type="checkbox" checked id="stem-en-drums"> Enable</label>
+                    </div>
+                    <div class="stem-file-info" id="stem-info-drums">No file</div>
+                    <div class="stem-waveform" id="stem-wave-drums"></div>
+                    <div class="stem-controls">
+                        <button class="stem-pick-btn" data-stem="drums">Pick File</button>
+                        <label class="stem-react-label">Reactivity</label>
+                        <input type="range" class="stem-reactivity" id="stem-react-drums" min="0" max="3" step="0.05" value="1.0">
+                        <span class="stem-react-val" id="stem-react-val-drums">1.0×</span>
+                    </div>
+                </div>
+                <div class="stem-row" data-stem="bass">
+                    <div class="stem-row-header">
+                        <span class="stem-icon">🎸</span>
+                        <span class="stem-name">Bass</span>
+                        <label class="stem-enabled-toggle"><input type="checkbox" checked id="stem-en-bass"> Enable</label>
+                    </div>
+                    <div class="stem-file-info" id="stem-info-bass">No file</div>
+                    <div class="stem-waveform" id="stem-wave-bass"></div>
+                    <div class="stem-controls">
+                        <button class="stem-pick-btn" data-stem="bass">Pick File</button>
+                        <label class="stem-react-label">Reactivity</label>
+                        <input type="range" class="stem-reactivity" id="stem-react-bass" min="0" max="3" step="0.05" value="1.0">
+                        <span class="stem-react-val" id="stem-react-val-bass">1.0×</span>
+                    </div>
+                </div>
+                <div class="stem-row" data-stem="mids">
+                    <div class="stem-row-header">
+                        <span class="stem-icon">🎹</span>
+                        <span class="stem-name">Mids</span>
+                        <label class="stem-enabled-toggle"><input type="checkbox" checked id="stem-en-mids"> Enable</label>
+                    </div>
+                    <div class="stem-file-info" id="stem-info-mids">No file</div>
+                    <div class="stem-waveform" id="stem-wave-mids"></div>
+                    <div class="stem-controls">
+                        <button class="stem-pick-btn" data-stem="mids">Pick File</button>
+                        <label class="stem-react-label">Reactivity</label>
+                        <input type="range" class="stem-reactivity" id="stem-react-mids" min="0" max="3" step="0.05" value="1.0">
+                        <span class="stem-react-val" id="stem-react-val-mids">1.0×</span>
+                    </div>
+                </div>
+                <div class="stem-row" data-stem="highs">
+                    <div class="stem-row-header">
+                        <span class="stem-icon">🎼</span>
+                        <span class="stem-name">Highs</span>
+                        <label class="stem-enabled-toggle"><input type="checkbox" checked id="stem-en-highs"> Enable</label>
+                    </div>
+                    <div class="stem-file-info" id="stem-info-highs">No file</div>
+                    <div class="stem-waveform" id="stem-wave-highs"></div>
+                    <div class="stem-controls">
+                        <button class="stem-pick-btn" data-stem="highs">Pick File</button>
+                        <label class="stem-react-label">Reactivity</label>
+                        <input type="range" class="stem-reactivity" id="stem-react-highs" min="0" max="3" step="0.05" value="1.0">
+                        <span class="stem-react-val" id="stem-react-val-highs">1.0×</span>
+                    </div>
+                </div>
+            </div>
+            <div class="stem-modal-footer">
+                <label class="stem-bpm-row">
+                    <span>BPM</span>
+                    <input type="number" id="stem-bpm-input" min="40" max="300" value="140">
+                </label>
+                <button class="stem-load-btn" id="stem-load-all">Load Stems into Editor →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview mode toolbar removed — camera controls now live in timeline dock -->
+
     <!-- APP BOOTSTRAP -->
+    <script src="js/studio/stemManager.js"></script>
     <script src="js/app.js"></script>
 
 </body>
 
-</html>
+</html>

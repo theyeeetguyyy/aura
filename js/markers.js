@@ -1,272 +1,172 @@
 // ============================================================
-// AURA — Marker System v2
-// Timeline markers with rich section behaviors:
-// intensity curves, transition blending, camera hints,
-// color temperature, effect scaling per section type
+// AURA — Marker System v4
+// Section-aware reactivity: markers define energy intensity +
+// per-effect multipliers consumed by audio.js → audioBus.
+// Reads NLE markers from ProjectStore.timeline.markers.
 // ============================================================
 
 const MarkerSystem = (() => {
-    // Section types with comprehensive visual behavior definitions
-    const SECTION_TYPES = {
+
+    // ── Section type definitions ────────────────────────────
+    const MARKER_TYPES = {
         intro: {
-            label: 'Intro', color: '#4fc3f7', icon: '🎵', intensity: 0.4, glyph: 'I',
-            shake: 0.2, flash: 0.1, zoom: 0.2, bloom: 0.5, speed: 0.5,
-            colorTemp: 'cool', cameraPreset: 'slow-orbit',
-            particleScale: 0.3, displacementScale: 0.3
-        },
-        verse: {
-            label: 'Verse', color: '#81c784', icon: '🎤', intensity: 0.5, glyph: 'V',
-            shake: 0.3, flash: 0.2, zoom: 0.3, bloom: 0.6, speed: 0.6,
-            colorTemp: 'neutral', cameraPreset: 'gentle-sway',
-            particleScale: 0.5, displacementScale: 0.5
+            label: 'Intro',
+            color: '#38bdf8',       // sky blue
+            icon: '🌅',
+            intensity: 0.45,
+            effects: { shake: 0.25, flash: 0.35, zoom: 0.90, bloom: 0.75, speed: 0.80, particleScale: 0.80, displacementScale: 0.55 },
         },
         buildup: {
-            label: 'Build-up', color: '#ffb74d', icon: '📈', intensity: 0.8, glyph: 'B',
-            shake: 0.5, flash: 0.3, zoom: 0.6, bloom: 0.8, speed: 1.0,
-            colorTemp: 'warm', cameraPreset: 'zoom-in',
-            particleScale: 0.8, displacementScale: 0.8,
-            // Buildup special: intensity ramps from 0.5 to 1.5 over section
-            intensityRamp: true, rampStart: 0.5, rampEnd: 1.5
+            label: 'Build-up',
+            color: '#fb923c',       // orange
+            icon: '📈',
+            intensity: 1.25,
+            effects: { shake: 0.85, flash: 1.00, zoom: 1.12, bloom: 1.30, speed: 1.25, particleScale: 1.15, displacementScale: 1.10 },
         },
         fakeout: {
-            label: 'Fakeout', color: '#ff8a65', icon: '🎭', intensity: 0.3, glyph: 'F',
-            shake: 0.1, flash: 0.5, zoom: 0.1, bloom: 0.3, speed: 0.3,
-            colorTemp: 'cool', cameraPreset: 'sudden-pull',
-            particleScale: 0.2, displacementScale: 0.2
+            label: 'Fakeout',
+            color: '#a78bfa',       // violet
+            icon: '🎭',
+            intensity: 0.80,
+            effects: { shake: 0.55, flash: 0.65, zoom: 1.08, bloom: 0.95, speed: 0.88, particleScale: 0.90, displacementScale: 0.78 },
         },
         drop: {
-            label: 'DROP', color: '#f44336', icon: '💥', intensity: 1.5, glyph: 'D',
-            shake: 3.0, flash: 2.5, zoom: 2.5, bloom: 3.0, speed: 2.5,
-            colorTemp: 'hot', cameraPreset: 'shake-heavy',
-            particleScale: 2.0, displacementScale: 2.0,
-            beatSync: true, rhythmLock: true, chaosLevel: 1.0
+            label: 'DROP',
+            color: '#f43f5e',       // red-pink
+            icon: '💥',
+            intensity: 2.00,
+            effects: { shake: 1.80, flash: 2.00, zoom: 1.50, bloom: 1.90, speed: 1.65, particleScale: 1.85, displacementScale: 2.00 },
         },
-        drop2: {
-            label: 'DROP 2', color: '#e91e63', icon: '🔥', intensity: 1.8, glyph: 'D2',
-            shake: 4.0, flash: 3.5, zoom: 3.5, bloom: 4.0, speed: 3.0,
-            colorTemp: 'extreme', cameraPreset: 'shake-insane',
-            particleScale: 2.5, displacementScale: 2.5,
-            beatSync: true, rhythmLock: true, chaosLevel: 1.5
-        },
-        breakdown: {
-            label: 'Breakdown', color: '#ba68c8', icon: '🌀', intensity: 0.6, glyph: 'BD',
-            shake: 0.3, flash: 0.2, zoom: 0.4, bloom: 1.0, speed: 0.7,
-            colorTemp: 'ethereal', cameraPreset: 'drift',
-            particleScale: 0.6, displacementScale: 0.6
-        },
-        bridge: {
-            label: 'Bridge', color: '#64b5f6', icon: '🌉', intensity: 0.5, glyph: 'BR',
-            shake: 0.2, flash: 0.2, zoom: 0.3, bloom: 0.7, speed: 0.5,
-            colorTemp: 'cool', cameraPreset: 'slow-orbit',
-            particleScale: 0.5, displacementScale: 0.4
-        },
-        climax: {
-            label: 'Climax', color: '#ff1744', icon: '⚡', intensity: 2.0, glyph: 'CL',
-            shake: 5.0, flash: 4.0, zoom: 4.5, bloom: 5.0, speed: 3.5,
-            colorTemp: 'extreme', cameraPreset: 'shake-insane',
-            particleScale: 3.0, displacementScale: 3.0,
-            beatSync: true, rhythmLock: true, chaosLevel: 2.0
+        fill: {
+            label: 'Fill',
+            color: '#f97316',       // deep orange
+            icon: '🔥',
+            intensity: 1.55,
+            effects: { shake: 1.20, flash: 1.45, zoom: 1.22, bloom: 1.50, speed: 1.35, particleScale: 1.40, displacementScale: 1.50 },
         },
         outro: {
-            label: 'Outro', color: '#90a4ae', icon: '🎬', intensity: 0.3, glyph: 'O',
-            shake: 0.1, flash: 0.05, zoom: 0.1, bloom: 0.4, speed: 0.3,
-            colorTemp: 'cool', cameraPreset: 'slow-pull-away',
-            particleScale: 0.2, displacementScale: 0.2
-        }
+            label: 'Outro',
+            color: '#94a3b8',       // slate
+            icon: '🌙',
+            intensity: 0.38,
+            effects: { shake: 0.18, flash: 0.25, zoom: 0.85, bloom: 0.65, speed: 0.72, particleScale: 0.70, displacementScale: 0.48 },
+        },
     };
 
-    let markers = [];
-    let nextId = 1;
-    let currentSection = null;
-    let currentSectionIntensity = 1.0;
+    // ── Runtime state ───────────────────────────────────────
+    let _currentSection   = null;   // currently active section marker
+    let _smoothedEffects  = _neutralEffects();
+    let _sectionIntensity = 1.0;
+    let _transitionFade   = 1.0;    // 0→1 over 0.5 s on section change
+    let _transitionFrames = 0;
+    const TRANSITION_FRAMES = 30;   // ~0.5 s at 60 fps
 
-    // ── NEW v2: Smoothed effect multipliers ──
-    let smoothedEffects = {
-        shake: 1.0, flash: 1.0, zoom: 1.0, bloom: 1.0, speed: 1.0,
-        particleScale: 1.0, displacementScale: 1.0
-    };
-    let targetEffects = { ...smoothedEffects };
-
-    function addMarker(time, type) {
-        if (!SECTION_TYPES[type]) return null;
-        const marker = {
-            id: nextId++,
-            time: time,
-            type: type,
-            ...SECTION_TYPES[type]
-        };
-        markers.push(marker);
-        markers.sort((a, b) => a.time - b.time);
-        return marker;
+    function _neutralEffects() {
+        return { shake: 1, flash: 1, zoom: 1, bloom: 1, speed: 1, particleScale: 1, displacementScale: 1 };
     }
 
-    function removeMarker(id) {
-        markers = markers.filter(m => m.id !== id);
-    }
-
-    function moveMarker(id, newTime) {
-        const m = markers.find(x => x.id === id);
-        if (!m) return false;
-        m.time = Math.max(0, newTime);
-        markers.sort((a, b) => a.time - b.time);
-        return true;
-    }
-
-    function clearAll() {
-        markers = [];
-        nextId = 1;
-        currentSection = null;
-        currentSectionIntensity = 1.0;
-    }
-
-    function getMarkers() {
-        return [...markers];
-    }
-
-    function getTypes() {
-        return SECTION_TYPES;
-    }
-
-    function update(currentTime) {
-        let active = null;
-        for (let i = markers.length - 1; i >= 0; i--) {
-            if (currentTime >= markers[i].time) {
-                active = markers[i];
-                break;
-            }
-        }
-
-        if (active) {
-            currentSection = active;
-            let baseIntensity = active.intensity;
-
-            // Buildup ramp: intensity increases over the section
-            if (active.intensityRamp) {
-                const idx = markers.findIndex(m => m.id === active.id);
-                let progress = 0;
-                if (idx >= 0 && idx < markers.length - 1) {
-                    const sectionLen = markers[idx + 1].time - active.time;
-                    progress = sectionLen > 0 ? (currentTime - active.time) / sectionLen : 0;
-                } else {
-                    progress = Math.min(1, (currentTime - active.time) / 30);
-                }
-                progress = Math.max(0, Math.min(1, progress));
-                baseIntensity = active.rampStart + (active.rampEnd - active.rampStart) * progress;
-            }
-
-            currentSectionIntensity = baseIntensity;
-
-            // Update target effects
-            targetEffects.shake = active.shake ?? 1;
-            targetEffects.flash = active.flash ?? 1;
-            targetEffects.zoom = active.zoom ?? 1;
-            targetEffects.bloom = active.bloom ?? 1;
-            targetEffects.speed = active.speed ?? 1;
-            targetEffects.particleScale = active.particleScale ?? 1;
-            targetEffects.displacementScale = active.displacementScale ?? 1;
-        } else {
-            currentSection = null;
-            currentSectionIntensity = 1.0;
-            targetEffects.shake = 1; targetEffects.flash = 1; targetEffects.zoom = 1;
-            targetEffects.bloom = 1; targetEffects.speed = 1;
-            targetEffects.particleScale = 1; targetEffects.displacementScale = 1;
-        }
-
-        // Smooth transition between effect states — directional lerp
-        // Fast attack entering high-energy, slow release leaving
-        for (const key of Object.keys(smoothedEffects)) {
-            const delta = targetEffects[key] - smoothedEffects[key];
-            const lerpRate = delta > 0 ? 0.18 : 0.05; // Fast attack, slow decay
-            smoothedEffects[key] += delta * lerpRate;
-        }
-    }
-
-    function getCurrentSection() {
-        return currentSection;
-    }
-
-    function getSectionIntensity() {
-        return currentSectionIntensity;
-    }
-
-    function getSmoothedEffects() {
-        return { ...smoothedEffects };
-    }
-
-    function isHighEnergy() {
-        if (!currentSection) return false;
-        return currentSection.intensity >= 1.0;
-    }
-
-    function isCalm() {
-        if (!currentSection) return false;
-        return currentSection.intensity <= 0.5;
-    }
-
-    // ── DROP CHAOS helpers ──
-    const DROP_TYPES = new Set(['drop', 'drop2', 'climax']);
-
-    function isDropActive() {
-        if (!currentSection) return false;
-        return DROP_TYPES.has(currentSection.type);
-    }
-
-    function getDropIntensity() {
-        if (!currentSection || !DROP_TYPES.has(currentSection.type)) return 0;
-        return currentSection.chaosLevel || currentSection.intensity;
-    }
-
-    // Get the next section marker (for anticipation)
-    function getNextSection(currentTime) {
-        for (let i = 0; i < markers.length; i++) {
-            if (markers[i].time > currentTime) {
-                return markers[i];
-            }
-        }
-        return null;
-    }
-
-    // Distance in seconds to next section
-    function timeToNextSection(currentTime) {
-        const next = getNextSection(currentTime);
-        return next ? next.time - currentTime : 9999;
-    }
-
-    function exportMarkers() {
-        return JSON.stringify(markers.map(m => ({ time: m.time, type: m.type })));
-    }
-
-    function importMarkers(json) {
+    // ── Source of truth: ProjectStore NLE markers ───────────
+    function _getNLEMarkers() {
+        if (typeof ProjectStore === 'undefined') return [];
         try {
-            const data = JSON.parse(json);
-            clearAll();
-            data.forEach(m => addMarker(m.time, m.type));
-            return true;
-        } catch (e) {
-            console.warn('Failed to import markers:', e);
-            return false;
+            const state = ProjectStore.getState();
+            return (state.timeline && state.timeline.markers) ? state.timeline.markers : [];
+        } catch (_) { return []; }
+    }
+
+    // ── update(currentTime) — called every audio frame ──────
+    function update(currentTime) {
+        const markers = _getNLEMarkers();
+        if (!markers.length) {
+            _currentSection   = null;
+            _sectionIntensity = 1.0;
+            _smoothedEffects  = _neutralEffects();
+            return;
+        }
+
+        // Sort by time (should already be sorted but be safe)
+        const sorted = [...markers].sort((a, b) => a.time - b.time);
+
+        // Find the active section: last marker whose time <= currentTime
+        let active = null;
+        for (const mk of sorted) {
+            if (mk.time <= currentTime) active = mk;
+            else break;
+        }
+
+        const prevType = _currentSection ? _currentSection.markerType : null;
+        _currentSection = active;
+
+        const typeKey  = active ? (active.markerType || active.label?.toLowerCase() || 'intro') : null;
+        const typeDef  = typeKey ? (MARKER_TYPES[typeKey] || null) : null;
+
+        // Section changed — reset transition
+        if (typeKey !== prevType) {
+            _transitionFrames = 0;
+            _transitionFade   = 0;
+        }
+
+        // Advance transition fade
+        _transitionFrames = Math.min(_transitionFrames + 1, TRANSITION_FRAMES);
+        _transitionFade   = _transitionFrames / TRANSITION_FRAMES;
+
+        // Target intensity + effects
+        const targetIntensity = typeDef ? typeDef.intensity : 1.0;
+        const targetEffects   = typeDef ? typeDef.effects   : _neutralEffects();
+
+        // Smooth toward target (lerp per frame, fast attack)
+        const alpha = 0.12;
+        _sectionIntensity += (targetIntensity - _sectionIntensity) * alpha;
+        for (const k of Object.keys(_smoothedEffects)) {
+            const tgt = targetEffects[k] !== undefined ? targetEffects[k] : 1;
+            _smoothedEffects[k] += (tgt - _smoothedEffects[k]) * alpha;
         }
     }
+
+    // ── Public query API (consumed by audio.js → audioBus) ──
+    function getCurrentSection() {
+        if (!_currentSection) return null;
+        const typeKey = _currentSection.markerType || null;
+        const typeDef = typeKey ? MARKER_TYPES[typeKey] : null;
+        return {
+            id:        _currentSection.id,
+            time:      _currentSection.time,
+            type:      typeKey,
+            label:     _currentSection.label || typeKey,
+            color:     typeDef ? typeDef.color : '#78909c',
+            intensity: typeDef ? typeDef.intensity : 1.0,
+        };
+    }
+
+    function getSectionIntensity()  { return _sectionIntensity; }
+    function getSmoothedEffects()   { return { ..._smoothedEffects }; }
+    function isDropActive()         { return !!_currentSection && (_currentSection.markerType === 'drop' || _currentSection.markerType === 'fill'); }
+    function getDropIntensity()     { return isDropActive() ? Math.max(0, (_sectionIntensity - 1.0) / 1.0) : 0; }
+    function isHighEnergy()         { return _sectionIntensity >= 1.0; }
+    function isCalm()               { return _sectionIntensity <= 0.5; }
+
+    // ── Marker management (legacy API — backed by ProjectStore now) ──
+    // These are kept so old ui.js calls don't break.
+    function getMarkers()           { return _getNLEMarkers(); }
+    function getTypes()             { return MARKER_TYPES; }
+
+    // Legacy no-op add/remove (timeline UI dispatches to ProjectStore instead)
+    function addMarker()    {}
+    function removeMarker() {}
+    function clearAll()     {}
+    function moveMarker()   {}
+    function renameMarker() {}
+    function exportMarkers() { return JSON.stringify(getMarkers()); }
+    function importMarkers() { return false; }
 
     return {
-        SECTION_TYPES,
-        addMarker,
-        removeMarker,
-        moveMarker,
-        clearAll,
-        getMarkers,
-        getTypes,
-        update,
-        getCurrentSection,
-        getSectionIntensity,
-        getSmoothedEffects,
-        getNextSection,
-        timeToNextSection,
-        isHighEnergy,
-        isCalm,
-        isDropActive,
-        getDropIntensity,
-        exportMarkers,
-        importMarkers
+        MARKER_TYPES,
+        SECTION_TYPES: MARKER_TYPES,   // alias for old code
+        update, getCurrentSection, getSectionIntensity,
+        getSmoothedEffects, isDropActive, getDropIntensity,
+        isHighEnergy, isCalm,
+        getMarkers, getTypes,
+        addMarker, removeMarker, clearAll, moveMarker, renameMarker,
+        exportMarkers, importMarkers,
     };
 })();
