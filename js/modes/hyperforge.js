@@ -241,7 +241,7 @@ const HyperforgeMode = {
         const cols = new Float32Array(vc * 3).fill(1);
         geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
         this.vertexColors = cols;
-        this.mainMesh = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.2, side: THREE.DoubleSide, blending: THREE.NormalBlending, depthWrite: false }));
+        this.mainMesh = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.15, side: THREE.DoubleSide, blending: THREE.NormalBlending, depthWrite: false }));
         this.mainMesh.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(cols), 3));
         this.group.add(this.mainMesh);
         // BUG-07 fix: Use wireframe material on Mesh sharing mainMesh geometry
@@ -373,7 +373,7 @@ const HyperforgeMode = {
         if (this.trailLine) this.trailLine.visible = params.showTrails;
 
         // Materials
-        this.mainWire.material.opacity = (params.wireOpacity || 0.7) * (0.5 + rms);
+        this.mainWire.material.opacity = Math.min(0.6, (params.wireOpacity || 0.7) * (0.4 + rms * 0.5));
         this.mainWire.material.color.copy(ParamSystem.getColorThree(rms + this.time * 0.1));
         if (this.attractorSystem) { this.attractorSystem.material.size = (params.pointGlow || 2.5) * (1 + bass); this.attractorSystem.visible = params.attractorType !== 'none'; }
         if (this.innerMesh) { this.innerMesh.visible = params.showInner; this.innerMesh.material.opacity = 0.1 + bass * 0.15; }
@@ -522,7 +522,7 @@ const HyperforgeMode = {
                 case 'void': { const edge = Math.abs(disp) / (amt + 0.01); r = edge * 0.3; g = edge * 0.1; b = edge * 0.5 + 0.05; break; }
                 case 'holographic': { const angle = Math.atan2(pos[i3 + 2], pos[i3]) / Math.PI; if (!this._tempColor) this._tempColor = new THREE.Color(); const c = this._tempColor.setHSL((angle + t + this.time * 0.05) % 1, 0.9, 0.3 + freq * 0.4); r = c.r; g = c.g; b = c.b; break; }
             }
-            col[i3] = r; col[i3 + 1] = g; col[i3 + 2] = b;
+            col[i3] = Math.min(r, 0.85); col[i3 + 1] = Math.min(g, 0.85); col[i3 + 2] = Math.min(b, 0.85);
         }
 
         this.mainMesh.geometry.attributes.position.needsUpdate = true;

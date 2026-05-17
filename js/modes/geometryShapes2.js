@@ -603,7 +603,7 @@ const GeometryForgeMode2 = {
                     case 'thermal': { const th = freq * 0.7 + rms * 0.3; r = Math.min(1, th * 3); g = Math.max(0, th * 2 - 0.5); b = Math.max(0, th - 0.7); break; }
                     default: { const c = this.getPaletteColor(palette, t + this.time * 0.05, rms); r = c.r; g = c.g; b = c.b; break; }
                 }
-                col[i3] = r; col[i3 + 1] = g; col[i3 + 2] = b;
+                col[i3] = Math.min(r, 0.85); col[i3 + 1] = Math.min(g, 0.85); col[i3 + 2] = Math.min(b, 0.85);
             }
             this.secondSharedGeo.attributes.position.needsUpdate = true;
             this.secondSharedGeo.attributes.color.needsUpdate = true;
@@ -914,7 +914,7 @@ const GeometryForgeMode2 = {
                     case 'velocity': { if (this._prevPositions) { const dv = Math.sqrt((solidPos[i3] - this._prevPositions[i3]) ** 2 + (solidPos[i3 + 1] - this._prevPositions[i3 + 1]) ** 2 + (solidPos[i3 + 2] - this._prevPositions[i3 + 2]) ** 2); const c = this.getPaletteColor(palette, Math.min(1, dv * 2), rms); r = c.r; g = c.g; b = c.b; } break; }
                     case 'waveformColor': { const wi2 = Math.floor(t * (audio.waveformPoints?.length || 256)); const wv = (audio.waveformPoints?.[wi2] || 0) * 0.5 + 0.5; const c = this.getPaletteColor(palette, wv, rms); r = c.r; g = c.g; b = c.b; break; }
                 }
-                solidCol[i3] = r; solidCol[i3 + 1] = g; solidCol[i3 + 2] = b;
+                solidCol[i3] = Math.min(r, 0.85); solidCol[i3 + 1] = Math.min(g, 0.85); solidCol[i3 + 2] = Math.min(b, 0.85);
             }
         }
 
@@ -970,7 +970,7 @@ const GeometryForgeMode2 = {
         else if (wc === 'spectrum') wireCol.setHSL((rms + bass * 0.3 + treble * 0.2 + this.time * 0.02) % 1, 1, 0.4 + rms * 0.4);
         else if (wc === 'complementary') wireCol.setHSL(((this.time * 0.05 + rms * 0.3) + 0.5) % 1, 0.9, 0.45 + rms * 0.35);
         else wireCol.setRGB(1, 1, 1);
-        this.meshWire.material.opacity = Math.min(0.95, (params.wireOpacity ?? 0.9) * (0.5 + rms * 0.5));
+        this.meshWire.material.opacity = Math.min(0.7, (params.wireOpacity ?? 0.9) * (0.4 + rms * 0.4));
 
         this.meshInnerWire.material.color.copy(ParamSystem.getColorThree(treble + this.time * 0.15));
         this.meshInnerWire.material.opacity = 0.2 + bass * 0.3;

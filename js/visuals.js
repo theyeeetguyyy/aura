@@ -372,7 +372,7 @@ const VisualEngine = (() => {
         }
 
         // Exposure
-        renderer.toneMappingExposure += (1.2 - renderer.toneMappingExposure) * 0.1;
+        renderer.toneMappingExposure += (1.0 - renderer.toneMappingExposure) * 0.1;
 
         // Fog density scales with distance
         if (scene.fog) {

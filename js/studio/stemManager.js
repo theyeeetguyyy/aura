@@ -234,12 +234,14 @@ const StemManager = (() => {
             move:   document.getElementById('pmt-move'),
             follow: document.getElementById('pmt-follow'),
         };
+        const followBadge = document.getElementById('follow-badge');
         Object.entries(pmBtns).forEach(([mode, btn]) => {
             if (!btn) return;
             btn.addEventListener('click', () => {
                 Object.values(pmBtns).forEach(b => b?.classList.remove('active'));
                 btn.classList.add('active');
                 if (typeof VisualEngine !== 'undefined') VisualEngine.setPreviewMode(mode);
+                if (followBadge) followBadge.style.display = mode === 'follow' ? '' : 'none';
             });
         });
 

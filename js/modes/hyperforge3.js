@@ -668,9 +668,9 @@ const HyperforgeMode3 = {
 
             // PERF-03: colorFn writes into _colorResult (pre-allocated Float32Array)
             const rgb = colorFn(px, py, pz, disp, freq, tNorm);
-            col[i3]     = rgb[0];
-            col[i3 + 1] = rgb[1];
-            col[i3 + 2] = rgb[2];
+            col[i3]     = Math.min(rgb[0], 0.85);
+            col[i3 + 1] = Math.min(rgb[1], 0.85);
+            col[i3 + 2] = Math.min(rgb[2], 0.85);
         }
 
         // Mark dirty — mainMesh and mainWire see this automatically (shared buffer)

@@ -650,7 +650,7 @@ const UI = (() => {
                 });
                 
                 // Timeline will auto-evaluate if follow mode is on.
-                if (typeof VisualEngine !== 'undefined' && VisualEngine.applyStudioStateAtTime && AudioEngine?.audioBus) {
+                if (typeof VisualEngine !== 'undefined' && VisualEngine.previewMode === 'follow' && VisualEngine.applyStudioStateAtTime && AudioEngine?.audioBus) {
                     VisualEngine.applyStudioStateAtTime(AudioEngine.audioBus.currentTime || 0);
                 }
             }

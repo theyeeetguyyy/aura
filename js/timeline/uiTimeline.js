@@ -37,7 +37,7 @@ const TimelineUI = (() => {
     _waveformCanvas = _root.querySelector('#waveform-canvas');
     _tracksWrapper = _root.querySelector('.timeline-tracks');
     if (_waveformCanvas) _waveformCtx = _waveformCanvas.getContext('2d');
-    return !!(_bar && _playhead && _list && _btnAdd && _btnSave && _btnLoad && _fileInput);
+    return !!(_bar && _playhead && _btnAdd && _btnSave && _btnLoad && _fileInput);
   }
 
   function init() {
@@ -144,12 +144,16 @@ const TimelineUI = (() => {
     const ratio = rect.width > 0 ? x / rect.width : 0;
     const dur = AudioEngine.audioBus.duration || 0;
     AudioEngine.seek(ratio * dur);
-    if (typeof VisualEngine !== 'undefined' && VisualEngine.applyStudioStateAtTime) {
+    if (isFollowMode() && VisualEngine?.applyStudioStateAtTime) {
       VisualEngine.applyStudioStateAtTime(AudioEngine.audioBus.currentTime || 0);
     }
   }
 
   function pct(time, dur) { return dur > 0 ? (time / dur) * 100 : 0; }
+
+  function isFollowMode() {
+    return typeof VisualEngine !== 'undefined' && VisualEngine.previewMode === 'follow';
+  }
 
   function escapeHtml(s) {
     return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -279,7 +283,7 @@ const TimelineUI = (() => {
           e.stopPropagation();
           if (_selectedEventId !== clip.id) {
             _selectedEventId = clip.id;
-            if (AudioEngine?.audioBus?.loaded) { AudioEngine.seek(clip.time); if (VisualEngine?.applyStudioStateAtTime) VisualEngine.applyStudioStateAtTime(clip.time); }
+            if (AudioEngine?.audioBus?.loaded) { AudioEngine.seek(clip.time); if (isFollowMode() && VisualEngine?.applyStudioStateAtTime) VisualEngine.applyStudioStateAtTime(clip.time); }
             if (UI?.buildStateInspector) UI.buildStateInspector(clip);
             render(); return;
           }
@@ -355,63 +359,8 @@ const TimelineUI = (() => {
       }
     }
 
-    // ── Detail List ──
-    _list.innerHTML = '';
-    for (const clip of visualClips) {
-      const node = project.nodes.find(n => n.id === clip.nodeId);
-      const li = document.createElement('div');
-      li.className = 'timeline-event-row' + (clip.id === _selectedEventId ? ' selected' : '');
-      li.innerHTML = `
-        <div class="tcol time">${TimelineModel.formatTime(clip.time)}</div>
-        <div class="tcol name">${escapeHtml(node?.name || clip.nodeId)}</div>
-        <div class="tcol mode">
-          <div class="mini">${escapeHtml(node?.visual?.modeKey || '—')}</div>
-          <div class="miniControls">
-            <label>Trans</label>
-            <input class="tTrans" type="number" min="0" max="20" step="0.05" value="${Number(clip.transitionSec || 0).toFixed(2)}" />
-            <select class="tEase">
-              <option value="easeInOut" ${clip.easing === 'easeInOut' ? 'selected' : ''}>easeInOut</option>
-              <option value="linear" ${clip.easing === 'linear' ? 'selected' : ''}>linear</option>
-              <option value="easeOut" ${clip.easing === 'easeOut' ? 'selected' : ''}>easeOut</option>
-              <option value="easeIn" ${clip.easing === 'easeIn' ? 'selected' : ''}>easeIn</option>
-            </select>
-          </div>
-        </div>
-        <button class="tcol del" title="Remove">✕</button>`;
-      const tI = li.querySelector('.tTrans'), eS = li.querySelector('.tEase');
-      if (tI) tI.addEventListener('change', () => ProjectStore.dispatch({ type: 'timeline/updateVisualClip', id: clip.id, patch: { transitionSec: Math.max(0, Number(tI.value || 0)) } }));
-      if (eS) eS.addEventListener('change', () => ProjectStore.dispatch({ type: 'timeline/updateVisualClip', id: clip.id, patch: { easing: eS.value } }));
-      li.querySelector('.del').addEventListener('click', () => ProjectStore.dispatch({ type: 'timeline/removeVisualClip', id: clip.id }));
-      li.addEventListener('click', () => { _selectedEventId = clip.id; if (UI?.buildStateInspector) UI.buildStateInspector(clip); render(); });
-      li.addEventListener('dblclick', () => { if (AudioEngine?.audioBus?.loaded) { AudioEngine.seek(clip.time); if (VisualEngine?.applyStudioStateAtTime) VisualEngine.applyStudioStateAtTime(clip.time); } });
-      _list.appendChild(li);
-    }
-
-    for (const kf of cameraKFs) {
-      const li = document.createElement('div');
-      li.className = 'timeline-event-row camera-row' + (kf.id === _selectedEventId ? ' selected' : '');
-      li.style.borderLeft = '3px solid #10b981';
-      li.innerHTML = `
-        <div class="tcol time">${TimelineModel.formatTime(kf.time)}</div>
-        <div class="tcol name">🎥 Camera KF</div>
-        <div class="tcol mode"><div class="miniControls" style="margin-left:0">
-          <label>Ease</label>
-          <select class="tEase">
-            <option value="easeInOutCubic" ${kf.easing === 'easeInOutCubic' ? 'selected' : ''}>Smooth</option>
-            <option value="catmullRom" ${kf.easing === 'catmullRom' ? 'selected' : ''}>Spline</option>
-            <option value="linear" ${kf.easing === 'linear' ? 'selected' : ''}>Linear</option>
-            <option value="step" ${kf.easing === 'step' ? 'selected' : ''}>Step</option>
-            <option value="easeOutExpo" ${kf.easing === 'easeOutExpo' ? 'selected' : ''}>Punch</option>
-          </select>
-        </div></div>
-        <button class="tcol del" title="Remove">✕</button>`;
-      const eS = li.querySelector('.tEase');
-      if (eS) eS.addEventListener('change', () => ProjectStore.dispatch({ type: 'timeline/updateCameraKeyframe', id: kf.id, patch: { easing: eS.value } }));
-      li.querySelector('.del').addEventListener('click', () => ProjectStore.dispatch({ type: 'timeline/removeCameraKeyframe', id: kf.id }));
-      li.addEventListener('click', () => { _selectedEventId = kf.id; if (UI?.buildCameraInspector) UI.buildCameraInspector(kf); render(); });
-      li.addEventListener('dblclick', () => { if (AudioEngine?.audioBus?.loaded) AudioEngine.seek(kf.time); });
-      _list.appendChild(li);
-    }
+    // Detail list removed from UI — clear if element still exists
+    if (_list) _list.innerHTML = '';
   }
 
   // ── Delete Selected ─────────────────────────────────
@@ -435,7 +384,7 @@ const TimelineUI = (() => {
     const dur = AudioEngine.audioBus.duration || 0;
     const time = Math.max(0, Math.min(dur, ratio * dur));
 
-    if (_isScrubbing) { AudioEngine.seek(time); if (VisualEngine?.applyStudioStateAtTime) VisualEngine.applyStudioStateAtTime(time); }
+    if (_isScrubbing) { AudioEngine.seek(time); if (isFollowMode() && VisualEngine?.applyStudioStateAtTime) VisualEngine.applyStudioStateAtTime(time); }
 
     if (_draggingEventId && _dragStartEvent) {
       const origEnd = _dragStartEvent.time + (_dragStartEvent.duration || 5);
