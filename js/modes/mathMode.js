@@ -328,9 +328,9 @@ const MathModeMode = {
         if (params.morph3D) {
             this.group.rotation.x = Math.sin(this.time * 0.3) * 0.5;
             this.group.rotation.z = Math.cos(this.time * 0.2) * 0.3;
+            this.group.rotation.y += (params.rotSpeedY || 0.3) * dt;
         }
 
-        this.group.rotation.y += (params.rotSpeedY || 0.3) * dt;
     },
 
     destroy(scene) {
