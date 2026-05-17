@@ -295,8 +295,8 @@ const VisualEngine = (() => {
         if (keysDown.has('KeyS')) camera.position.addScaledVector(forward, -speed);
         if (keysDown.has('KeyA')) camera.position.addScaledVector(right, -speed);
         if (keysDown.has('KeyD')) camera.position.addScaledVector(right, speed);
-        if (keysDown.has('KeyQ')) camera.position.y -= speed;
-        if (keysDown.has('KeyE')) camera.position.y += speed;
+        if (keysDown.has('KeyQ') || keysDown.has('ControlLeft') || keysDown.has('ControlRight')) camera.position.y -= speed;
+        if (keysDown.has('KeyE') || keysDown.has('ShiftLeft') || keysDown.has('ShiftRight')) camera.position.y += speed;
 
         camera.rotation.order = 'YXZ';
         camera.rotation.y = freeMoveYaw;
