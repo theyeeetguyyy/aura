@@ -268,9 +268,10 @@
                 <label class="settings-row">
                     <span>Export Quality</span>
                     <select id="settings-export-quality">
-                        <option value="100000000">Max Quality (100Mbps)</option>
-                        <option value="50000000">High Quality (50Mbps)</option>
-                        <option value="10000000">Web Quality (10Mbps)</option>
+                        <option value="low">Low MP4</option>
+                        <option value="medium">Medium MP4</option>
+                        <option value="best" selected>Best MP4</option>
+                        <option value="highest">Highest MP4</option>
                     </select>
                 </label>
                 <label class="settings-row checkbox">
@@ -281,6 +282,22 @@
                     <span>Follow Timeline During Playback</span>
                     <input type="checkbox" id="settings-follow-timeline" checked>
                 </label>
+            </div>
+        </div>
+    </div>
+
+    <div id="export-progress-modal" class="settings-modal">
+        <div class="settings-modal-content export-progress-content">
+            <div class="settings-modal-header">
+                <h2 id="export-progress-title">Preparing Export</h2>
+            </div>
+            <p class="export-progress-copy" id="export-progress-detail">Getting the MP4 export pipeline ready…</p>
+            <div class="export-progress-bar" id="export-progress-bar">
+                <div id="export-progress-fill"></div>
+            </div>
+            <div class="export-progress-meta">
+                <span id="export-progress-label">Starting…</span>
+                <span id="export-progress-percent">0%</span>
             </div>
         </div>
     </div>
@@ -352,6 +369,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
 
     <!-- CORE ENGINE -->
     <script src="js/audio.js"></script>
@@ -495,4 +514,4 @@
 
 </body>
 
-</html>
+</html>

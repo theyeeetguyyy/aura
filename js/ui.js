@@ -204,7 +204,11 @@ const UI = (() => {
 
         // Recording time + 4.10: REC overlay
         if (_recBtn) {
-            if (Recorder.isRecording) {
+            if (Recorder.isProcessing) {
+                _recBtn.textContent = '...';
+                _recBtn.classList.add('recording');
+                if (_recOverlay) _recOverlay.style.display = 'none';
+            } else if (Recorder.isRecording) {
                 _recBtn.textContent = `⏺ ${formatTime(Recorder.getRecordingTime())}`;
                 _recBtn.classList.add('recording');
                 if (_recOverlay) {

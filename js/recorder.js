@@ -1,93 +1,147 @@
 // ============================================================
-// AURA - Recording System v4  (FFmpeg WASM, proper transcode)
+// AURA - Recording / Export System v5
 //
-// Pipeline:
-//   canvas.captureStream()
-//     → MediaRecorder  →  video/webm; codecs=vp8,opus
-//     → chunks (5s timeslice, safe for long recordings)
-//     → single WebM Blob
-//     → FFmpeg WASM transcode:
-//         VP8  → H.264 Baseline 3.0  (libx264, yuv420p)
-//         Opus → AAC 192k
-//         -movflags +faststart        (moov atom at front)
-//     → output.mp4  — accepted by WhatsApp, Instagram,
-//                      iOS Photos, iMessage, QuickTime,
-//                      Android Gallery, video editors
+// Capture strategy:
+//   canvas.captureStream() -> MediaRecorder -> WebM source
 //
-// Why transcode instead of -c copy:
-//   -c copy would produce an MP4 container holding VP8+Opus.
-//   That is not a standard MP4. WhatsApp, iOS, and most mobile
-//   apps expect H.264 + AAC inside MP4. -c copy skips the
-//   codec conversion so the file still gets rejected.
+// Delivery strategy:
+//   FFmpeg WASM transcodes that source into a standard MP4:
+//   H.264 High + AAC + yuv420p + faststart
 //
-// Why H.264 Baseline 3.0:
-//   Baseline is the most compatible H.264 profile. Every device
-//   that has ever played video supports it: iPhones from 2009,
-//   WhatsApp, Instagram, QuickTime, embedded players, all of them.
-//
-// Why yuv420p:
-//   Browsers can produce yuv444 or other chroma formats.
-//   iOS and QuickTime sometimes show a black screen with audio
-//   when chroma is not yuv420p. This flag forces the safe format.
-//
-// Why 5s timeslice:
-//   Without a timeslice the entire recording lives in RAM until
-//   stop(). At 18 Mbps that is ~2.25 MB/sec → 1.35 GB for 10 min.
-//   Mobile browsers (especially Safari) can be killed by the OS
-//   before the file is ready. 5s chunks cap peak RAM to ~11 MB
-//   per chunk while still producing a single clean WebM blob.
-//
-// ── HTML setup ──────────────────────────────────────────────────────
-//   <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-//   <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
-//
-// ── Required HTTP response headers (for WASM threading) ─────────────
-//   Cross-Origin-Opener-Policy: same-origin
-//   Cross-Origin-Embedder-Policy: require-corp
-//   (Without these FFmpeg falls back to single-threaded — still works,
-//    just slower on long recordings.)
-//
-// ── Optional status element ─────────────────────────────────────────
-//   <span id="record-status"></span>
+// Goal:
+//   reliable MP4 playback across WhatsApp, Instagram, iPhone,
+//   QuickTime, Android gallery apps, and common editors.
 // ============================================================
 
 const Recorder = (() => {
+    const EXPORT_PROFILES = {
+        low: {
+            key: 'low',
+            label: 'Low',
+            captureVideoBitrate: 12_000_000,
+            captureAudioBitrate: 128_000,
+            x264Preset: 'medium',
+            crf: 24,
+            audioBitrate: '128k'
+        },
+        medium: {
+            key: 'medium',
+            label: 'Medium',
+            captureVideoBitrate: 24_000_000,
+            captureAudioBitrate: 160_000,
+            x264Preset: 'slow',
+            crf: 20,
+            audioBitrate: '192k'
+        },
+        best: {
+            key: 'best',
+            label: 'Best',
+            captureVideoBitrate: 48_000_000,
+            captureAudioBitrate: 192_000,
+            x264Preset: 'slow',
+            crf: 18,
+            audioBitrate: '256k'
+        },
+        highest: {
+            key: 'highest',
+            label: 'Highest',
+            captureVideoBitrate: 100_000_000,
+            captureAudioBitrate: 320_000,
+            x264Preset: 'slow',
+            crf: 16,
+            audioBitrate: '320k'
+        }
+    };
 
-    // ── State ─────────────────────────────────────────────────────────
+    const DEFAULT_PROFILE_KEY = 'best';
+    const CAPTURE_FPS = 60;
+    const CHUNK_MS = 5000;
+
     let mediaRecorder = null;
-    let chunks        = [];
-    let isRecording   = false;
-    let startTime     = 0;
-    let ffmpegReady   = false;
-    let ffmpeg        = null;
+    let chunks = [];
+    let isRecording = false;
+    let isProcessing = false;
+    let startTime = 0;
+    let ffmpegReady = false;
+    let ffmpeg = null;
+    let ffmpegLoadPromise = null;
+    let activeProfile = EXPORT_PROFILES[DEFAULT_PROFILE_KEY];
 
-    // ── Bitrates ──────────────────────────────────────────────────────
-    // 18 Mbps video: visually lossless for canvas animations.
-    // libx264 will also apply its own internal quality pass on top.
-    // 192 kbps AAC: transparent for music and voice alike.
-    const VIDEO_BITRATE = 18_000_000;
-    const AUDIO_BITRATE =    192_000;
-
-    // ── MIME selection ────────────────────────────────────────────────
-    // VP8 + Opus: most reliable MediaRecorder WebM output across
-    // Chrome, Edge, and Firefox. VP9 also works but occasionally
-    // produces timestamps that confuse FFmpeg's demuxer.
     function pickMimeType() {
         const candidates = [
             'video/webm; codecs=vp8,opus',
             'video/webm; codecs=vp9,opus',
             'video/webm; codecs=vp8',
-            'video/webm',
+            'video/webm'
         ];
+
         for (const mime of candidates) {
             if (MediaRecorder.isTypeSupported(mime)) return mime;
         }
+
         return 'video/webm';
     }
 
-    // ── Load FFmpeg WASM once ─────────────────────────────────────────
-    async function ensureFFmpeg() {
+    function getSelectedProfile() {
+        const el = document.getElementById('settings-export-quality');
+        const key = el?.value || DEFAULT_PROFILE_KEY;
+        return EXPORT_PROFILES[key] || EXPORT_PROFILES[DEFAULT_PROFILE_KEY];
+    }
+
+    function getProgressElements() {
+        return {
+            modal: document.getElementById('export-progress-modal'),
+            title: document.getElementById('export-progress-title'),
+            detail: document.getElementById('export-progress-detail'),
+            bar: document.getElementById('export-progress-bar'),
+            fill: document.getElementById('export-progress-fill'),
+            label: document.getElementById('export-progress-label'),
+            percent: document.getElementById('export-progress-percent')
+        };
+    }
+
+    function showProgress(title, detail, progress, label) {
+        const ui = getProgressElements();
+        if (!ui.modal) return;
+
+        ui.modal.classList.add('open');
+        if (ui.title) ui.title.textContent = title || 'Exporting MP4';
+        if (ui.detail) ui.detail.textContent = detail || '';
+        if (ui.label) ui.label.textContent = label || 'Working…';
+
+        const numeric = Number.isFinite(progress);
+        if (ui.bar) ui.bar.classList.toggle('indeterminate', !numeric);
+        if (ui.fill && numeric) ui.fill.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+        if (ui.percent) ui.percent.textContent = numeric ? `${Math.round(progress)}%` : '...';
+    }
+
+    function hideProgress() {
+        const ui = getProgressElements();
+        if (!ui.modal) return;
+        if (ui.bar) ui.bar.classList.remove('indeterminate');
+        if (ui.fill) ui.fill.style.width = '0%';
+        ui.modal.classList.remove('open');
+    }
+
+    function setStatus(msg) {
+        const el = document.getElementById('record-status');
+        if (el) el.textContent = msg || '';
+    }
+
+    async function ensureFFmpeg(options = {}) {
+        const { showUi = true } = options;
         if (ffmpegReady) return true;
+        if (ffmpegLoadPromise) {
+            if (showUi) {
+                showProgress(
+                    'Preparing Export Engine',
+                    'Loading FFmpeg so Aura can build a real MP4 instead of relying on browser recording magic.',
+                    null,
+                    'Loading FFmpeg'
+                );
+            }
+            return ffmpegLoadPromise;
+        }
 
         if (typeof FFmpeg === 'undefined' || typeof FFmpegUtil === 'undefined') {
             console.error(
@@ -99,164 +153,210 @@ const Recorder = (() => {
             return false;
         }
 
-        try {
+        ffmpegLoadPromise = (async () => {
+            if (showUi) {
+                showProgress(
+                    'Preparing Export Engine',
+                    'Loading FFmpeg so Aura can build a real MP4 instead of relying on browser recording magic.',
+                    null,
+                    'Loading FFmpeg'
+                );
+            }
+
             ffmpeg = new FFmpeg.FFmpeg();
-
-            // Uncomment to debug FFmpeg output:
-            // ffmpeg.on('log', ({ message }) => console.log('[ffmpeg]', message));
-
             ffmpeg.on('progress', ({ progress }) => {
-                setStatus(`Processing… ${Math.round(progress * 100)}%`);
+                const pct = 15 + Math.round(Math.max(0, Math.min(1, progress || 0)) * 80);
+                showProgress(
+                    `Exporting ${activeProfile.label} MP4`,
+                    'Transcoding captured frames into a standard H.264/AAC MP4.',
+                    pct,
+                    'Transcoding'
+                );
             });
 
-            setStatus('Loading FFmpeg…');
             await ffmpeg.load({
-                coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+                coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js'
             });
 
             ffmpegReady = true;
-            setStatus('');
-            console.log('[Recorder] FFmpeg WASM ready');
             return true;
-
-        } catch (err) {
+        })().catch((err) => {
             console.error('[Recorder] FFmpeg load failed:', err);
-            setStatus('');
+            ffmpeg = null;
             return false;
-        }
+        }).finally(() => {
+            ffmpegLoadPromise = null;
+        });
+
+        return ffmpegLoadPromise;
     }
 
-    // ── Transcode WebM → proper MP4 ───────────────────────────────────
-    async function transcodeToMp4(webmBlob, filename) {
-        const loaded = await ensureFFmpeg();
-
-        if (!loaded) {
-            console.warn('[Recorder] FFmpeg unavailable — saving as WebM fallback');
-            downloadBlob(webmBlob, filename.replace('.mp4', '.webm'));
-            return;
-        }
-
-        try {
-            setStatus('Processing…');
-
-            const { fetchFile } = FFmpegUtil;
-            await ffmpeg.writeFile('input.webm', await fetchFile(webmBlob));
-
-            await ffmpeg.exec([
-                '-i',         'input.webm',
-
-                // ── Video: VP8 → H.264 ───────────────────────────────
-                '-c:v',       'libx264',
-                '-profile:v', 'baseline',   // maximum device compatibility
-                '-level',     '3.0',        // supported since iPhone 3GS (2009)
-                '-pix_fmt',   'yuv420p',    // prevents black-screen on iOS/QuickTime
-                '-b:v',       `${VIDEO_BITRATE}`,
-
-                // ── Audio: Opus → AAC ────────────────────────────────
-                '-c:a',       'aac',
-                '-b:a',       '192k',
-
-                // ── Container: moov atom at front ────────────────────
-                '-movflags',  '+faststart', // required by WhatsApp, Instagram, iMessage
-
-                'output.mp4',
-            ]);
-
-            const data    = await ffmpeg.readFile('output.mp4');
-            const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
-
-            // Clean up virtual FS
-            await ffmpeg.deleteFile('input.webm');
-            await ffmpeg.deleteFile('output.mp4');
-
-            downloadBlob(mp4Blob, filename);
-            setStatus('');
-
-            const mb = (mp4Blob.size / 1_048_576).toFixed(1);
-            console.log(`[Recorder] MP4 ready — ${mb} MB`);
-
-        } catch (err) {
-            console.error('[Recorder] Transcode failed:', err);
-            setStatus('');
-            // Still give the user their recording in some form
-            downloadBlob(webmBlob, filename.replace('.mp4', '.webm'));
-        }
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────
     function downloadBlob(blob, filename) {
         const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.href     = url;
+        const a = document.createElement('a');
+        a.href = url;
         a.download = filename;
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 30_000);
     }
 
-    function setStatus(msg) {
-        const el = document.getElementById('record-status');
-        if (el) el.textContent = msg;
+    function buildOutputFilename(profile) {
+        return `aura_${profile.key}_${Date.now()}.mp4`;
     }
 
-    // ── Public API ────────────────────────────────────────────────────
-    function start(canvas) {
-        if (isRecording) return;
+    async function safeDelete(path) {
+        if (!ffmpeg) return;
+        try {
+            await ffmpeg.deleteFile(path);
+        } catch (_) {
+            // Ignore cleanup failures in the virtual FS.
+        }
+    }
 
+    async function transcodeToMp4(webmBlob, filename, profile) {
+        activeProfile = profile;
+
+        showProgress(
+            `Exporting ${profile.label} MP4`,
+            'Preparing the captured WebM for final MP4 packaging.',
+            5,
+            'Preparing source'
+        );
+
+        const loaded = await ensureFFmpeg({ showUi: true });
+        if (!loaded) {
+            console.warn('[Recorder] FFmpeg unavailable — saving WebM fallback');
+            hideProgress();
+            downloadBlob(webmBlob, filename.replace('.mp4', '.webm'));
+            return;
+        }
+
+        const inputName = 'input.webm';
+        const outputName = 'output.mp4';
+
+        try {
+            const { fetchFile } = FFmpegUtil;
+            await ffmpeg.writeFile(inputName, await fetchFile(webmBlob));
+
+            showProgress(
+                `Exporting ${profile.label} MP4`,
+                'Building a WhatsApp-safe MP4 with H.264 video, AAC audio, front-loaded metadata, and iPhone-safe pixel format.',
+                12,
+                'Starting encode'
+            );
+
+            await ffmpeg.exec([
+                '-fflags', '+genpts',
+                '-i', inputName,
+                '-map', '0:v:0',
+                '-map', '0:a:0?',
+                '-c:v', 'libx264',
+                '-preset', profile.x264Preset,
+                '-crf', String(profile.crf),
+                '-profile:v', 'high',
+                '-level', '4.2',
+                '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', profile.audioBitrate,
+                '-ar', '48000',
+                '-ac', '2',
+                '-movflags', '+faststart',
+                '-shortest',
+                outputName
+            ]);
+
+            showProgress(
+                `Exporting ${profile.label} MP4`,
+                'Finalizing the MP4 file and getting it ready to download.',
+                98,
+                'Finalizing'
+            );
+
+            const data = await ffmpeg.readFile(outputName);
+            const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
+
+            downloadBlob(mp4Blob, filename);
+
+            const mb = (mp4Blob.size / 1_048_576).toFixed(1);
+            console.log(`[Recorder] MP4 ready — ${profile.label} preset — ${mb} MB`);
+        } catch (err) {
+            console.error('[Recorder] Transcode failed:', err);
+            downloadBlob(webmBlob, filename.replace('.mp4', '.webm'));
+        } finally {
+            await safeDelete(inputName);
+            await safeDelete(outputName);
+            hideProgress();
+        }
+    }
+
+    function start(canvas) {
+        if (isRecording || isProcessing) return;
+
+        const profile = getSelectedProfile();
         const mimeType = pickMimeType();
 
-        const videoStream    = canvas.captureStream(); // matches render FPS
-        const audioStream    = AudioEngine.getAudioStream();
+        const videoStream = canvas.captureStream(CAPTURE_FPS);
+        const audioStream = AudioEngine.getAudioStream();
         const combinedStream = new MediaStream();
 
-        videoStream.getTracks().forEach(t => combinedStream.addTrack(t));
+        videoStream.getTracks().forEach(track => combinedStream.addTrack(track));
         if (audioStream) {
-            audioStream.getTracks().forEach(t => combinedStream.addTrack(t));
+            audioStream.getTracks().forEach(track => combinedStream.addTrack(track));
+        } else {
+            console.warn('[Recorder] No audio stream found — export will be video-only');
         }
 
         mediaRecorder = new MediaRecorder(combinedStream, {
             mimeType,
-            videoBitsPerSecond: VIDEO_BITRATE,
-            audioBitsPerSecond: AUDIO_BITRATE,
+            videoBitsPerSecond: profile.captureVideoBitrate,
+            audioBitsPerSecond: profile.captureAudioBitrate
         });
 
+        activeProfile = profile;
         chunks = [];
+        setStatus(`Recording ${profile.label} source…`);
 
-        mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) chunks.push(e.data);
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) chunks.push(event.data);
         };
 
         mediaRecorder.onstop = async () => {
             const webmBlob = new Blob(chunks, { type: mimeType });
+            const filename = buildOutputFilename(profile);
             chunks = [];
-            await transcodeToMp4(webmBlob, `aura_${Date.now()}.mp4`);
+            isProcessing = true;
+            setStatus(`Exporting ${profile.label} MP4…`);
+            await transcodeToMp4(webmBlob, filename, profile);
+            isProcessing = false;
+            setStatus('');
         };
 
-        // 5000ms timeslice: chunks are flushed every 5 seconds.
-        // Peak RAM per chunk: ~11 MB at 18 Mbps.
-        // Without this, a 10-minute recording accumulates ~1.35 GB
-        // in RAM before onstop fires — enough to crash Safari on iOS.
-        mediaRecorder.start(5000);
-
+        mediaRecorder.start(CHUNK_MS);
         isRecording = true;
-        startTime   = performance.now();
+        startTime = performance.now();
 
-        console.log(`[Recorder] Started: ${canvas.width}×${canvas.height} [${mimeType}]`);
+        console.log(
+            `[Recorder] Started: ${canvas.width}x${canvas.height} @ ${CAPTURE_FPS}fps ` +
+            `[${mimeType}] [${profile.label}]`
+        );
 
-        // Pre-warm FFmpeg during recording so the transcode starts
-        // immediately after stop() without waiting for WASM load.
-        ensureFFmpeg();
+        // Pre-warm FFmpeg while the user is recording so export starts faster.
+        ensureFFmpeg({ showUi: false });
     }
 
     function stop() {
-        if (!isRecording || !mediaRecorder) return;
+        if (!isRecording || !mediaRecorder || isProcessing) return;
         mediaRecorder.stop();
         isRecording = false;
-        console.log('[Recorder] Stopped — transcoding to H.264/AAC MP4…');
+        setStatus('Finishing recording…');
+        console.log('[Recorder] Stopped — transcoding to MP4…');
     }
 
     function toggle(canvas) {
+        if (isProcessing) return;
         if (isRecording) stop();
-        else             start(canvas);
+        else start(canvas);
     }
 
     function getRecordingTime() {
@@ -269,7 +369,7 @@ const Recorder = (() => {
         stop,
         toggle,
         get isRecording() { return isRecording; },
-        getRecordingTime,
+        get isProcessing() { return isProcessing; },
+        getRecordingTime
     };
-
 })();

@@ -2,7 +2,7 @@
 // AURA — Main Application
 // Bootstrap, animation loop, initialization
 // ============================================================
-
+    
 const AuraApp = (() => {
     let running = false;
     let canvas = null;
