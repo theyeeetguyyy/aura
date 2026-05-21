@@ -1080,10 +1080,16 @@ const UI = (() => {
                 case 'ArrowLeft':
                     e.preventDefault();
                     AudioEngine.seekRelative(-5);
+                    if (VisualEngine?.previewMode === 'follow' && VisualEngine?.applyStudioStateAtTime) {
+                        VisualEngine.applyStudioStateAtTime(AudioEngine.audioBus.currentTime || 0);
+                    }
                     break;
                 case 'ArrowRight':
                     e.preventDefault();
                     AudioEngine.seekRelative(5);
+                    if (VisualEngine?.previewMode === 'follow' && VisualEngine?.applyStudioStateAtTime) {
+                        VisualEngine.applyStudioStateAtTime(AudioEngine.audioBus.currentTime || 0);
+                    }
                     break;
                 case 'ArrowUp':
                     e.preventDefault();

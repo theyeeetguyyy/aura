@@ -182,12 +182,9 @@ const TimelineUI = (() => {
     const t = AudioEngine.audioBus.currentTime || 0;
     const modeKey = VisualEngine?.activeModeKey || 'geometryForge';
     const nodeId = `node_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
-
-    let camState = { pos: { x: 0, y: 0, z: 100 }, lookAt: { x: 0, y: 0, z: 0 }, fov: 75 };
-    if (VisualEngine?.camera) {
-      const c = VisualEngine.camera;
-      camState = { pos: { x: c.position.x, y: c.position.y, z: c.position.z }, lookAt: { x: 0, y: 0, z: 0 }, fov: c.fov || 75 };
-    }
+    const camState = VisualEngine?.getCameraSnapshot
+      ? VisualEngine.getCameraSnapshot()
+      : { pos: { x: 0, y: 0, z: 100 }, lookAt: { x: 0, y: 0, z: 0 }, fov: 75 };
 
     ProjectStore.dispatch({ type: 'nodes/upsert', node: {
       id: nodeId,
@@ -201,11 +198,9 @@ const TimelineUI = (() => {
   function addCameraKFAtCurrentTime() {
     if (!AudioEngine?.audioBus?.loaded) return;
     const t = AudioEngine.audioBus.currentTime || 0;
-    let val = { pos: { x: 0, y: 0, z: 100 }, lookAt: { x: 0, y: 0, z: 0 }, fov: 75 };
-    if (VisualEngine?.camera) {
-      const c = VisualEngine.camera;
-      val = { pos: { x: c.position.x, y: c.position.y, z: c.position.z }, lookAt: { x: 0, y: 0, z: 0 }, fov: c.fov || 75 };
-    }
+    const val = VisualEngine?.getCameraSnapshot
+      ? VisualEngine.getCameraSnapshot()
+      : { pos: { x: 0, y: 0, z: 100 }, lookAt: { x: 0, y: 0, z: 0 }, fov: 75 };
     ProjectStore.dispatch({ type: 'timeline/addCameraKeyframe', time: t, val, easing: 'easeInOutCubic' });
   }
 
@@ -277,7 +272,8 @@ const TimelineUI = (() => {
         el.style.left = `${left}%`; el.style.width = `${Math.max(0.3, w)}%`;
         el.title = clip.name || node?.name || clip.nodeId;
         el.dataset.eventId = clip.id;
-        el.innerHTML = `<div class="timeline-handle left-handle"></div><span class="timeline-clip-label">${escapeHtml(node?.name || clip.nodeId)}</span><div class="timeline-handle right-handle"></div>`;
+        const clipLabel = clip.name || node?.name || clip.nodeId;
+        el.innerHTML = `<div class="timeline-handle left-handle"></div><span class="timeline-clip-label">${escapeHtml(clipLabel)}</span><div class="timeline-handle right-handle"></div>`;
 
         el.addEventListener('mousedown', (e) => {
           e.stopPropagation();
@@ -311,7 +307,16 @@ const TimelineUI = (() => {
 
         el.addEventListener('mousedown', (e) => {
           e.stopPropagation();
-          if (_selectedEventId !== kf.id) { _selectedEventId = kf.id; if (AudioEngine?.audioBus?.loaded) AudioEngine.seek(kf.time); if (UI?.buildCameraInspector) UI.buildCameraInspector(kf); render(); return; }
+          if (_selectedEventId !== kf.id) {
+            _selectedEventId = kf.id;
+            if (AudioEngine?.audioBus?.loaded) {
+              AudioEngine.seek(kf.time);
+              if (isFollowMode() && VisualEngine?.applyStudioStateAtTime) VisualEngine.applyStudioStateAtTime(kf.time);
+            }
+            if (UI?.buildCameraInspector) UI.buildCameraInspector(kf);
+            render();
+            return;
+          }
           _draggingEventId = kf.id; _dragStartEvent = { ...kf, isCamera: true };
           const rect = _bar.getBoundingClientRect();
           _dragOffsetX = ((e.clientX - rect.left) / rect.width) * dur - kf.time;
@@ -347,7 +352,13 @@ const TimelineUI = (() => {
         handle.title = `${icon} ${label} @ ${TimelineModel.formatTime(mk.time)}`;
         handle.innerHTML = `<span class="mk-icon">${icon}</span><span class="mk-label">${label}</span>`;
 
-        handle.addEventListener('click', (e) => { e.stopPropagation(); if (AudioEngine?.audioBus?.loaded) AudioEngine.seek(mk.time); });
+        handle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (AudioEngine?.audioBus?.loaded) {
+            AudioEngine.seek(mk.time);
+            if (isFollowMode() && VisualEngine?.applyStudioStateAtTime) VisualEngine.applyStudioStateAtTime(mk.time);
+          }
+        });
         handle.addEventListener('mousedown', (e) => {
             e.stopPropagation();
             if (_selectedEventId !== mk.id) { _selectedEventId = mk.id; render(); return; }

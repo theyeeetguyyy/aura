@@ -92,6 +92,7 @@ const ProjectStore = (() => {
       }
 
       case 'timeline/removeVisualClip': {
+        if (!state.timeline.visualTrack.some(e => e.id === action.id)) return state;
         const next = ProjectSchema.clone(state);
         next.timeline.visualTrack = next.timeline.visualTrack.filter(e => e.id !== action.id);
         next.meta.modifiedAt = Date.now();
@@ -135,6 +136,7 @@ const ProjectStore = (() => {
       }
 
       case 'timeline/removeCameraKeyframe': {
+        if (!state.timeline.cameraTrack.some(e => e.id === action.id)) return state;
         const next = ProjectSchema.clone(state);
         next.timeline.cameraTrack = next.timeline.cameraTrack.filter(e => e.id !== action.id);
         next.meta.modifiedAt = Date.now();
@@ -175,6 +177,7 @@ const ProjectStore = (() => {
       }
 
       case 'timeline/removeMarker': {
+        if (!state.timeline.markers.some(m => m.id === action.id)) return state;
         const next = ProjectSchema.clone(state);
         next.timeline.markers = next.timeline.markers.filter(m => m.id !== action.id);
         next.meta.modifiedAt = Date.now();
@@ -182,6 +185,7 @@ const ProjectStore = (() => {
       }
 
       case 'timeline/clearMarkers': {
+        if (!state.timeline.markers.length) return state;
         const next = ProjectSchema.clone(state);
         next.timeline.markers = [];
         next.meta.modifiedAt = Date.now();
@@ -190,6 +194,7 @@ const ProjectStore = (() => {
 
       // ── NODES ────────────────────────────────────────────
       case 'nodes/remove': {
+        if (!state.nodes.some(n => n.id === action.id)) return state;
         const next = ProjectSchema.clone(state);
         next.nodes = next.nodes.filter(n => n.id !== action.id);
         next.timeline.visualTrack = next.timeline.visualTrack.filter(e => e.nodeId !== action.id);
@@ -216,6 +221,7 @@ const ProjectStore = (() => {
       }
 
       case 'graph/removeEdge': {
+        if (!(state.edges || []).some(e => e.id === action.id)) return state;
         const next = ProjectSchema.clone(state);
         next.edges = (next.edges || []).filter(e => e.id !== action.id);
         next.meta.modifiedAt = Date.now();

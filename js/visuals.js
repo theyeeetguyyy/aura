@@ -336,6 +336,75 @@ const VisualEngine = (() => {
         }
     }
 
+    function getCameraLookAt(distance = 100) {
+        if (!camera) return { x: 0, y: 0, z: 0 };
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        const lookAt = camera.position.clone().add(dir.multiplyScalar(distance));
+        return { x: lookAt.x, y: lookAt.y, z: lookAt.z };
+    }
+
+    function getCameraSnapshot() {
+        if (!camera) {
+            return {
+                pos: { x: 0, y: 0, z: 100 },
+                lookAt: { x: 0, y: 0, z: 0 },
+                fov: 75
+            };
+        }
+
+        return {
+            pos: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+            lookAt: getCameraLookAt(),
+            fov: camera.fov || baseFOV || 75
+        };
+    }
+
+    function applyAbsoluteCameraState(state) {
+        if (!state) return;
+
+        const pos = state.pos || { x: 0, y: 0, z: 100 };
+        const lookAt = state.lookAt || { x: 0, y: 0, z: 0 };
+        const fov = typeof state.fov === 'number' ? state.fov : (camera?.fov || baseFOV || 75);
+
+        baseCameraPos.set(pos.x || 0, pos.y || 0, pos.z || 100);
+        baseFOV = fov;
+
+        const radius = Math.max(0.0001, baseCameraPos.length());
+        orbitRadius = radius;
+        orbitPhi = Math.acos(Math.max(-1, Math.min(1, baseCameraPos.y / radius)));
+        orbitTheta = Math.atan2(baseCameraPos.x, baseCameraPos.z);
+
+        if (typeof CameraEngine !== 'undefined') {
+            CameraEngine.setPosition(pos);
+            CameraEngine.setLookAt(lookAt);
+            CameraEngine.setFOV(fov);
+        }
+
+        if (camera) {
+            camera.position.set(pos.x || 0, pos.y || 0, pos.z || 100);
+            camera.lookAt(lookAt.x || 0, lookAt.y || 0, lookAt.z || 0);
+            camera.fov = fov;
+            camera.updateProjectionMatrix();
+        }
+    }
+
+    function applyCameraState(state) {
+        if (!state) return;
+        if (state.pos || state.lookAt) {
+            applyAbsoluteCameraState(state);
+            return;
+        }
+        if (state.orbitRadius !== undefined || state.orbitTheta !== undefined || state.orbitPhi !== undefined) {
+            setOrbitState(state);
+        }
+    }
+
+    function applyNodeSnapshot(node) {
+        if (!node) return;
+        applyBlendedState({ a: null, b: node, t: 1, easing: 'linear', type: 'transform' });
+    }
+
     // ── EFFECTS (user-controlled only) ──────────────────────
     function updateEffects(audio, params, dt) {
         // Only react to audio when playing
@@ -424,7 +493,7 @@ const VisualEngine = (() => {
                 const project = ProjectStore.getState();
                 const t = audioBus.currentTime || 0;
                 const res = GraphEvaluator.evalAtTime(project, t);
-                if (res?.blended?.appliedEventId || res?.blended?.b) {
+                if (res?.appliedEventId || res?.blended?.b) {
                     applyBlendedState(res.blended);
                     _lastAppliedEventId = res.appliedEventId;
                 }
@@ -519,10 +588,12 @@ const VisualEngine = (() => {
 
         // Mappings
         const mappings = b?.visual?.mappings;
-        if (mappings && typeof mappings === 'object' && ParamSystem.setMapping) {
+        if (ParamSystem.setMapping) {
             const current = ParamSystem.getMappings ? ParamSystem.getMappings() : {};
             for (const key of Object.keys(current)) ParamSystem.setMapping(key, null, 0, current[key]?.type);
-            for (const [k, m] of Object.entries(mappings)) { if (m) ParamSystem.setMapping(k, m.band, m.amount, m.type); }
+            if (mappings && typeof mappings === 'object') {
+                for (const [k, m] of Object.entries(mappings)) { if (m) ParamSystem.setMapping(k, m.band, m.amount, m.type); }
+            }
         }
 
         // Camera blending
@@ -530,7 +601,7 @@ const VisualEngine = (() => {
         if (bc) {
             let c = bc;
             if (ac) c = GraphModel.deepBlend(ac, bc, t);
-            setOrbitState(c);
+            applyCameraState(c);
         }
     }
 
@@ -545,12 +616,15 @@ const VisualEngine = (() => {
         get camera() { return camera; },
         get renderer() { return renderer; },
         get previewMode() { return previewMode; },
-        getOrbitState, setOrbitState, setPreviewMode,
+        getOrbitState, setOrbitState, setPreviewMode, getCameraSnapshot, applyNodeSnapshot,
         applyStudioStateAtTime(t) {
             if (typeof ProjectStore === 'undefined' || typeof GraphEvaluator === 'undefined') return;
             const project = ProjectStore.getState();
             const res = GraphEvaluator.evalAtTime(project, t || 0);
-            if (res?.blended) applyBlendedState(res.blended);
+            if (res?.blended) {
+                applyBlendedState(res.blended);
+                _lastAppliedEventId = res.appliedEventId || null;
+            }
         }
     };
 })();

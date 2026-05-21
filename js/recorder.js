@@ -128,6 +128,20 @@ const Recorder = (() => {
         if (el) el.textContent = msg || '';
     }
 
+    function resolveFFmpegApi() {
+        const ffmpegGlobal = globalThis.FFmpegWASM || globalThis.FFmpeg || null;
+        const utilGlobal = globalThis.FFmpegUtil || null;
+        const FFmpegCtor = ffmpegGlobal?.FFmpeg || null;
+        const fetchFile = utilGlobal?.fetchFile || null;
+
+        return {
+            ffmpegGlobal,
+            utilGlobal,
+            FFmpegCtor,
+            fetchFile
+        };
+    }
+
     async function ensureFFmpeg(options = {}) {
         const { showUi = true } = options;
         if (ffmpegReady) return true;
@@ -143,9 +157,10 @@ const Recorder = (() => {
             return ffmpegLoadPromise;
         }
 
-        if (typeof FFmpeg === 'undefined' || typeof FFmpegUtil === 'undefined') {
+        const api = resolveFFmpegApi();
+        if (!api.FFmpegCtor || !api.fetchFile) {
             console.error(
-                '[Recorder] @ffmpeg/ffmpeg and @ffmpeg/util are not loaded.\n' +
+                '[Recorder] @ffmpeg/ffmpeg and @ffmpeg/util are not loaded or exposed under an unexpected global name.\n' +
                 'Add before recorder.js:\n' +
                 '  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>\n' +
                 '  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>'
@@ -163,7 +178,7 @@ const Recorder = (() => {
                 );
             }
 
-            ffmpeg = new FFmpeg.FFmpeg();
+            ffmpeg = new api.FFmpegCtor();
             ffmpeg.on('progress', ({ progress }) => {
                 const pct = 15 + Math.round(Math.max(0, Math.min(1, progress || 0)) * 80);
                 showProgress(
@@ -235,7 +250,8 @@ const Recorder = (() => {
         const outputName = 'output.mp4';
 
         try {
-            const { fetchFile } = FFmpegUtil;
+            const { fetchFile } = resolveFFmpegApi();
+            if (!fetchFile) throw new Error('FFmpeg fetchFile helper is unavailable');
             await ffmpeg.writeFile(inputName, await fetchFile(webmBlob));
 
             showProgress(

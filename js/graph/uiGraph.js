@@ -122,15 +122,17 @@ const GraphUI = (() => {
   }
 
   function createNode() {
-    const t = AudioEngine?.audioBus?.currentTime || 0;
     const modeKey = VisualEngine?.activeModeKey || 'geometryForge';
     const nodeId = `node_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+    const cameraState = VisualEngine?.getCameraSnapshot
+      ? VisualEngine.getCameraSnapshot()
+      : { pos: { x: 0, y: 0, z: 100 }, lookAt: { x: 0, y: 0, z: 0 }, fov: 75 };
 
     const node = {
       id: nodeId,
       name: `Node ${nodeId.slice(-4)}`,
       visual: { modeKey, globalParams: null, modeParams: null, mappings: null },
-      camera: { orbitTheta: 0, orbitPhi: Math.PI / 2, orbitRadius: 100, fov: 75 },
+      camera: cameraState,
       ui: {
         x: 120 + Math.random() * 260,
         y: 80 + Math.random() * 180,
@@ -154,14 +156,9 @@ const GraphUI = (() => {
       modeParams: ParamSystem.getAllMode(),
       mappings: ParamSystem.getMappings(),
     };
-    updated.camera = {
-      ...(VisualEngine?.getOrbitState ? VisualEngine.getOrbitState() : {
-        orbitTheta: 0,
-        orbitPhi: Math.PI / 2,
-        orbitRadius: 100,
-        fov: VisualEngine?.camera?.fov || 75,
-      })
-    };
+    updated.camera = VisualEngine?.getCameraSnapshot
+      ? VisualEngine.getCameraSnapshot()
+      : { pos: { x: 0, y: 0, z: 100 }, lookAt: { x: 0, y: 0, z: 0 }, fov: 75 };
 
     ProjectStore.dispatch({ type: 'nodes/upsert', node: updated });
   }
@@ -188,12 +185,7 @@ const GraphUI = (() => {
     const n = project.nodes.find(node => node.id === nodeId);
     if (!n) return;
     _selectedNodeId = nodeId;
-    if (typeof VisualEngine !== 'undefined') {
-      if (n.visual?.modeKey) VisualEngine.setMode(n.visual.modeKey);
-      if (n.visual?.globalParams) for (const [k, v] of Object.entries(n.visual.globalParams)) ParamSystem.set(k, v);
-      if (n.visual?.modeParams) for (const [k, v] of Object.entries(n.visual.modeParams)) ParamSystem.set(k, v);
-      if (n.camera && VisualEngine.setOrbitState) VisualEngine.setOrbitState(n.camera);
-    }
+    if (typeof VisualEngine !== 'undefined' && VisualEngine.applyNodeSnapshot) VisualEngine.applyNodeSnapshot(n);
     render();
   }
 
@@ -315,6 +307,7 @@ const GraphUI = (() => {
 
       g.addEventListener('dblclick', (e) => {
         e.stopPropagation();
+        return;
         // Double click: apply this node immediately (scrubless preview)
         if (typeof VisualEngine !== 'undefined') {
           // Create a “virtual” event: apply now by directly writing params
@@ -322,6 +315,13 @@ const GraphUI = (() => {
           if (n.visual?.modeKey) VisualEngine.setMode(n.visual.modeKey);
           if (n.visual?.globalParams) for (const [k, v] of Object.entries(n.visual.globalParams)) ParamSystem.set(k, v);
           if (n.visual?.modeParams) for (const [k, v] of Object.entries(n.visual.modeParams)) ParamSystem.set(k, v);
+        }
+      });
+
+      g.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        if (typeof VisualEngine !== 'undefined' && VisualEngine.applyNodeSnapshot) {
+          VisualEngine.applyNodeSnapshot(n);
         }
       });
 
@@ -394,4 +394,3 @@ const GraphUI = (() => {
     addNodeToTimelineById
   };
 })();
-
