@@ -30,12 +30,44 @@ const CameraEngine = (() => {
 
         if (typeof KeyframeEngine !== 'undefined') {
             const sorted = [...cameraTrack].sort((a, b) => a.time - b.time);
-            const pos = KeyframeEngine.evalTrack(sorted, t, 'vector3', v => v.pos);
-            const lookAt = KeyframeEngine.evalTrack(sorted, t, 'vector3', v => v.lookAt || { x: 0, y: 0, z: 0 });
-            const fov = KeyframeEngine.evalTrack(sorted, t, 'scalar', v => v.fov);
+            
+            // Map cartesian to spherical to enable sweeping arcs and prevent origin clipping
+            let lastTheta = 0;
+            const sphericalTrack = sorted.map((kf, i) => {
+                const px = kf.val.pos?.x || 0, py = kf.val.pos?.y || 0, pz = kf.val.pos?.z || 0;
+                const lx = kf.val.lookAt?.x || 0, ly = kf.val.lookAt?.y || 0, lz = kf.val.lookAt?.z || 0;
+                const dx = px - lx, dy = py - ly, dz = pz - lz;
+                
+                const radius = Math.max(0.0001, Math.sqrt(dx*dx + dy*dy + dz*dz));
+                const phi = Math.acos(Math.max(-1, Math.min(1, dy / radius)));
+                let theta = Math.atan2(dx, dz);
+                
+                // Unwrap theta to prevent the camera from spinning the wrong way around the globe
+                if (i > 0) {
+                    let dTheta = theta - lastTheta;
+                    while (dTheta > Math.PI) dTheta -= Math.PI * 2;
+                    while (dTheta < -Math.PI) dTheta += Math.PI * 2;
+                    theta = lastTheta + dTheta;
+                }
+                lastTheta = theta;
+                
+                return { ...kf, val: { ...kf.val, _r: radius, _phi: phi, _theta: theta } };
+            });
 
-            if (pos) currentPos = pos;
+            const r = KeyframeEngine.evalTrack(sphericalTrack, t, 'scalar', v => v._r);
+            const phi = KeyframeEngine.evalTrack(sphericalTrack, t, 'scalar', v => v._phi);
+            const theta = KeyframeEngine.evalTrack(sphericalTrack, t, 'scalar', v => v._theta);
+            const lookAt = KeyframeEngine.evalTrack(sphericalTrack, t, 'vector3', v => v.lookAt || { x: 0, y: 0, z: 0 });
+            const fov = KeyframeEngine.evalTrack(sphericalTrack, t, 'scalar', v => v.fov);
+
             if (lookAt) currentLookAt = lookAt;
+            if (r !== null && phi !== null && theta !== null) {
+                currentPos = {
+                    x: currentLookAt.x + r * Math.sin(phi) * Math.sin(theta),
+                    y: currentLookAt.y + r * Math.cos(phi),
+                    z: currentLookAt.z + r * Math.sin(phi) * Math.cos(theta)
+                };
+            }
             if (typeof fov === 'number') currentFOV = fov;
 
             return { pos: currentPos, lookAt: currentLookAt, fov: currentFOV };
