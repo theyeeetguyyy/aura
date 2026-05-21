@@ -1,126 +1,89 @@
 // ============================================================
-// AURA - Recording / Export System v5
+// AURA — Recorder v6
 //
-// Capture strategy:
-//   canvas.captureStream() -> MediaRecorder -> WebM source
+// Capture:  canvas.captureStream() → MediaRecorder → WebM/VP8
+// Export:   FFmpeg WASM (single-threaded, no SharedArrayBuffer)
+//           → H.264 High + AAC + yuv420p + faststart MP4
 //
-// Delivery strategy:
-//   FFmpeg WASM transcodes that source into a standard MP4:
-//   H.264 High + AAC + yuv420p + faststart
-//
-// Goal:
-//   reliable MP4 playback across WhatsApp, Instagram, iPhone,
-//   QuickTime, Android gallery apps, and common editors.
+// Single-threaded core works on GitHub Pages with zero headers.
+// Quality is always locked to "best" — no UI override.
 // ============================================================
 
 const Recorder = (() => {
-    const EXPORT_PROFILES = {
-        low: {
-            key: 'low',
-            label: 'Low',
-            captureVideoBitrate: 12_000_000,
-            captureAudioBitrate: 128_000,
-            x264Preset: 'medium',
-            crf: 24,
-            audioBitrate: '128k'
-        },
-        medium: {
-            key: 'medium',
-            label: 'Medium',
-            captureVideoBitrate: 24_000_000,
-            captureAudioBitrate: 160_000,
-            x264Preset: 'slow',
-            crf: 20,
-            audioBitrate: '192k'
-        },
-        best: {
-            key: 'best',
-            label: 'Best',
-            captureVideoBitrate: 48_000_000,
-            captureAudioBitrate: 192_000,
-            x264Preset: 'slow',
-            crf: 18,
-            audioBitrate: '256k'
-        },
-        highest: {
-            key: 'highest',
-            label: 'Highest',
-            captureVideoBitrate: 100_000_000,
-            captureAudioBitrate: 320_000,
-            x264Preset: 'slow',
-            crf: 16,
-            audioBitrate: '320k'
-        }
+
+    // ── Profile (locked to best) ────────────────────────────
+    const PROFILE = {
+        label:              'Best',
+        captureVideoBitrate: 48_000_000,
+        captureAudioBitrate: 192_000,
+        x264Preset:         'slow',
+        crf:                18,
+        audioBitrate:       '256k'
     };
 
-    const DEFAULT_PROFILE_KEY = 'best';
     const CAPTURE_FPS = 60;
-    const CHUNK_MS = 5000;
+    const CHUNK_MS    = 5_000;
 
-    let mediaRecorder = null;
-    let chunks = [];
-    let isRecording = false;
-    let isProcessing = false;
-    let startTime = 0;
-    let ffmpegReady = false;
-    let ffmpeg = null;
+    // ── State ───────────────────────────────────────────────
+    let mediaRecorder  = null;
+    let chunks         = [];
+    let isRecording    = false;
+    let isProcessing   = false;
+    let startTime      = 0;
+
+    // ── FFmpeg ──────────────────────────────────────────────
+    let ffmpeg          = null;
+    let ffmpegReady     = false;
+    let ffmpegLoading   = false;
     let ffmpegLoadPromise = null;
-    let activeProfile = EXPORT_PROFILES[DEFAULT_PROFILE_KEY];
 
+    // ── MIME type ───────────────────────────────────────────
+    // VP8 only — VP9 → H.264 transcode causes sync drift in ffmpeg-wasm
     function pickMimeType() {
         const candidates = [
             'video/webm; codecs=vp8,opus',
-            'video/webm; codecs=vp9,opus',
             'video/webm; codecs=vp8',
             'video/webm'
         ];
-
-        for (const mime of candidates) {
-            if (MediaRecorder.isTypeSupported(mime)) return mime;
+        for (const m of candidates) {
+            if (MediaRecorder.isTypeSupported(m)) return m;
         }
-
         return 'video/webm';
     }
 
-    function getSelectedProfile() {
-        const el = document.getElementById('settings-export-quality');
-        const key = el?.value || DEFAULT_PROFILE_KEY;
-        return EXPORT_PROFILES[key] || EXPORT_PROFILES[DEFAULT_PROFILE_KEY];
-    }
-
-    function getProgressElements() {
+    // ── Progress UI ─────────────────────────────────────────
+    function ui() {
         return {
-            modal: document.getElementById('export-progress-modal'),
-            title: document.getElementById('export-progress-title'),
-            detail: document.getElementById('export-progress-detail'),
-            bar: document.getElementById('export-progress-bar'),
-            fill: document.getElementById('export-progress-fill'),
-            label: document.getElementById('export-progress-label'),
+            modal:   document.getElementById('export-progress-modal'),
+            title:   document.getElementById('export-progress-title'),
+            detail:  document.getElementById('export-progress-detail'),
+            bar:     document.getElementById('export-progress-bar'),
+            fill:    document.getElementById('export-progress-fill'),
+            label:   document.getElementById('export-progress-label'),
             percent: document.getElementById('export-progress-percent')
         };
     }
 
     function showProgress(title, detail, progress, label) {
-        const ui = getProgressElements();
-        if (!ui.modal) return;
-
-        ui.modal.classList.add('open');
-        if (ui.title) ui.title.textContent = title || 'Exporting MP4';
-        if (ui.detail) ui.detail.textContent = detail || '';
-        if (ui.label) ui.label.textContent = label || 'Working…';
+        const el = ui();
+        if (!el.modal) return;
+        el.modal.classList.add('open');
+        if (el.title)   el.title.textContent   = title   || 'Exporting MP4';
+        if (el.detail)  el.detail.textContent  = detail  || '';
+        if (el.label)   el.label.textContent   = label   || 'Working…';
 
         const numeric = Number.isFinite(progress);
-        if (ui.bar) ui.bar.classList.toggle('indeterminate', !numeric);
-        if (ui.fill && numeric) ui.fill.style.width = `${Math.max(0, Math.min(100, progress))}%`;
-        if (ui.percent) ui.percent.textContent = numeric ? `${Math.round(progress)}%` : '...';
+        if (el.bar)     el.bar.classList.toggle('indeterminate', !numeric);
+        if (el.fill && numeric) el.fill.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+        if (el.percent) el.percent.textContent = numeric ? `${Math.round(progress)}%` : '…';
     }
 
     function hideProgress() {
-        const ui = getProgressElements();
-        if (!ui.modal) return;
-        if (ui.bar) ui.bar.classList.remove('indeterminate');
-        if (ui.fill) ui.fill.style.width = '0%';
-        ui.modal.classList.remove('open');
+        const el = ui();
+        if (!el.modal) return;
+        if (el.bar)  el.bar.classList.remove('indeterminate');
+        if (el.fill) el.fill.style.width = '0%';
+        el.modal.classList.remove('open');
     }
 
     function setStatus(msg) {
@@ -128,84 +91,66 @@ const Recorder = (() => {
         if (el) el.textContent = msg || '';
     }
 
-    function resolveFFmpegApi() {
-        const ffmpegGlobal = globalThis.FFmpegWASM || globalThis.FFmpeg || null;
-        const utilGlobal = globalThis.FFmpegUtil || null;
-        const FFmpegCtor = ffmpegGlobal?.FFmpeg || null;
-        const fetchFile = utilGlobal?.fetchFile || null;
-
-        return {
-            ffmpegGlobal,
-            utilGlobal,
-            FFmpegCtor,
-            fetchFile
-        };
-    }
-
-    async function ensureFFmpeg(options = {}) {
-        const { showUi = true } = options;
+    // ── FFmpeg loader ───────────────────────────────────────
+    // Uses @ffmpeg/core-st (single-threaded) — no SharedArrayBuffer
+    // required, so it works on GitHub Pages without COOP/COEP headers.
+    async function ensureFFmpeg({ showUi = true } = {}) {
         if (ffmpegReady) return true;
-        
+
+        // Can't use Workers from file:// regardless of build
         if (location.protocol === 'file:') {
-            console.warn('[Recorder] FFmpeg WASM requires an HTTP server. Fallback to WebM enabled.');
+            console.warn('[Recorder] file:// origin — run via HTTP for MP4 export.');
             if (showUi && typeof UI !== 'undefined' && UI.showToast) {
-                UI.showToast('Local file detected. Run an HTTP server for MP4 export. Falling back to WebM.', 'warning');
+                UI.showToast('Run AURA over HTTP (not file://) for MP4 export.', 'warning');
             }
             return false;
         }
 
+        // Deduplicate concurrent load calls
         if (ffmpegLoadPromise) {
-            if (showUi) {
-                showProgress(
-                    'Preparing Export Engine',
-                    'Loading FFmpeg so Aura can build a real MP4 instead of relying on browser recording magic.',
-                    null,
-                    'Loading FFmpeg'
-                );
-            }
+            if (showUi) showProgress('Preparing export engine', 'Loading FFmpeg…', null, 'Loading');
             return ffmpegLoadPromise;
         }
 
-        const api = resolveFFmpegApi();
-        if (!api.FFmpegCtor || !api.fetchFile) {
+        const FFmpegLib  = globalThis.FFmpegWASM || globalThis.FFmpeg || null;
+        const FFmpegUtil = globalThis.FFmpegUtil  || null;
+        const FFmpegCtor = FFmpegLib?.FFmpeg  || null;
+        const fetchFile  = FFmpegUtil?.fetchFile || null;
+
+        if (!FFmpegCtor || !fetchFile) {
             console.error(
-                '[Recorder] @ffmpeg/ffmpeg and @ffmpeg/util are not loaded or exposed under an unexpected global name.\n' +
-                'Add before recorder.js:\n' +
+                '[Recorder] FFmpeg globals missing.\n' +
+                'Make sure these two scripts appear before recorder.js in index.html:\n' +
                 '  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>\n' +
                 '  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>'
             );
             return false;
         }
 
-        ffmpegLoadPromise = (async () => {
-            if (showUi) {
-                showProgress(
-                    'Preparing Export Engine',
-                    'Loading FFmpeg so Aura can build a real MP4 instead of relying on browser recording magic.',
-                    null,
-                    'Loading FFmpeg'
-                );
-            }
+        if (showUi) showProgress('Preparing export engine', 'Loading FFmpeg…', null, 'Loading');
 
-            ffmpeg = new api.FFmpegCtor();
+        ffmpegLoadPromise = (async () => {
+            ffmpeg = new FFmpegCtor();
+
+            // Wire transcode progress → progress bar (15–95 %)
             ffmpeg.on('progress', ({ progress }) => {
                 const pct = 15 + Math.round(Math.max(0, Math.min(1, progress || 0)) * 80);
-                showProgress(
-                    `Exporting ${activeProfile.label} MP4`,
-                    'Transcoding captured frames into a standard H.264/AAC MP4.',
-                    pct,
-                    'Transcoding'
-                );
+                showProgress('Exporting Best MP4', 'Transcoding H.264 + AAC…', pct, 'Transcoding');
             });
 
+            // ── KEY CHANGE: core-st = single-threaded, no SharedArrayBuffer ──
             await ffmpeg.load({
-                coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js'
+                coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.12.6/dist/umd/ffmpeg-core.js'
             });
 
             ffmpegReady = true;
+            console.log('[Recorder] FFmpeg (single-threaded) ready.');
             return true;
-        })().catch((err) => {
-            console.error('[Recorder] FFmpeg load failed:', err);
+        })().catch(err => {
+            console.error('[Recorder] FFmpeg failed to load:', err);
+            if (typeof UI !== 'undefined' && UI.showToast) {
+                UI.showToast('FFmpeg failed to load — will save as WebM instead.', 'error');
+            }
             ffmpeg = null;
             return false;
         }).finally(() => {
@@ -215,99 +160,94 @@ const Recorder = (() => {
         return ffmpegLoadPromise;
     }
 
+    // ── Helpers ─────────────────────────────────────────────
     function downloadBlob(blob, filename) {
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
+        const a   = document.createElement('a');
+        a.href     = url;
         a.download = filename;
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 30_000);
     }
 
-    function buildOutputFilename(profile) {
-        return `aura_${profile.key}_${Date.now()}.mp4`;
+    function buildFilename(ext = 'mp4') {
+        return `aura_best_${Date.now()}.${ext}`;
     }
 
     async function safeDelete(path) {
         if (!ffmpeg) return;
-        try {
-            await ffmpeg.deleteFile(path);
-        } catch (_) {
-            // Ignore cleanup failures in the virtual FS.
-        }
+        try { await ffmpeg.deleteFile(path); } catch (_) {}
     }
 
-    async function transcodeToMp4(webmBlob, filename, profile) {
-        activeProfile = profile;
-
-        showProgress(
-            `Exporting ${profile.label} MP4`,
-            'Preparing the captured WebM for final MP4 packaging.',
-            5,
-            'Preparing source'
-        );
+    // ── Transcode ────────────────────────────────────────────
+    async function transcodeToMp4(webmBlob) {
+        showProgress('Exporting Best MP4', 'Preparing source…', 5, 'Preparing');
 
         const loaded = await ensureFFmpeg({ showUi: true });
         if (!loaded) {
-            console.warn('[Recorder] FFmpeg unavailable — saving WebM fallback');
+            console.warn('[Recorder] FFmpeg unavailable — saving WebM.');
             hideProgress();
-            downloadBlob(webmBlob, filename.replace('.mp4', '.webm'));
+            downloadBlob(webmBlob, buildFilename('webm'));
             return;
         }
 
-        const inputName = 'input.webm';
+        const inputName  = 'input.webm';
         const outputName = 'output.mp4';
 
         try {
-            const { fetchFile } = resolveFFmpegApi();
-            if (!fetchFile) throw new Error('FFmpeg fetchFile helper is unavailable');
+            const FFmpegUtil = globalThis.FFmpegUtil || null;
+            const fetchFile  = FFmpegUtil?.fetchFile;
+            if (!fetchFile) throw new Error('fetchFile helper missing');
+
+            showProgress('Exporting Best MP4', 'Writing source to virtual FS…', 10, 'Writing');
             await ffmpeg.writeFile(inputName, await fetchFile(webmBlob));
 
-            showProgress(
-                `Exporting ${profile.label} MP4`,
-                'Building a WhatsApp-safe MP4 with H.264 video, AAC audio, front-loaded metadata, and iPhone-safe pixel format.',
-                12,
-                'Starting encode'
-            );
+            showProgress('Exporting Best MP4', 'Building MP4 — H.264 High + AAC + yuv420p…', 12, 'Starting encode');
 
             await ffmpeg.exec([
-                '-fflags', '+genpts',
-                '-i', inputName,
-                '-map', '0:v:0',
-                '-map', '0:a:0?',
-                '-c:v', 'libx264',
-                '-preset', profile.x264Preset,
-                '-crf', String(profile.crf),
-                '-profile:v', 'high',
-                '-level', '4.2',
-                '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p',
-                '-pix_fmt', 'yuv420p',
-                '-c:a', 'aac',
-                '-b:a', profile.audioBitrate,
-                '-ar', '48000',
-                '-ac', '2',
-                '-movflags', '+faststart',
+                '-fflags',    '+genpts',
+                '-i',          inputName,
+                '-map',        '0:v:0',
+                '-map',        '0:a:0?',
+                // Video
+                '-c:v',        'libx264',
+                '-preset',     PROFILE.x264Preset,
+                '-crf',        String(PROFILE.crf),
+                '-profile:v',  'high',
+                '-level',      '4.2',
+                '-vf',         'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p',
+                '-pix_fmt',    'yuv420p',
+                // Audio
+                '-c:a',        'aac',
+                '-b:a',        PROFILE.audioBitrate,
+                '-ar',         '48000',
+                '-ac',         '2',
+                // Container
+                '-movflags',   '+faststart',
                 '-shortest',
                 outputName
             ]);
 
-            showProgress(
-                `Exporting ${profile.label} MP4`,
-                'Finalizing the MP4 file and getting it ready to download.',
-                98,
-                'Finalizing'
-            );
-
-            const data = await ffmpeg.readFile(outputName);
+            showProgress('Exporting Best MP4', 'Finalising…', 98, 'Finalising');
+            const data    = await ffmpeg.readFile(outputName);
             const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
+            const filename = buildFilename('mp4');
 
             downloadBlob(mp4Blob, filename);
 
             const mb = (mp4Blob.size / 1_048_576).toFixed(1);
-            console.log(`[Recorder] MP4 ready — ${profile.label} preset — ${mb} MB`);
+            console.log(`[Recorder] ✓ MP4 ready — ${mb} MB — ${filename}`);
+
+            if (typeof UI !== 'undefined' && UI.showToast) {
+                UI.showToast(`MP4 exported — ${mb} MB`, 'info');
+            }
+
         } catch (err) {
             console.error('[Recorder] Transcode failed:', err);
-            downloadBlob(webmBlob, filename.replace('.mp4', '.webm'));
+            if (typeof UI !== 'undefined' && UI.showToast) {
+                UI.showToast('Transcode failed — saving WebM fallback.', 'error');
+            }
+            downloadBlob(webmBlob, buildFilename('webm'));
         } finally {
             await safeDelete(inputName);
             await safeDelete(outputName);
@@ -315,58 +255,55 @@ const Recorder = (() => {
         }
     }
 
+    // ── Public API ───────────────────────────────────────────
     function start(canvas) {
         if (isRecording || isProcessing) return;
 
-        const profile = getSelectedProfile();
-        const mimeType = pickMimeType();
-
+        const mimeType    = pickMimeType();
         const videoStream = canvas.captureStream(CAPTURE_FPS);
-        const audioStream = AudioEngine.getAudioStream();
-        const combinedStream = new MediaStream();
+        const audioStream = (typeof AudioEngine !== 'undefined') ? AudioEngine.getAudioStream() : null;
 
-        videoStream.getTracks().forEach(track => combinedStream.addTrack(track));
+        const combined = new MediaStream();
+        videoStream.getTracks().forEach(t => combined.addTrack(t));
         if (audioStream) {
-            audioStream.getTracks().forEach(track => combinedStream.addTrack(track));
+            audioStream.getTracks().forEach(t => combined.addTrack(t));
         } else {
-            console.warn('[Recorder] No audio stream found — export will be video-only');
+            console.warn('[Recorder] No audio stream — export will be video-only.');
         }
 
-        mediaRecorder = new MediaRecorder(combinedStream, {
+        mediaRecorder = new MediaRecorder(combined, {
             mimeType,
-            videoBitsPerSecond: profile.captureVideoBitrate,
-            audioBitsPerSecond: profile.captureAudioBitrate
+            videoBitsPerSecond: PROFILE.captureVideoBitrate,
+            audioBitsPerSecond: PROFILE.captureAudioBitrate
         });
 
-        activeProfile = profile;
-        chunks = [];
-        setStatus(`Recording ${profile.label} source…`);
+        chunks    = [];
+        startTime = performance.now();
+        isRecording = true;
 
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) chunks.push(event.data);
+        mediaRecorder.ondataavailable = e => {
+            if (e.data.size > 0) chunks.push(e.data);
         };
 
         mediaRecorder.onstop = async () => {
-            const webmBlob = new Blob(chunks, { type: mimeType });
-            const filename = buildOutputFilename(profile);
-            chunks = [];
             isProcessing = true;
-            setStatus(`Exporting ${profile.label} MP4…`);
-            await transcodeToMp4(webmBlob, filename, profile);
+            setStatus('Exporting MP4…');
+            const webmBlob = new Blob(chunks, { type: mimeType });
+            chunks = [];
+            await transcodeToMp4(webmBlob);
             isProcessing = false;
             setStatus('');
         };
 
         mediaRecorder.start(CHUNK_MS);
-        isRecording = true;
-        startTime = performance.now();
+        setStatus('Recording Best…');
 
         console.log(
-            `[Recorder] Started: ${canvas.width}x${canvas.height} @ ${CAPTURE_FPS}fps ` +
-            `[${mimeType}] [${profile.label}]`
+            `[Recorder] Started — ${canvas.width}×${canvas.height} @ ${CAPTURE_FPS}fps` +
+            ` [${mimeType}] [Best]`
         );
 
-        // Pre-warm FFmpeg while the user is recording so export starts faster.
+        // Pre-warm FFmpeg while the user is still recording
         ensureFFmpeg({ showUi: false });
     }
 
@@ -374,7 +311,7 @@ const Recorder = (() => {
         if (!isRecording || !mediaRecorder || isProcessing) return;
         mediaRecorder.stop();
         isRecording = false;
-        setStatus('Finishing recording…');
+        setStatus('Finishing…');
         console.log('[Recorder] Stopped — transcoding to MP4…');
     }
 
@@ -393,7 +330,7 @@ const Recorder = (() => {
         start,
         stop,
         toggle,
-        get isRecording() { return isRecording; },
+        get isRecording()  { return isRecording;  },
         get isProcessing() { return isProcessing; },
         getRecordingTime
     };

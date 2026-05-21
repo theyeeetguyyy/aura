@@ -308,6 +308,11 @@ const TimelineUI = (() => {
         el.querySelector('.cam-kf-delete').addEventListener('click', (e) => {
           e.preventDefault(); e.stopPropagation();
           ProjectStore.dispatch({ type: 'timeline/removeCameraKeyframe', id: kf.id });
+          if (_selectedEventId === kf.id) _selectedEventId = null;
+          render();
+          if (AudioEngine?.audioBus?.loaded && isFollowMode() && VisualEngine?.applyStudioStateAtTime) {
+            VisualEngine.applyStudioStateAtTime(AudioEngine.audioBus.currentTime || 0);
+          }
         });
 
         el.addEventListener('mousedown', (e) => {
@@ -388,6 +393,9 @@ const TimelineUI = (() => {
     ProjectStore.dispatch({ type: 'timeline/removeMarker', id: _selectedEventId });
     _selectedEventId = null;
     render();
+    if (AudioEngine?.audioBus?.loaded && isFollowMode() && VisualEngine?.applyStudioStateAtTime) {
+      VisualEngine.applyStudioStateAtTime(AudioEngine.audioBus.currentTime || 0);
+    }
     return true;
   }
 

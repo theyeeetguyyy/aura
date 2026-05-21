@@ -353,10 +353,17 @@ const VisualEngine = (() => {
             };
         }
 
+        let lookAtTarget;
+        if (previewMode === 'orbit') {
+            lookAtTarget = { x: 0, y: 0, z: 0 };
+        } else {
+            lookAtTarget = getCameraLookAt(100);
+        }
+
         return {
-            pos: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
-            lookAt: getCameraLookAt(),
-            fov: camera.fov || baseFOV || 75
+            pos: { x: baseCameraPos.x, y: baseCameraPos.y, z: baseCameraPos.z },
+            lookAt: lookAtTarget,
+            fov: baseFOV || camera.fov || 75
         };
     }
 

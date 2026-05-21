@@ -672,20 +672,13 @@ const UI = (() => {
         
         document.getElementById('cam-btn-update').addEventListener('click', () => {
             if (typeof VisualEngine !== 'undefined' && typeof ProjectStore !== 'undefined') {
-                const cam = VisualEngine.camera;
-                // Forward vector for lookAt
-                const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
-                const lookAt = cam.position.clone().add(dir.multiplyScalar(100));
+                const snap = VisualEngine.getCameraSnapshot();
                 
                 ProjectStore.dispatch({ 
                     type: 'timeline/updateCameraKeyframe', 
                     id: evt.id, 
                     patch: { 
-                        val: {
-                            pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
-                            lookAt: { x: lookAt.x, y: lookAt.y, z: lookAt.z },
-                            fov: cam.fov
-                        }
+                        val: snap
                     } 
                 });
                 // Re-render inspector
