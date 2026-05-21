@@ -1,3 +1,15 @@
+// AURA — Timeline UI v3 (TimelineModel inlined below)
+const TimelineModel = (() => {
+  function formatTime(s) {
+    if (!s || isNaN(s)) return '0:00.000';
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60), ms = Math.floor((s - Math.floor(s)) * 1000);
+    return `${m}:${sec.toString().padStart(2,'0')}.${ms.toString().padStart(3,'0')}`;
+  }
+  function getDuration(project) {
+    return Math.max(0, project?.audio?.duration || AudioEngine?.audioBus?.duration || 0);
+  }
+  return { formatTime, getDuration };
+})();
 // ============================================================
 // AURA — Timeline UI v3
 // Dual-track: Visual clips | Camera keyframes | Markers

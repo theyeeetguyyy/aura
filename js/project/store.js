@@ -99,17 +99,6 @@ const ProjectStore = (() => {
         return next;
       }
 
-      // Legacy aliases (backward compat)
-      case 'timeline/addStateEvent': {
-        return reduce(state, { ...action, type: 'timeline/addVisualClip', nodeId: action.nodeId });
-      }
-      case 'timeline/updateStateEvent': {
-        return reduce(state, { ...action, type: 'timeline/updateVisualClip' });
-      }
-      case 'timeline/removeStateEvent': {
-        return reduce(state, { ...action, type: 'timeline/removeVisualClip' });
-      }
-
       // ── CAMERA TRACK ──────────────────────────────────────
       case 'timeline/addCameraKeyframe': {
         const next = ProjectSchema.clone(state);
@@ -142,15 +131,6 @@ const ProjectStore = (() => {
         next.meta.modifiedAt = Date.now();
         return next;
       }
-
-      // Legacy aliases
-      case 'timeline/addCameraEvent':
-        return reduce(state, { ...action, type: 'timeline/addCameraKeyframe' });
-      case 'timeline/updateCameraEvent':
-        return reduce(state, { ...action, type: 'timeline/updateCameraKeyframe' });
-      case 'timeline/removeCameraEvent':
-        return reduce(state, { ...action, type: 'timeline/removeCameraKeyframe' });
-
       // ── MARKERS ──────────────────────────────────────────
       case 'timeline/addMarker': {
         const next = ProjectSchema.clone(state);

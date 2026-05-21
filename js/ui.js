@@ -38,7 +38,6 @@ const UI = (() => {
         setupPresets();
         setupUndoRedoButtons();
         if (typeof TimelineUI !== 'undefined') TimelineUI.init();
-        if (typeof GraphUI !== 'undefined') GraphUI.init();
         if (typeof StateLibrary !== 'undefined') StateLibrary.init();
         if (typeof StudioLayout !== 'undefined') StudioLayout.init();
         if (typeof Autosave !== 'undefined') Autosave.init();
@@ -472,13 +471,6 @@ const UI = (() => {
     }
 
     function toggleGraphPanel() {
-        const panel = document.getElementById('graph-panel');
-        if (!panel) return;
-        const isOpen = !panel.classList.contains('open');
-        panel.classList.toggle('open', isOpen);
-        const btn = document.getElementById('btn-graph');
-        if (btn) btn.classList.toggle('active', isOpen);
-        if (isOpen && typeof GraphUI !== 'undefined') GraphUI.render();
     }
 
     function updateModeList() {
@@ -999,20 +991,8 @@ const UI = (() => {
                 case 'KeyP':
                     toggleParamsPanel();
                     break;
-                case 'KeyN':
-                    toggleGraphPanel();
-                    break;
                 case 'Delete':
                 case 'Backspace': {
-                    // Delete selected graph node
-                    if (typeof GraphUI !== 'undefined' && typeof ProjectStore !== 'undefined') {
-                        const id = GraphUI.getSelectedNodeId ? GraphUI.getSelectedNodeId() : null;
-                        if (id && id !== 'node_1') {
-                            ProjectStore.dispatch({ type: 'nodes/remove', id });
-                            break;
-                        }
-                    }
-                    // If no node deletion happened, try deleting selected timeline event
                     if (typeof TimelineUI !== 'undefined' && TimelineUI.deleteSelectedEvent) {
                         TimelineUI.deleteSelectedEvent();
                     }

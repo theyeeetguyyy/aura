@@ -61,7 +61,6 @@
     <input type="file" id="stem-file-highs" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
     <button class="panel-toggle" id="btn-modes" title="Library (Tab)">◆</button>
     <button class="panel-toggle" id="btn-params" title="Inspector (P)">⚙</button>
-    <button class="panel-toggle" id="btn-graph" title="Graph (N)">⛓</button>
     <div class="panel" id="modes-panel">
         <div class="panel-header"><span class="panel-title">Library</span></div>
         <div class="library-tabs">
@@ -75,8 +74,7 @@
             <div id="state-list" class="state-list"></div>
         </div>
         <div id="library-modes-view" class="library-view">
-            <div class="mode-search-wrap"><input type="text" id="mode-search" placeholder="Search modes..."
-                    autocomplete="off"></div>
+            <div class="mode-search-wrap"><input type="text" id="mode-search" placeholder="Search modes..." autocomplete="off"></div>
             <div id="mode-list"></div>
         </div>
     </div>
@@ -89,30 +87,6 @@
         </div>
         <div id="preset-list" class="preset-list"></div>
         <div id="params-content"></div>
-    </div>
-    <div class="panel" id="graph-panel">
-        <div class="panel-header"><span class="panel-title">State Graph</span></div>
-        <div class="panel-actions">
-            <button class="panel-action-btn" id="btn-graph-new-node">＋ Node</button>
-            <button class="panel-action-btn" id="btn-graph-capture">⦿ Capture</button>
-        </div>
-        <div class="graph-wrap">
-            <svg id="graph-svg" class="graph-svg">
-                <g id="graph-edges"></g>
-            </svg>
-            <div id="graph-nodes" class="graph-nodes"></div>
-        </div>
-        <div class="graph-hint">Tip: click an output port → click another node's input to connect.</div>
-        <div class="graph-inspector" id="graph-inspector">
-            <div class="gi-title">Graph Node Inspector</div>
-            <div class="gi-row"><label>Name</label><input id="gi-name" type="text" placeholder="Select a node..." />
-            </div>
-            <div class="gi-row"><label>Mode</label><select id="gi-mode"></select></div>
-            <div class="gi-actions">
-                <button class="timeline-btn" id="gi-add-to-timeline">＋ To Timeline</button>
-                <button class="timeline-btn" id="gi-capture">⦿ Capture</button>
-            </div>
-        </div>
     </div>
     <div id="timeline-dock" class="timeline-dock">
         <div class="timeline-toprow">
@@ -345,32 +319,31 @@
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
 
-    <!-- CORE ENGINE -->
-    <script src="js/audio.js"></script>
-    <script src="js/params.js"></script>
-    <script src="js/recorder.js"></script>
-    <script src="js/markers.js"></script>
-    <script src="js/visuals.js"></script>
-    <!-- Aura Studio (project + timeline) -->
-    <script src="js/project/schema.js"></script>
-    <script src="js/project/store.js"></script>
-    <script src="js/project/serialize.js"></script>
-    <script src="js/project/autosave.js"></script>
-    <script src="js/graph/graphModel.js"></script>
-    <script src="js/graph/graphEvaluator.js"></script>
-    <script src="js/graph/uiGraph.js"></script>
-    <script src="js/studio/stateLibrary.js"></script>
-    <script src="js/studio/layout.js"></script>
-    <script src="js/timeline/timelineModel.js"></script>
-    <script src="js/timeline/uiTimeline.js"></script>
-    <script src="js/ui.js"></script>
-
+    <!-- ENGINE SCRIPTS (must load before visuals.js) -->
     <script src="js/engine/eventBus.js"></script>
     <script src="js/engine/mathLib.js"></script>
     <script src="js/engine/colorLib.js"></script>
     <script src="js/engine/keyframeEngine.js"></script>
     <script src="js/engine/cameraEngine.js"></script>
     <script src="js/engine/renderGraph.js"></script>
+
+    <!-- CORE -->
+    <script src="js/audio.js"></script>
+    <script src="js/params.js"></script>
+    <script src="js/recorder.js"></script>
+    <script src="js/markers.js"></script>
+    <script src="js/visuals.js"></script>
+
+    <!-- Aura Studio (project + timeline) -->
+    <script src="js/project/schema.js"></script>
+    <script src="js/project/store.js"></script>
+    <script src="js/project/serialize.js"></script>
+    <script src="js/project/autosave.js"></script>
+    <script src="js/graph/graphEvaluator.js"></script>
+    <script src="js/studio/stateLibrary.js"></script>
+    <script src="js/studio/layout.js"></script>
+    <script src="js/timeline/uiTimeline.js"></script>
+    <script src="js/ui.js"></script>
 
     <!-- VISUAL MODES -->
     <script src="js/modes/frequencyBars.js"></script>
