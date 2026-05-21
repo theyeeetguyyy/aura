@@ -237,7 +237,7 @@ const UI = (() => {
                 if (map.band === 'onset') audioVal = bus.onsetStrength || 0;
                 else if (map.band === 'envelope') audioVal = bus.envelope || 0;
                 else audioVal = bus.smoothBands[map.band] || bus.rawBands[map.band] || 0;
-                
+
                 const paramInput = document.querySelector(`input.param-slider[data-param-key="${key}"]`);
                 const paramDisplay = document.querySelector(`span[data-param-value-for="${key}"]`);
                 if (paramInput && paramDisplay) {
@@ -363,7 +363,7 @@ const UI = (() => {
             const handle = document.createElement('div');
             handle.className = 'panel-resize-handle';
             panel.appendChild(handle);
-            
+
             let isResizing = false;
             let startX = 0;
             let startWidth = 0;
@@ -393,7 +393,7 @@ const UI = (() => {
                 document.body.style.cursor = '';
             });
         }
-        
+
         makeResizable('modes-panel', true);
         makeResizable('params-panel', false);
 
@@ -512,10 +512,10 @@ const UI = (() => {
         if (!evt) return;
         const container = document.getElementById('params-content');
         if (!container) return;
-        
+
         const existingCam = document.getElementById('camera-inspector');
         if (existingCam) existingCam.remove();
-        
+
         let inspector = document.getElementById('state-inspector');
         if (!inspector) {
             inspector = document.createElement('div');
@@ -523,7 +523,7 @@ const UI = (() => {
             inspector.className = 'param-section';
             container.insertBefore(inspector, container.firstChild);
         }
-        
+
         inspector.innerHTML = `
             <h3 class="param-section-title inspector-title">State Inspector</h3>
             <div class="param-control">
@@ -541,7 +541,7 @@ const UI = (() => {
                 </div>
             </div>
         `;
-        
+
         document.getElementById('inspector-name').addEventListener('change', (e) => {
             if (typeof ProjectStore !== 'undefined') {
                 ProjectStore.dispatch({ type: 'timeline/updateStateEvent', id: evt.id, patch: { name: e.target.value } });
@@ -558,10 +558,10 @@ const UI = (() => {
         if (!evt) return;
         const container = document.getElementById('params-content');
         if (!container) return;
-        
+
         const existingState = document.getElementById('state-inspector');
         if (existingState) existingState.remove();
-        
+
         let inspector = document.getElementById('camera-inspector');
         if (!inspector) {
             inspector = document.createElement('div');
@@ -569,9 +569,9 @@ const UI = (() => {
             inspector.className = 'param-section';
             container.insertBefore(inspector, container.firstChild);
         }
-        
+
         const v = evt.val || { pos: { x: 0, y: 0, z: 100 }, lookAt: { x: 0, y: 0, z: 0 }, fov: 75 };
-        
+
         inspector.innerHTML = `
             <h3 class="param-section-title inspector-title">Camera Keyframe</h3>
             <div class="param-control">
@@ -619,10 +619,11 @@ const UI = (() => {
                 </div>
                 <div style="margin-top: 10px; display: flex; justify-content: space-between;">
                     <button id="cam-btn-update" class="timeline-btn action-btn" style="flex:1;">Snap To Current View</button>
+                    <button id="cam-btn-goto" class="timeline-btn" style="flex:1; margin-left: 5px;">Go To View</button>
                 </div>
             </div>
         `;
-        
+
         const dispatchUpdate = () => {
             if (typeof ProjectStore !== 'undefined') {
                 const px = parseFloat(document.getElementById('cam-px').value) || 0;
@@ -632,19 +633,19 @@ const UI = (() => {
                 const ty = parseFloat(document.getElementById('cam-ty').value) || 0;
                 const tz = parseFloat(document.getElementById('cam-tz').value) || 0;
                 const fov = parseFloat(document.getElementById('cam-fov').value) || 75;
-                
-                ProjectStore.dispatch({ 
-                    type: 'timeline/updateCameraKeyframe', 
-                    id: evt.id, 
-                    patch: { 
+
+                ProjectStore.dispatch({
+                    type: 'timeline/updateCameraKeyframe',
+                    id: evt.id,
+                    patch: {
                         val: {
                             pos: { x: px, y: py, z: pz },
                             lookAt: { x: tx, y: ty, z: tz },
                             fov: fov
                         }
-                    } 
+                    }
                 });
-                
+
                 // Timeline will auto-evaluate if follow mode is on.
                 if (typeof VisualEngine !== 'undefined' && VisualEngine.previewMode === 'follow' && VisualEngine.applyStudioStateAtTime && AudioEngine?.audioBus) {
                     VisualEngine.applyStudioStateAtTime(AudioEngine.audioBus.currentTime || 0);
@@ -655,34 +656,40 @@ const UI = (() => {
         ['cam-px', 'cam-py', 'cam-pz', 'cam-tx', 'cam-ty', 'cam-tz', 'cam-fov'].forEach(id => {
             document.getElementById(id).addEventListener('change', dispatchUpdate);
         });
-        
+
         document.getElementById('cam-easing').addEventListener('change', (e) => {
             if (typeof ProjectStore !== 'undefined') {
                 ProjectStore.dispatch({ type: 'timeline/updateCameraKeyframe', id: evt.id, patch: { easing: e.target.value } });
             }
         });
-        
+
         document.getElementById('cam-btn-update').addEventListener('click', () => {
             if (typeof VisualEngine !== 'undefined' && typeof ProjectStore !== 'undefined') {
                 const snap = VisualEngine.getCameraSnapshot();
-                
-                ProjectStore.dispatch({ 
-                    type: 'timeline/updateCameraKeyframe', 
-                    id: evt.id, 
-                    patch: { 
+
+                ProjectStore.dispatch({
+                    type: 'timeline/updateCameraKeyframe',
+                    id: evt.id,
+                    patch: {
                         val: snap
-                    } 
+                    }
                 });
                 // Re-render inspector
                 const list = ProjectStore.getState().timeline.cameraTrack || ProjectStore.getState().timeline.cameraEvents;
                 buildCameraInspector(list.find(e => e.id === evt.id));
             }
         });
+
+        document.getElementById('cam-btn-goto').addEventListener('click', () => {
+            if (typeof VisualEngine !== 'undefined' && VisualEngine.applyNodeSnapshot) {
+                VisualEngine.applyNodeSnapshot({ camera: evt.val });
+            }
+        });
     }
 
     function buildParamsUI() {
         const container = document.getElementById('params-content');
-        
+
         // Preserve inspectors if they exist
         const stateInspector = document.getElementById('state-inspector');
         const cameraInspector = document.getElementById('camera-inspector');
@@ -751,10 +758,10 @@ const UI = (() => {
                 numInput.min = schema.min;
                 numInput.max = schema.max;
                 numInput.step = schema.step || 0.01;
-                
+
                 const commit = () => {
                     let v = parseFloat(numInput.value);
-                    if(isNaN(v)) v = parseFloat(input.value);
+                    if (isNaN(v)) v = parseFloat(input.value);
                     v = Math.max(schema.min, Math.min(schema.max, v));
                     input.value = v;
                     ParamSystem.set(key, v);
@@ -783,7 +790,7 @@ const UI = (() => {
             linkBtn.innerHTML = '🔗';
             linkBtn.title = 'Audio Modulation Mappings';
             linkBtn.onclick = () => showMappingModal(key, label.textContent, isGlobal ? 'global' : 'mode');
-            
+
             // Mark if already mapped
             if (ParamSystem.getMapping(key)) linkBtn.classList.add('mapped');
 
@@ -873,7 +880,7 @@ const UI = (() => {
         }
 
         const map = ParamSystem.getMapping(paramKey) || { band: '', amount: 0 };
-        
+
         modal.innerHTML = `
             <div class="mapping-modal-content">
                 <h3>Modulate: ${paramName}</h3>
@@ -905,7 +912,7 @@ const UI = (() => {
                 </div>
             </div>
         `;
-        
+
         modal.style.display = 'flex';
 
         document.getElementById('map-amount').oninput = (e) => {
@@ -913,7 +920,7 @@ const UI = (() => {
         };
 
         document.getElementById('map-cancel').onclick = () => modal.style.display = 'none';
-        
+
         document.getElementById('map-clear').onclick = () => {
             ParamSystem.setMapping(paramKey, null, 0, type);
             buildParamsUI();
@@ -1491,12 +1498,12 @@ const UI = (() => {
 
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        
+
         // Base styling for modern look
         toast.style.cssText = `background: rgba(10,10,15,0.9); backdrop-filter: blur(8px); border: 1px solid ${type === 'error' ? 'rgba(239,68,68,0.4)' : 'rgba(139,92,246,0.3)'}; color: #fff; padding: 12px 20px; border-radius: 8px; font-family: var(--header-font, 'Inter', sans-serif); font-size: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); transform: translateX(120%); opacity: 0; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease;`;
-        
+
         toast.innerHTML = `<div style="display:flex;align-items:center;gap:10px;"><span style="color:${type === 'error' ? '#ef4444' : '#8b5cf6'};font-size:18px;">${type === 'error' ? '⚠️' : 'ℹ️'}</span> <span>${message}</span></div>`;
-        
+
         toastContainer.appendChild(toast);
 
         // Animate in

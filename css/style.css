@@ -623,6 +623,35 @@ select option {
     border-color: #10b981;
     box-shadow: 0 0 10px #10b981;
 }
+.cam-kf-delete {
+    position: absolute;
+    top: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s;
+    z-index: 20;
+}
+.timeline-camera-clip:hover .cam-kf-delete {
+    opacity: 1;
+    pointer-events: auto;
+}
+.cam-kf-delete:hover {
+    background: #dc2626;
+    transform: translateX(-50%) scale(1.2);
+}
 .timeline-markers {
     position: absolute;
     inset: 0;

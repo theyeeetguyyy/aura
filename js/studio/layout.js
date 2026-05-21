@@ -26,7 +26,6 @@ const StudioLayout = (() => {
     bindToggle('btn-view-library', 'modes-panel', true);
     bindToggle('btn-view-inspector', 'params-panel', true);
     bindToggle('btn-view-timeline', 'timeline-dock', true);
-    bindToggle('btn-view-graph', 'graph-panel', false);
   }
 
   function bindToggle(btnId, targetId, startsActive) {

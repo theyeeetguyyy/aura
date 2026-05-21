@@ -328,6 +328,7 @@ const TimelineUI = (() => {
         });
 
         el.addEventListener('mousedown', (e) => {
+          if (e.target.closest('.cam-kf-delete')) return;
           e.stopPropagation();
           if (_selectedEventId !== kf.id) {
             _selectedEventId = kf.id;
