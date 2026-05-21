@@ -5,7 +5,7 @@
 // ============================================================
 
 const TimelineUI = (() => {
-  let _root, _bar, _playhead, _eventLayer, _camLayer, _markerLayer, _list;
+  let _root, _bar, _playhead, _eventLayer, _camLayer, _markerLayer;
   let _btnAdd, _btnSave, _btnLoad, _fileInput;
   let _waveformCanvas, _waveformCtx;
   let _tracksWrapper = null;
@@ -29,7 +29,7 @@ const TimelineUI = (() => {
     _eventLayer = _root.querySelector('.timeline-events');
     _camLayer = _root.querySelector('.timeline-camera-events');
     _markerLayer = _root.querySelector('.timeline-markers');
-    _list = _root.querySelector('#timeline-event-list');
+
     _btnAdd = _root.querySelector('#btn-add-state');
     _btnSave = _root.querySelector('#btn-save-project');
     _btnLoad = _root.querySelector('#btn-load-project');
@@ -376,7 +376,7 @@ const TimelineUI = (() => {
     }
 
     // Detail list removed from UI — clear if element still exists
-    if (_list) _list.innerHTML = '';
+    if (false) {}
     renderWaveform();
   }
 

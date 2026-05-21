@@ -145,6 +145,15 @@ const Recorder = (() => {
     async function ensureFFmpeg(options = {}) {
         const { showUi = true } = options;
         if (ffmpegReady) return true;
+        
+        if (location.protocol === 'file:') {
+            console.warn('[Recorder] FFmpeg WASM requires an HTTP server. Fallback to WebM enabled.');
+            if (showUi && typeof UI !== 'undefined' && UI.showToast) {
+                UI.showToast('Local file detected. Run an HTTP server for MP4 export. Falling back to WebM.', 'warning');
+            }
+            return false;
+        }
+
         if (ffmpegLoadPromise) {
             if (showUi) {
                 showProgress(

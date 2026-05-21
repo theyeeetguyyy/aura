@@ -234,23 +234,7 @@ const AudioEngine = (() => {
         isPlaying: false,
         currentTime: 0,
         duration: 0,
-        loaded: false,
-
-        // Backward compat stubs (modes may read these; always false/neutral now)
-        sectionEffects: { shake: 1, flash: 1, zoom: 1, bloom: 1, speed: 1, particleScale: 1, displacementScale: 1 },
-        isDropSection: false,
-        dropSectionIntensity: 0,
-        isHighEnergy: false,
-        masterIntensity: 1.0,
-        gunShotDetected: false,
-        gunShotIntensity: 0,
-        screechDetected: false,
-        screechIntensity: 0,
-        subSustain: 0,
-        hasSustainedBass: false,
-        wobbleLFO: 0,
-        sirenRising: 0,
-        sirenIntensity: 0,
+        loaded: false
     };
 
     // Band ranges (fftSize=4096, sampleRate=44100, bin ≈ 10.77 Hz)
