@@ -202,6 +202,7 @@ const TimelineUI = (() => {
       ? VisualEngine.getCameraSnapshot()
       : { pos: { x: 0, y: 0, z: 100 }, lookAt: { x: 0, y: 0, z: 0 }, fov: 75 };
     ProjectStore.dispatch({ type: 'timeline/addCameraKeyframe', time: t, val, easing: 'easeInOutCubic' });
+    if (UI?.showToast) UI.showToast(`📷 Cam KF @ ${TimelineModel.formatTime(t)}`, 'success');
   }
 
   // ── Waveform ────────────────────────────────────────
@@ -303,7 +304,11 @@ const TimelineUI = (() => {
         el.style.left = `${left}%`;
         el.title = `Camera KF @ ${TimelineModel.formatTime(kf.time)}\nEase: ${kf.easing}`;
         el.dataset.eventId = kf.id;
-        el.innerHTML = '<div class="camera-kf-diamond"></div>';
+        el.innerHTML = '<div class="camera-kf-diamond"></div><button class="cam-kf-delete" title="Delete KF">✕</button>';
+        el.querySelector('.cam-kf-delete').addEventListener('click', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          ProjectStore.dispatch({ type: 'timeline/removeCameraKeyframe', id: kf.id });
+        });
 
         el.addEventListener('mousedown', (e) => {
           e.stopPropagation();
@@ -372,6 +377,7 @@ const TimelineUI = (() => {
 
     // Detail list removed from UI — clear if element still exists
     if (_list) _list.innerHTML = '';
+    renderWaveform();
   }
 
   // ── Delete Selected ─────────────────────────────────

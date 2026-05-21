@@ -1,39 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description"
-        content="AURA — Audio Reactive Visual Generator. Import music and create stunning real-time visuals with 20 modes and deep parameter control.">
+    <meta name="description" content="AURA — Audio Reactive Visual Generator. Import music and create stunning real-time visuals with 20 modes and deep parameter control.">
     <title>AURA — Audio Reactive Visuals</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@300;500;700&family=Syncopate:wght@400;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
 </head>
-
 <body>
-
     <div class="studio-topbar">
         <div class="studio-brand">
             <span class="studio-brand-mark">AURA</span>
             <span class="studio-brand-sub">Studio</span>
         </div>
         <div class="studio-topbar-actions">
-            <button class="studio-view-btn active" id="btn-view-library" title="Toggle Library">Library</button>
-            <button class="studio-view-btn active" id="btn-view-inspector" title="Toggle Inspector">Inspector</button>
-            <button class="studio-view-btn active" id="btn-view-timeline" title="Toggle Timeline">Timeline</button>
-            <button class="studio-view-btn" id="btn-view-graph" title="Toggle Advanced Graph">Advanced Graph</button>
+            <button class="studio-view-btn active" id="btn-view-library">Library</button>
+            <button class="studio-view-btn active" id="btn-view-inspector">Inspector</button>
+            <button class="studio-view-btn active" id="btn-view-timeline">Timeline</button>
+            <button class="studio-view-btn" id="btn-view-graph">Advanced Graph</button>
         </div>
         <div class="studio-topbar-status" id="studio-status">Load audio to start editing</div>
-        <button class="studio-settings-btn" id="btn-global-settings" title="Global Settings">Settings</button>
+        <button class="studio-settings-btn" id="btn-global-settings">Settings</button>
     </div>
-
-    <!-- THREE.JS CANVAS -->
     <canvas id="aura-canvas"></canvas>
-
-    <!-- IMPORT LANDING -->
     <div id="drop-zone">
         <div class="drop-content">
             <div class="drop-icon">🎵</div>
@@ -56,44 +47,33 @@
         <div class="creator-tag-intro">made by theyeetguy</div>
     </div>
 
-    <!-- HIDDEN FILE INPUTS -->
     <input type="file" id="file-input" accept=".mp3,.wav,.ogg,.flac,.m4a,.aac,.wma">
     <input type="file" id="stem-file-drums" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
     <input type="file" id="stem-file-bass" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
     <input type="file" id="stem-file-mids" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
     <input type="file" id="stem-file-highs" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
-
-    <!-- PANEL TOGGLE BUTTONS -->
-    <button class="panel-toggle" id="btn-modes" title="Modes (Tab)">◆</button>
-    <button class="panel-toggle" id="btn-params" title="Parameters (P)">⚙</button>
+    <button class="panel-toggle" id="btn-modes" title="Library (Tab)">◆</button>
+    <button class="panel-toggle" id="btn-params" title="Inspector (P)">⚙</button>
     <button class="panel-toggle" id="btn-graph" title="Graph (N)">⛓</button>
-
-    <!-- MODES PANEL (LEFT) -->
     <div class="panel" id="modes-panel">
-        <div class="panel-header">
-            <span class="panel-title">Library</span>
-        </div>
+        <div class="panel-header"><span class="panel-title">Library</span></div>
         <div class="library-tabs">
             <button class="library-tab active" data-library-tab="states">States</button>
             <button class="library-tab" data-library-tab="modes">Modes</button>
         </div>
         <div id="library-states-view" class="library-view active">
-            <div class="library-section-title">State Library</div>
+            <div class="library-state-toolbar">
+                <button class="panel-action-btn full-width-btn" id="btn-capture-state">⦿ Capture State</button>
+            </div>
             <div id="state-list" class="state-list"></div>
         </div>
         <div id="library-modes-view" class="library-view">
-            <div class="mode-search-wrap">
-                <input type="text" id="mode-search" placeholder="Search modes..." autocomplete="off">
-            </div>
+            <div class="mode-search-wrap"><input type="text" id="mode-search" placeholder="Search modes..." autocomplete="off"></div>
             <div id="mode-list"></div>
         </div>
     </div>
-
-    <!-- PARAMS PANEL (RIGHT) -->
     <div class="panel" id="params-panel">
-        <div class="panel-header">
-            <span class="panel-title">Inspector</span>
-        </div>
+        <div class="panel-header"><span class="panel-title">Inspector</span></div>
         <div class="panel-actions">
             <button class="panel-action-btn" id="btn-randomize">🎲 Randomize</button>
             <button class="panel-action-btn" id="btn-save-preset">💾 Save</button>
@@ -102,45 +82,29 @@
         <div id="preset-list" class="preset-list"></div>
         <div id="params-content"></div>
     </div>
-
-    <!-- GRAPH PANEL (CENTER-LEFT) -->
     <div class="panel" id="graph-panel">
-        <div class="panel-header">
-            <span class="panel-title">State Graph</span>
-        </div>
+        <div class="panel-header"><span class="panel-title">State Graph</span></div>
         <div class="panel-actions">
             <button class="panel-action-btn" id="btn-graph-new-node">＋ Node</button>
             <button class="panel-action-btn" id="btn-graph-capture">⦿ Capture</button>
         </div>
         <div class="graph-wrap">
-            <svg id="graph-svg" class="graph-svg">
-                <g id="graph-edges"></g>
-            </svg>
+            <svg id="graph-svg" class="graph-svg"><g id="graph-edges"></g></svg>
             <div id="graph-nodes" class="graph-nodes"></div>
         </div>
-        <div class="graph-hint">Tip: click an output port → click another node’s input to connect.</div>
+        <div class="graph-hint">Tip: click an output port → click another node's input to connect.</div>
         <div class="graph-inspector" id="graph-inspector">
             <div class="gi-title">Graph Node Inspector</div>
-            <div class="gi-row">
-                <label>Name</label>
-                <input id="gi-name" type="text" placeholder="Select a node..." />
-            </div>
-            <div class="gi-row">
-                <label>Mode</label>
-                <select id="gi-mode"></select>
-            </div>
+            <div class="gi-row"><label>Name</label><input id="gi-name" type="text" placeholder="Select a node..." /></div>
+            <div class="gi-row"><label>Mode</label><select id="gi-mode"></select></div>
             <div class="gi-actions">
                 <button class="timeline-btn" id="gi-add-to-timeline">＋ To Timeline</button>
                 <button class="timeline-btn" id="gi-capture">⦿ Capture</button>
             </div>
         </div>
     </div>
-
-    <!-- NLE TIMELINE DOCK -->
     <div id="timeline-dock" class="timeline-dock">
         <div class="timeline-toprow">
-
-            <!-- LEFT GROUP: Playback -->
             <div class="timeline-group tg-play">
                 <button class="transport-btn" id="btn-play" title="Play / Pause (Space)">▶</button>
                 <button class="transport-btn small-btn loop-btn" id="btn-loop" title="Loop (L)">🔁</button>
@@ -149,10 +113,7 @@
                     <span id="bpm-display" class="bpm-badge">-- BPM</span>
                 </div>
             </div>
-
             <div class="tg-divider"></div>
-
-            <!-- CAMERA GROUP: Camera Mode -->
             <div class="timeline-group tg-camera">
                 <span class="tg-label">CAM</span>
                 <button class="pmt-btn active" id="pmt-orbit" title="Orbit — mouse drag to rotate">⊙ Orbit</button>
@@ -160,10 +121,7 @@
                 <button class="pmt-btn" id="pmt-follow" title="Follow — camera follows keyframe timeline">⏵ Follow</button>
                 <span class="follow-badge" id="follow-badge" style="display:none">⏵ FOLLOWING</span>
             </div>
-
             <div class="tg-divider"></div>
-
-            <!-- TRACK GROUP: Add to Timeline -->
             <div class="timeline-group tg-tracks">
                 <span class="tg-label">ADD</span>
                 <button class="timeline-btn action-btn" id="btn-add-state" title="Capture current visual state at playhead">＋ State</button>
@@ -177,15 +135,10 @@
                     <option value="fill">🔥 Fill</option>
                     <option value="outro">🌙 Outro</option>
                 </select>
-
                 <button class="timeline-btn action-btn" id="btn-add-marker-tl" title="Add Marker at playhead (M)">＋ Mark</button>
                 <button class="timeline-btn danger-btn" id="btn-clear-markers-tl" title="Clear all markers">✕ Clear</button>
             </div>
-
-            <!-- SPACER -->
             <div class="tg-spacer"></div>
-
-            <!-- RIGHT GROUP: System -->
             <div class="timeline-group tg-system">
                 <div class="volume-mini">
                     <span class="volume-icon">🔊</span>

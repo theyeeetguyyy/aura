@@ -1721,6 +1721,28 @@ input[type="range"]::-webkit-slider-thumb:hover {
     cursor: not-allowed;
 }
 
+.library-state-toolbar { padding: 8px 10px 4px; }
+.full-width-btn {
+    width: 100%; text-align: center;
+    background: rgba(139, 92, 246, 0.14);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 10px; padding: 8px 10px;
+    color: var(--text); font-size: 12px; cursor: pointer;
+    transition: background 0.15s;
+}
+.full-width-btn:hover { background: rgba(139, 92, 246, 0.28); border-color: rgba(139,92,246,0.5); }
+.state-card-head { margin-bottom: 8px; display: flex; align-items: flex-start; gap: 6px; }
+.state-card-dot { color: var(--accent-bright); font-size: 8px; margin-top: 3px; flex-shrink: 0; }
+.state-empty-hint { padding: 20px 14px; color: var(--text-dim); font-size: 12px; text-align: center; line-height: 1.6; }
+.cam-kf-delete {
+    position: absolute; top: -6px; right: -6px;
+    width: 14px; height: 14px; background: #ef4444;
+    border: none; border-radius: 50%; color: #fff;
+    font-size: 8px; cursor: pointer;
+    display: none; align-items: center; justify-content: center; z-index: 10;
+}
+.timeline-camera-clip:hover .cam-kf-delete { display: flex; }
+
 /* 4.2: Panel toggle active glow */
 .panel-toggle.active {
     background: rgba(139, 92, 246, 0.25);
