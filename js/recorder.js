@@ -140,7 +140,7 @@ const Recorder = (() => {
             });
 
             // ── KEY CHANGE: core = single-threaded in v0.12, no SharedArrayBuffer ──
-            const coreBaseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
+            const coreBaseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
             const workerURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js';
             await ffmpeg.load({
                 coreURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, 'text/javascript'),
