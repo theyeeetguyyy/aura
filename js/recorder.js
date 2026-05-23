@@ -116,8 +116,9 @@ const Recorder = (() => {
         const FFmpegUtil = globalThis.FFmpegUtil  || null;
         const FFmpegCtor = FFmpegLib?.FFmpeg  || null;
         const fetchFile  = FFmpegUtil?.fetchFile || null;
+        const toBlobURL  = FFmpegUtil?.toBlobURL || null;
 
-        if (!FFmpegCtor || !fetchFile) {
+        if (!FFmpegCtor || !fetchFile || !toBlobURL) {
             console.error(
                 '[Recorder] FFmpeg globals missing.\n' +
                 'Make sure these two scripts appear before recorder.js in index.html:\n' +
@@ -139,8 +140,10 @@ const Recorder = (() => {
             });
 
             // ── KEY CHANGE: core-st = single-threaded, no SharedArrayBuffer ──
+            const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.12.6/dist/umd';
             await ffmpeg.load({
-                coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.12.6/dist/umd/ffmpeg-core.js'
+                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
             });
 
             ffmpegReady = true;
