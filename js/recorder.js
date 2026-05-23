@@ -16,8 +16,8 @@ const Recorder = (() => {
         label:              'Best',
         captureVideoBitrate: 48_000_000,
         captureAudioBitrate: 192_000,
-        x264Preset:         'slow',
-        crf:                18,
+        x264Preset:         'fast', // balanced speed/compression for WASM
+        crf:                16,     // lowered from 18 to 16 for near-lossless quality
         audioBitrate:       '256k'
     };
 
@@ -137,6 +137,10 @@ const Recorder = (() => {
             ffmpeg.on('progress', ({ progress }) => {
                 const pct = 15 + Math.round(Math.max(0, Math.min(1, progress || 0)) * 80);
                 showProgress('Exporting Best MP4', 'Transcoding H.264 + AAC…', pct, 'Transcoding');
+            });
+            
+            ffmpeg.on('log', ({ message }) => {
+                console.log('[FFmpeg]', message);
             });
 
             // ── KEY CHANGE: core = single-threaded in v0.12, no SharedArrayBuffer ──
