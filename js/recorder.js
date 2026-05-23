@@ -139,11 +139,13 @@ const Recorder = (() => {
                 showProgress('Exporting Best MP4', 'Transcoding H.264 + AAC…', pct, 'Transcoding');
             });
 
-            // ── KEY CHANGE: core-st = single-threaded, no SharedArrayBuffer ──
-            const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-st@0.12.6/dist/umd';
+            // ── KEY CHANGE: core = single-threaded in v0.12, no SharedArrayBuffer ──
+            const coreBaseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
+            const workerURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js';
             await ffmpeg.load({
-                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
+                coreURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, 'text/javascript'),
+                wasmURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                classWorkerURL: await toBlobURL(workerURL, 'text/javascript')
             });
 
             ffmpegReady = true;
