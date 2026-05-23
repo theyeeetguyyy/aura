@@ -16,8 +16,8 @@ const Recorder = (() => {
         label:              'Best',
         captureVideoBitrate: 48_000_000,
         captureAudioBitrate: 192_000,
-        x264Preset:         'fast', // balanced speed/compression for WASM
-        crf:                16,     // lowered from 18 to 16 for near-lossless quality
+        x264Preset:         'ultrafast', // absolute maximum speed
+        crf:                16,
         audioBitrate:       '256k'
     };
 
