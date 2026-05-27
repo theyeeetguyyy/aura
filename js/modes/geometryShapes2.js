@@ -51,7 +51,8 @@ const GeometryForgeMode2 = {
             ], default: 'icosahedron', label: '🔷 Shape'
         },
         detail: { type: 'range', min: 0, max: 5, default: 3, step: 1, label: '🔶 Detail Level' },
-        size: { type: 'range', min: 0, max: 80, default: 25, step: 1, label: '📐 Size' },
+        size: { type: 'range', min: 5, max: 60, default: 25, step: 1, label: '📐 Size' },
+
 
         // ═══ DISPLACEMENT ═══
         displaceMode: {
@@ -61,7 +62,7 @@ const GeometryForgeMode2 = {
                 'voronoi', 'flow', 'tentacle', 'interference', 'crystallize', 'audio3D', 'gravityWell', 'jellyfish'
             ], default: 'frequency', label: '🌊 Displace Mode'
         },
-        displaceAmount: { type: 'range', min: 0, max: 50, default: 12, step: 0.5, label: '📊 Displace Amount' },
+        displaceAmount: { type: 'range', min: 0, max: 30, default: 10, step: 0.5, label: '📊 Displace Amount' },
         displaceFreq: { type: 'range', min: 0, max: 15, default: 3, step: 0.1, label: '〰️ Displace Frequency' },
         noiseScale: { type: 'range', min: 0, max: 15, default: 2, step: 0.1, label: '🌀 Noise Scale' },
         noiseOctaves: { type: 'range', min: 1, max: 6, default: 3, step: 1, label: '🔢 Noise Detail' },
@@ -99,17 +100,18 @@ const GeometryForgeMode2 = {
             type: 'select', options: ['off', 'smooth', 'tumble', 'orbit', 'wobble', 'spin', 'breatheRot', 'chaotic', 'beatLock'],
             default: 'smooth', label: '🔄 Rotation Mode'
         },
-        rotSpeedX: { type: 'range', min: 0, max: 8, default: 0.3, step: 0.05, label: '↔️ Rotate Speed X' },
-        rotSpeedY: { type: 'range', min: 0, max: 8, default: 0.5, step: 0.05, label: '↕️ Rotate Speed Y' },
-        rotSpeedZ: { type: 'range', min: 0, max: 8, default: 0.1, step: 0.05, label: '🔃 Rotate Speed Z' },
+        rotSpeedX: { type: 'range', min: 0, max: 2.0, default: 0.3, step: 0.05, label: '↔️ Rotate Speed X' },
+        rotSpeedY: { type: 'range', min: 0, max: 2.0, default: 0.5, step: 0.05, label: '↕️ Rotate Speed Y' },
+        rotSpeedZ: { type: 'range', min: 0, max: 2.0, default: 0.1, step: 0.05, label: '🔃 Rotate Speed Z' },
 
         // ═══ AUDIO REACTIVITY ═══
-        bassBreath: { type: 'range', min: 0, max: 8, default: 1.2, step: 0.1, label: '🔊 Bass Breathing' },
-        beatExplode: { type: 'range', min: 0, max: 8, default: 0.8, step: 0.1, label: '💥 Beat Explode' },
-        beatSpinBurst: { type: 'range', min: 0, max: 5, default: 0.3, step: 0.1, label: '🌀 Beat Spin Burst' },
-        beatShrink: { type: 'toggle', default: false, label: '📉 Beat Shrink/Grow' },
-        pulseRate: { type: 'range', min: 0, max: 15, default: 0, step: 0.5, label: '💓 Auto Pulse Rate' },
-        gravity: { type: 'range', min: -5, max: 5, default: 0, step: 0.1, label: '⬇️ Gravity' },
+        reactivity:    { type: 'range', min: 0.1, max: 2.0, default: 1.0, step: 0.05, label: '⚡ Reactivity' },
+        bassBreath:    { type: 'range', min: 0, max: 3.0, default: 1.0, step: 0.1, label: '🔊 Bass Breathing' },
+        beatExplode:   { type: 'range', min: 0, max: 3.0, default: 0.8, step: 0.1, label: '💥 Beat Explode' },
+        beatSpinBurst: { type: 'range', min: 0, max: 1.5, default: 0.3, step: 0.05, label: '🌀 Beat Spin Burst' },
+        beatShrink:    { type: 'toggle', default: false, label: '📉 Beat Shrink/Grow' },
+        pulseRate:     { type: 'range', min: 0, max: 8, default: 0, step: 0.5, label: '💓 Pulse Rate (beats)' },
+        gravity:       { type: 'range', min: -3, max: 3, default: 0, step: 0.1, label: '⬇️ Gravity' },
 
         // ═══ SURFACE PATTERN ═══
         surfacePattern: {
@@ -144,7 +146,7 @@ const GeometryForgeMode2 = {
                 'thermal', 'displacement', 'velocity', 'waveformColor', 'pattern'
             ], default: 'off', label: '🎨 Drop Color Override'
         },
-        dropIntensityMult: { type: 'range', min: 0, max: 8, default: 1.5, step: 0.1, label: '⚡ Drop Intensity' },
+        dropIntensityMult: { type: 'range', min: 0.5, max: 3.0, default: 1.5, step: 0.1, label: '⚡ Drop Intensity' },
 
         // ═══ GHOST TRAIL ═══
         ghostTrail: { type: 'toggle', default: true, label: '👻 Ghost Trail' },
@@ -182,7 +184,7 @@ const GeometryForgeMode2 = {
             default: 'frequency', label: '🌊 Sec Displace Mode'
         },
         secondaryDisplaceAmt: { type: 'range', min: 0, max: 30, default: 5, step: 0.5, label: '📊 Sec Displace Amt' },
-        secondaryRotSpeed: { type: 'range', min: -5, max: 5, default: 0.8, step: 0.1, label: '🔄 Sec Rotation' },
+        secondaryRotSpeed: { type: 'range', min: -2, max: 2, default: 0.8, step: 0.1, label: '🔄 Sec Rotation' },
         secondaryOrbit: { type: 'toggle', default: false, label: '🌀 Sec Orbits Primary' },
         secondaryOrbitRadius: { type: 'range', min: 0, max: 100, default: 35, step: 5, label: '🔵 Orbit Radius' },
     },
@@ -753,7 +755,7 @@ const GeometryForgeMode2 = {
         // Section effects from marker system
         const SE = audio.sectionEffects || { displacementScale: 1, speed: 1, particleEmissionRate: 1, rotationMultiplier: 1, particleScale: 1, bloomGlowMult: 1 };
 
-        const react = params.reactivity ?? 1.5;
+        const react = Math.min(params.reactivity ?? 1.0, 2.0);
         const shape = params.shape ?? 'icosahedron';
         const detail = Math.floor(params.detail ?? 3);
         const size = params.size ?? 25;
@@ -800,7 +802,11 @@ const GeometryForgeMode2 = {
 
         // ── DISPLACEMENT ──
         const dMode = _dropDisplaceActive || (params.displaceMode ?? 'frequency');
-        const dAmt = (params.displaceAmount ?? 12) * react * SE.displacementScale * (_dropDisplaceActive ? dropLevel : 1);
+        // dAmt hard-capped at 60 (2× max shape size) — prevents vertices flying to infinity
+        const dAmt = Math.min(
+            (params.displaceAmount ?? 10) * Math.min(react, 2.0) * (SE.displacementScale ?? 1) * (_dropDisplaceActive ? dropLevel : 1),
+            60
+        );
         const dFreq = params.displaceFreq ?? 3;
         const nScale = params.noiseScale ?? 2;
         const oct = Math.floor(params.noiseOctaves ?? 3);
@@ -810,15 +816,26 @@ const GeometryForgeMode2 = {
         const symMode = params.symmetryMode ?? 'off';
         const patternType = params.surfacePattern ?? 'none';
         const chromatic = params.chromaticSplit ?? 0;
-        const pulse = params.pulseRate > 0 ? Math.sin(this.time * params.pulseRate) * 0.2 + 1 : 1;
 
-        // Beat explode with cap
-        if (audio.bassBeat && params.beatExplode > 0) this.explodePhase += audio.bassBeatIntensity * params.beatExplode * 0.12;
+        // pulseRate is now beat-phase synced (not wall-clock) so it locks to the song tempo
+        const pulse = params.pulseRate > 0
+            ? Math.sin(audio.beatPhase * Math.PI * 2 * Math.max(1, Math.round(params.pulseRate))) * 0.15 + 1
+            : 1;
+
+        // Beat explode — capped at 1.5 so shape stays recognisable
+        if (audio.bassBeat && params.beatExplode > 0) {
+            this.explodePhase += audio.bassBeatIntensity * Math.min(params.beatExplode, 3.0) * 0.10;
+        }
         this.explodePhase = Math.min(this.explodePhase, 1.5);
         this.explodePhase *= 0.92;
 
-        const beatPulse = Math.sin(audio.beatPhase * Math.PI * 2) * 0.5 + 0.5;
-        const breathScale = (1 + (sub + bass) * (params.bassBreath ?? 1.2) * react * 0.2 + beatPulse * bass * react * 0.15) * pulse;
+        // breathScale: bass breathing clamped, react capped at 2.0, no double-dip with beatPulse
+        const breath      = Math.min(params.bassBreath ?? 1.0, 3.0);
+        const reactCapped = Math.min(react, 2.0);
+        const beatPulse   = Math.sin(audio.beatPhase * Math.PI * 2) * 0.5 + 0.5;
+        const breathScale = (1 + (sub + bass) * breath * reactCapped * 0.12
+                              + beatPulse * bass * 0.08) * pulse;
+
         let beatScale = 1;
         if (params.beatShrink && audio.beat) beatScale = 1 - audio.beatIntensity * 0.2;
 
@@ -866,30 +883,113 @@ const GeometryForgeMode2 = {
                 case 'melt': { const mf = (sub + bass) * dAmt * 0.3 * react; by -= Math.max(0, (1 - (by / size + 0.5)) * mf); disp = this.fbm(sx * 0.1, sy * 0.1, this.time, 2) * mf * 0.3; break; }
                 case 'waveform': { const wi = Math.floor(t * audio.waveformPoints.length); disp = (audio.waveformPoints[wi] || 0) * dAmt * 2; break; }
                 case 'pulse': { const d2 = Math.sqrt(sx * sx + sy * sy + sz * sz); disp = Math.sin(d2 * 0.3 - this.time * 8) * 0.5 * dAmt * (0.1 + audio.bassBeatIntensity * 3 + bass * 2); break; }
-                case 'glitch': { if (Math.random() < (audio.beat ? 0.3 : 0.02)) disp = (Math.random() - 0.5) * dAmt * 4; break; }
+                case 'glitch': {
+                    // Only glitch on detected bass beats — not random noise every frame
+                    if (audio.bassBeat && Math.random() < 0.45) {
+                        disp = (Math.random() - 0.5) * Math.min(dAmt * 1.5, 20);
+                    }
+                    break;
+                }
                 case 'fractal': { const f1 = this.fbm(sx * 0.03 + this.time * 0.2, sy * 0.03, sz * 0.03, oct); const f2 = this.fbm(sx * 0.06, sy * 0.06 + this.time * 0.3, sz * 0.06, oct); disp = f1 * f2 * 4 * dAmt * (0.3 + bass * 2); break; }
-                case 'magnetic': { const phi = Math.atan2(sz, sx); disp = (Math.sin(phi * 3 + this.time * 2) * Math.cos(sy * 0.2 + this.time)) * dAmt * (0.3 + bass * 2) * freq; break; }
+                case 'magnetic': { const phi = Math.atan2(sz, sx); const r2 = Math.sqrt(sx * sx + sz * sz); disp = (Math.sin(phi * 3 + this.time * 2) * Math.cos(sy * 0.2 + this.time)) * dAmt * (0.3 + bass * 2) * freq; break; }
                 case 'cellular': { const cx = Math.floor(sx * 0.2 + this.time), cy = Math.floor(sy * 0.2), cz = Math.floor(sz * 0.2); disp = this.noise3D(cx, cy, cz) * dAmt * freq * (0.5 + bass * 2); break; }
                 case 'orbit': { const angle = Math.atan2(sz, sx) + this.time * dFreq * 0.3; const r3 = Math.sqrt(sx * sx + sz * sz); bx = Math.cos(angle) * r3; bz = Math.sin(angle) * r3; disp = freq * dAmt * 0.3; break; }
                 case 'harmonics': { let h = 0; for (let n = 1; n <= 5; n++) { const bn = (audio.frequencyData[Math.floor(n * 30)] || 0) / 255; h += bn * Math.sin(n * Math.acos(Math.max(-1, Math.min(1, sy / (size || 1))))) * Math.cos(n * Math.atan2(sz, sx)); } disp = h * dAmt; break; }
-                case 'voronoi': { let minD = 999, minD2 = 999; for (let ci = 0; ci < 6; ci++) { const cx = Math.sin(ci * 1.618 + this.time * 0.4) * size * 0.6, cy = Math.cos(ci * 2.618 + this.time * 0.3) * size * 0.6, cz = Math.sin(ci * 0.618 + this.time * 0.5) * size * 0.6; const dd = Math.sqrt((sx - cx) ** 2 + (sy - cy) ** 2 + (sz - cz) ** 2); if (dd < minD) { minD2 = minD; minD = dd; } else if (dd < minD2) minD2 = dd; } disp = (minD2 - minD) * dAmt * 0.15 * (0.5 + bass * 2); break; }
-                case 'flow': { const cx2 = this.fbm(sy * 0.08, sz * 0.08 + this.time * 0.5, sx * 0.08, 3); const cy2 = this.fbm(sz * 0.08 + this.time * 0.3, sx * 0.08, sy * 0.08, 3); const cz2 = this.fbm(sx * 0.08 + this.time * 0.4, sy * 0.08, sz * 0.08, 3); bx += cx2 * dAmt * 0.15 * (0.5 + mid * 2); by += cy2 * dAmt * 0.15 * (0.5 + mid * 2); bz += cz2 * dAmt * 0.15 * (0.5 + mid * 2); disp = freq * dAmt * 0.3; break; }
-                case 'tentacle': { const phi2 = Math.atan2(sz, sx), r2 = Math.sqrt(sx * sx + sz * sz); let tf = 0; for (let ti = 0; ti < 6; ti++) { const ta = (ti / 6) * Math.PI * 2 + this.time * 0.3; const diff = Math.abs(((phi2 - ta + Math.PI * 3) % (Math.PI * 2)) - Math.PI); tf += Math.max(0, 1 - diff * 1.5) * (0.5 + bass * 2); } disp = tf * dAmt * 0.4 * (sy / size + 1) * freq; break; }
-                case 'interference': { const w1 = Math.sin(sx * 0.3 + this.time * 2) * Math.sin(sy * 0.35 - this.time * 1.5); const w2 = Math.sin(sz * 0.25 + this.time * 1.8) * Math.cos(sx * 0.2 + this.time); const w3 = Math.cos(sy * 0.4 + this.time * 2.5) * Math.sin(sz * 0.3 - this.time * 0.7); disp = (w1 + w2 + w3) * dAmt * 0.4 * (0.3 + freq * 1.5 + bass); break; }
-                case 'crystallize': { const cs = 5, fx2 = Math.round(sx / cs) * cs, fy2 = Math.round(sy / cs) * cs, fz2 = Math.round(sz / cs) * cs; const fDist = Math.sqrt((sx - fx2) ** 2 + (sy - fy2) ** 2 + (sz - fz2) ** 2); disp = fDist * dAmt * 0.3 * (1 + bass * 3 + audio.bassBeatIntensity * 4); bx = bx * 0.7 + fx2 * 0.3; by = by * 0.7 + fy2 * 0.3; bz = bz * 0.7 + fz2 * 0.3; break; }
-                case 'audio3D': { const bF = (audio.frequencyData[Math.floor(t * 30)] || 0) / 255; const mF = (audio.frequencyData[Math.floor(t * 80 + 30)] || 0) / 255; const tF = (audio.frequencyData[Math.floor(t * 50 + 100)] || 0) / 255; bx += nx * bF * dAmt * 0.5; by += ny * mF * dAmt * 0.5; bz += nz * tF * dAmt * 0.5; disp = (bF + mF + tF) * dAmt * 0.2; break; }
-                case 'gravityWell': { let totalForce = 0; for (let wi = 0; wi < 3; wi++) { const wa = (wi / 3) * Math.PI * 2 + this.time * 0.3; const wx = Math.cos(wa) * size * 0.5, wz = Math.sin(wa) * size * 0.5; const ddx = sx - wx, ddz = sz - wz; const d2 = Math.sqrt(ddx * ddx + sy * sy + ddz * ddz) + 0.5; totalForce += bass * 20 / (d2 * d2 + 1); } disp = totalForce * dAmt * 0.15; break; }
-                case 'jellyfish': { const yN = (sy / size + 1) * 0.5; const bellP = Math.sin(this.time * 2 + yN * Math.PI * 3) * (1 - yN); const tentD = yN < 0.3 ? Math.sin(this.time * 4 + t * 20) * (0.3 - yN) * 3 : 0; disp = (bellP * 1.5 + tentD) * dAmt * 0.4 * (0.3 + bass * 2 + sub); break; }
+                // ── NEW MODES ──
+                case 'voronoi': {
+                    let minD = 999, minD2 = 999;
+                    for (let ci = 0; ci < 6; ci++) {
+                        const cx = Math.sin(ci * 1.618 + this.time * 0.4) * size * 0.6;
+                        const cy = Math.cos(ci * 2.618 + this.time * 0.3) * size * 0.6;
+                        const cz = Math.sin(ci * 0.618 + this.time * 0.5) * size * 0.6;
+                        const dd = Math.sqrt((sx - cx) ** 2 + (sy - cy) ** 2 + (sz - cz) ** 2);
+                        if (dd < minD) { minD2 = minD; minD = dd; } else if (dd < minD2) { minD2 = dd; }
+                    }
+                    disp = (minD2 - minD) * dAmt * 0.15 * (0.5 + bass * 2);
+                    break;
+                }
+                case 'flow': {
+                    const curl_x = this.fbm(sy * 0.08, sz * 0.08 + this.time * 0.5, sx * 0.08, 3);
+                    const curl_y = this.fbm(sz * 0.08 + this.time * 0.3, sx * 0.08, sy * 0.08, 3);
+                    const curl_z = this.fbm(sx * 0.08 + this.time * 0.4, sy * 0.08, sz * 0.08, 3);
+                    bx += curl_x * dAmt * 0.15 * (0.5 + mid * 2);
+                    by += curl_y * dAmt * 0.15 * (0.5 + mid * 2);
+                    bz += curl_z * dAmt * 0.15 * (0.5 + mid * 2);
+                    disp = freq * dAmt * 0.3;
+                    break;
+                }
+                case 'tentacle': {
+                    const phi = Math.atan2(sz, sx);
+                    const r = Math.sqrt(sx * sx + sz * sz);
+                    const tentCount = 6;
+                    let tentForce = 0;
+                    for (let ti = 0; ti < tentCount; ti++) {
+                        const ta = (ti / tentCount) * Math.PI * 2 + this.time * 0.3;
+                        const diff = Math.abs(((phi - ta + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+                        tentForce += Math.max(0, 1 - diff * 1.5) * (0.5 + bass * 2);
+                    }
+                    disp = tentForce * dAmt * 0.4 * (sy / size + 1) * freq;
+                    break;
+                }
+                case 'interference': {
+                    const w1 = Math.sin(sx * 0.3 + this.time * 2) * Math.sin(sy * 0.35 - this.time * 1.5);
+                    const w2 = Math.sin(sz * 0.25 + this.time * 1.8) * Math.cos(sx * 0.2 + this.time);
+                    const w3 = Math.cos(sy * 0.4 + this.time * 2.5) * Math.sin(sz * 0.3 - this.time * 0.7);
+                    disp = (w1 + w2 + w3) * dAmt * 0.4 * (0.3 + freq * 1.5 + bass);
+                    break;
+                }
+                case 'crystallize': {
+                    const cs = 5;
+                    const fx = Math.round(sx / cs) * cs, fy = Math.round(sy / cs) * cs, fz = Math.round(sz / cs) * cs;
+                    const facetDist = Math.sqrt((sx - fx) ** 2 + (sy - fy) ** 2 + (sz - fz) ** 2);
+                    disp = facetDist * dAmt * 0.3 * (1 + bass * 3 + audio.bassBeatIntensity * 4);
+                    bx = bx * 0.7 + fx * 0.3;
+                    by = by * 0.7 + fy * 0.3;
+                    bz = bz * 0.7 + fz * 0.3;
+                    break;
+                }
+                case 'audio3D': {
+                    const bFreq = (audio.frequencyData[Math.floor(t * 30)] || 0) / 255;
+                    const mFreq = (audio.frequencyData[Math.floor(t * 80 + 30)] || 0) / 255;
+                    const tFreq = (audio.frequencyData[Math.floor(t * 50 + 100)] || 0) / 255;
+                    bx += nx * bFreq * dAmt * 0.5;
+                    by += ny * mFreq * dAmt * 0.5;
+                    bz += nz * tFreq * dAmt * 0.5;
+                    disp = (bFreq + mFreq + tFreq) * dAmt * 0.2;
+                    break;
+                }
+                case 'gravityWell': {
+                    let totalForce = 0;
+                    for (let wi = 0; wi < 3; wi++) {
+                        const wa = (wi / 3) * Math.PI * 2 + this.time * 0.3;
+                        const wx = Math.cos(wa) * size * 0.5, wz = Math.sin(wa) * size * 0.5;
+                        const ddx = sx - wx, ddz = sz - wz;
+                        const d2 = Math.sqrt(ddx * ddx + sy * sy + ddz * ddz) + 0.5;
+                        totalForce += bass * 20 / (d2 * d2 + 1);
+                    }
+                    disp = totalForce * dAmt * 0.15;
+                    break;
+                }
+                case 'jellyfish': {
+                    const yNorm = (sy / size + 1) * 0.5; // 0=bottom 1=top
+                    const bellPulse = Math.sin(this.time * 2 + yNorm * Math.PI * 3) * (1 - yNorm);
+                    const tentDrip = yNorm < 0.3 ? Math.sin(this.time * 4 + t * 20) * (0.3 - yNorm) * 3 : 0;
+                    disp = (bellPulse * 1.5 + tentDrip) * dAmt * 0.4 * (0.3 + bass * 2 + sub);
+                    break;
+                }
             }
 
             disp += this.explodePhase * 2;
+            // Scatter: random vertex displacement
             if (this._scatterPhase > 0.01) {
                 bx += this.noise3D(bx + this.time * 10, by, bz) * this._scatterPhase * size * 0.8;
                 by += this.noise3D(by, bz + this.time * 10, bx) * this._scatterPhase * size * 0.8;
                 bz += this.noise3D(bz, bx, by + this.time * 10) * this._scatterPhase * size * 0.8;
             }
-            if (this._invertSpacePhase > 0.05) disp *= (1 - this._invertSpacePhase * 2);
-
+            // InvertSpace: displacement inverts 
+            if (this._invertSpacePhase > 0.05) {
+                disp *= (1 - this._invertSpacePhase * 2);
+            }
             const gravAmt = (params.gravity ?? 0) * react;
             const scale = breathScale * beatScale;
             const patMod = this.getPattern(patternType, t, i / vertCount, this.time);
@@ -903,90 +1003,132 @@ const GeometryForgeMode2 = {
                 let r = 1, g = 1, b = 1;
                 switch (vcMode) {
                     case 'frequency': { const c = this.getPaletteColor(palette, freq, rms); r = c.r; g = c.g; b = c.b; break; }
-                    case 'height': { const c = this.getPaletteColor(palette, solidPos[i3 + 1] / (size * 2) + 0.5, rms); r = c.r; g = c.g; b = c.b; break; }
-                    case 'distance': { const c = this.getPaletteColor(palette, Math.sqrt(solidPos[i3] ** 2 + solidPos[i3 + 1] ** 2 + solidPos[i3 + 2] ** 2) / (size * 2), rms); r = c.r; g = c.g; b = c.b; break; }
-                    case 'rainbow': { const c = this._tempColor.setHSL((t + this.time * 0.1) % 1, 0.9, 0.5 + rms * 0.3); r = c.r; g = c.g; b = c.b; break; }
+                    case 'height': { const h2 = (solidPos[i3 + 1] / (size * 2) + 0.5); const c = this.getPaletteColor(palette, h2, rms); r = c.r; g = c.g; b = c.b; break; }
+                    case 'distance': { const d3 = Math.sqrt(solidPos[i3] ** 2 + solidPos[i3 + 1] ** 2 + solidPos[i3 + 2] ** 2) / (size * 2); const c = this.getPaletteColor(palette, d3, rms); r = c.r; g = c.g; b = c.b; break; }
+                    case 'rainbow': { const c = (this._tempColor || new THREE.Color()).setHSL((t + this.time * 0.1) % 1, 0.9, 0.5 + rms * 0.3); r = c.r; g = c.g; b = c.b; break; }
                     case 'bands': { const bn = ['sub', 'bass', 'lowMid', 'mid', 'highMid', 'treble', 'brilliance']; const bi = Math.floor(t * 7); const bv = audio.smoothBands[bn[bi]] || 0; const c = this.getPaletteColor(palette, bv + bi / 7, rms); r = c.r; g = c.g; b = c.b; break; }
                     case 'plasma': { r = Math.sin(t * 10 + this.time) * 0.5 + 0.5; g = Math.sin(t * 10 + this.time * 1.3 + 2) * 0.5 + 0.5; b = Math.sin(t * 10 + this.time * 0.7 + 4) * 0.5 + 0.5; break; }
                     case 'thermal': { const th = freq * 0.6 + rms * 0.4; r = Math.min(1, th * 2); g = th * 0.6; b = th * 0.1; break; }
-                    case 'pattern': { const c = this.getPaletteColor(palette, patMod * 0.5 + freq * 0.5, rms); r = c.r; g = c.g; b = c.b; break; }
-                    case 'displacement': { const c = this.getPaletteColor(palette, Math.min(1, Math.abs(disp) / (dAmt + 0.01)), rms); r = c.r; g = c.g; b = c.b; break; }
-                    case 'velocity': { if (this._prevPositions) { const dv = Math.sqrt((solidPos[i3] - this._prevPositions[i3]) ** 2 + (solidPos[i3 + 1] - this._prevPositions[i3 + 1]) ** 2 + (solidPos[i3 + 2] - this._prevPositions[i3 + 2]) ** 2); const c = this.getPaletteColor(palette, Math.min(1, dv * 2), rms); r = c.r; g = c.g; b = c.b; } break; }
-                    case 'waveformColor': { const wi2 = Math.floor(t * (audio.waveformPoints?.length || 256)); const wv = (audio.waveformPoints?.[wi2] || 0) * 0.5 + 0.5; const c = this.getPaletteColor(palette, wv, rms); r = c.r; g = c.g; b = c.b; break; }
+                    case 'pattern': { const pv = patMod; const c = this.getPaletteColor(palette, pv * 0.5 + freq * 0.5, rms); r = c.r; g = c.g; b = c.b; break; }
+                    case 'displacement': {
+                        const dNorm = Math.min(1, Math.abs(disp) / (dAmt + 0.01));
+                        const c = this.getPaletteColor(palette, dNorm, rms);
+                        r = c.r; g = c.g; b = c.b; break;
+                    }
+                    case 'velocity': {
+                        if (this._prevPositions) {
+                            const dx = solidPos[i3] - this._prevPositions[i3];
+                            const dy = solidPos[i3 + 1] - this._prevPositions[i3 + 1];
+                            const dz = solidPos[i3 + 2] - this._prevPositions[i3 + 2];
+                            const vel = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                            const c = this.getPaletteColor(palette, Math.min(1, vel * 2), rms);
+                            r = c.r; g = c.g; b = c.b;
+                        }
+                        break;
+                    }
+                    case 'waveformColor': {
+                        const wi2 = Math.floor(t * (audio.waveformPoints?.length || 256));
+                        const wv = (audio.waveformPoints?.[wi2] || 0) * 0.5 + 0.5;
+                        const c = this.getPaletteColor(palette, wv, rms);
+                        r = c.r; g = c.g; b = c.b; break;
+                    }
                 }
-                solidCol[i3] = Math.min(r, 0.85); solidCol[i3 + 1] = Math.min(g, 0.85); solidCol[i3 + 2] = Math.min(b, 0.85);
+                solidCol[i3] = r; solidCol[i3 + 1] = g; solidCol[i3 + 2] = b;
             }
         }
 
-        // Store for velocity mode
-        if (!this._prevPositions || this._prevPositions.length !== solidPos.length) this._prevPositions = new Float32Array(solidPos.length);
+        // Store positions for velocity vertex color mode
+        if (!this._prevPositions || this._prevPositions.length !== solidPos.length) {
+            this._prevPositions = new Float32Array(solidPos.length);
+        }
         this._prevPositions.set(solidPos);
 
-        // Morph progress
+        // Morph progress (fixed: don't overwrite base with displaced positions)
         if (this.morphing) {
             this.morphProgress += dt * 2;
             if (this.morphProgress >= 1) {
                 this.morphing = false;
                 this.basePositions = new Float32Array(this.morphTargetBase);
                 this.morphTargetBase = null;
-                this.sharedGeo.attributes.position.array.set(this.basePositions);
-                this.sharedGeo.attributes.position.needsUpdate = true;
-                this.sharedGeo.computeVertexNormals();
-                this.normals = new Float32Array(this.sharedGeo.attributes.normal.array);
+                // Write clean base positions back before computing normals
+                const geo = this.meshSolid.geometry;
+                geo.attributes.position.array.set(this.basePositions);
+                geo.attributes.position.needsUpdate = true;
+                geo.computeVertexNormals();
+                this.normals = new Float32Array(geo.attributes.normal.array);
             }
         }
 
-        // Mark shared geo dirty — solid + wire + inner wire all see this automatically
-        this.sharedGeo.attributes.position.needsUpdate = true;
-        this.sharedGeo.attributes.color.needsUpdate = true;
+        this.meshSolid.geometry.attributes.position.needsUpdate = true;
+        this.meshSolid.geometry.attributes.color.needsUpdate = true;
+        // Skip computeVertexNormals() per frame — normals are recomputed on topology change only
 
-        // Points: sync from shared geo
-        if (this.meshPoints && this.meshPoints.visible) {
+        // Sync wireframe positions instead of rebuilding WireframeGeometry every frame
+        if (this.meshWire && this.meshWire.geometry.attributes.position) {
+            // Copy displaced positions to wireframe
+            const wirePos = this.meshWire.geometry.attributes.position.array;
+            const solidLen = solidPos.length;
+            const wireLen = wirePos.length;
+            // WireframeGeometry has different vertex count; rebuild only on topology change
+            // Just set needsUpdate to refresh visual with existing topology
+            this.meshWire.geometry.attributes.position.needsUpdate = true;
+        }
+        if (this.meshInnerWire && this.meshInnerWire.geometry.attributes.position) {
+            this.meshInnerWire.geometry.attributes.position.needsUpdate = true;
+        }
+        if (this.meshPoints) {
             this.meshPoints.geometry.attributes.position.array.set(solidPos);
             this.meshPoints.geometry.attributes.position.needsUpdate = true;
             this.meshPoints.geometry.attributes.color.array.set(solidCol);
             this.meshPoints.geometry.attributes.color.needsUpdate = true;
         }
 
-        // ── VISIBILITY ──
+        // Visibility
         this.meshSolid.visible = params.showSolid;
         this.meshWire.visible = params.showWireframe;
         this.meshInnerWire.visible = params.showInnerWire;
         this.meshPoints.visible = params.showPoints;
 
-        // ── MATERIALS ──
+        // Materials
+        // Emissive glow: pulses with bass and flashes on drops
+        const emGlow = Math.min(1, bass * 0.3 + this._emissivePulse * 0.6);
         this.meshSolid.material.opacity = Math.min(0.85, (params.solidOpacity ?? 0.35) * (0.7 + bass * 0.6) + this._emissivePulse * 0.3);
-
-        // Wire color
+        // ...wire color logic below...
         const wc = params.wireColor ?? 'palette';
-        const wireCol = this.meshWire.material.color;
-        if (wc === 'palette') wireCol.copy(ParamSystem.getColorThree(rms + this.time * 0.1));
-        else if (wc === 'rainbow') wireCol.setHSL((this.time * 0.2) % 1, 0.9, 0.6 + rms * 0.3);
-        else if (wc === 'neon') wireCol.setHSL(0.8 + bass * 0.2, 1, 0.5 + rms * 0.4);
-        else if (wc === 'fire') wireCol.setHSL(0.05 + bass * 0.08, 1, 0.4 + rms * 0.4);
-        else if (wc === 'ice') wireCol.setHSL(0.55 + treble * 0.1, 0.7, 0.5 + rms * 0.3);
-        else if (wc === 'void') wireCol.setHSL(0.75, 0.2, 0.15 + rms * 0.2);
-        else if (wc === 'pulse') wireCol.setHSL((this.time * 0.1) % 1, 0.9, 0.3 + (audio.bassBeat ? 1 : 0.3 + rms * 0.4) * 0.5);
-        else if (wc === 'spectrum') wireCol.setHSL((rms + bass * 0.3 + treble * 0.2 + this.time * 0.02) % 1, 1, 0.4 + rms * 0.4);
-        else if (wc === 'complementary') wireCol.setHSL(((this.time * 0.05 + rms * 0.3) + 0.5) % 1, 0.9, 0.45 + rms * 0.35);
-        else wireCol.setRGB(1, 1, 1);
-        this.meshWire.material.opacity = Math.min(0.7, (params.wireOpacity ?? 0.9) * (0.4 + rms * 0.4));
+        if (wc === 'palette') this.meshWire.material.color.copy(ParamSystem.getColorThree(rms + this.time * 0.1));
+        else if (wc === 'rainbow') this.meshWire.material.color.setHSL((this.time * 0.2) % 1, 0.9, 0.6 + rms * 0.3);
+        else if (wc === 'neon') this.meshWire.material.color.setHSL(0.8 + bass * 0.2, 1, 0.5 + rms * 0.4);
+        else if (wc === 'fire') this.meshWire.material.color.setHSL(0.05 + bass * 0.08, 1, 0.4 + rms * 0.4);
+        else if (wc === 'ice') this.meshWire.material.color.setHSL(0.55 + treble * 0.1, 0.7, 0.5 + rms * 0.3);
+        else if (wc === 'void') this.meshWire.material.color.setHSL(0.75, 0.2, 0.15 + rms * 0.2);
+        else if (wc === 'pulse') {
+            const pulseFlash = audio.bassBeat ? 1 : (0.3 + rms * 0.4);
+            this.meshWire.material.color.setHSL((this.time * 0.1) % 1, 0.9, 0.3 + pulseFlash * 0.5);
+        }
+        else if (wc === 'spectrum') {
+            // Map frequency spectrum across wire hue
+            const specHue = (rms + bass * 0.3 + treble * 0.2 + this.time * 0.02) % 1;
+            this.meshWire.material.color.setHSL(specHue, 1, 0.4 + rms * 0.4);
+        }
+        else if (wc === 'complementary') {
+            const baseHue = (this.time * 0.05 + rms * 0.3) % 1;
+            this.meshWire.material.color.setHSL((baseHue + 0.5) % 1, 0.9, 0.45 + rms * 0.35);
+        }
+        else this.meshWire.material.color.setRGB(1, 1, 1);
+        this.meshWire.material.opacity = (params.wireOpacity ?? 0.9) * (0.5 + rms);
 
         this.meshInnerWire.material.color.copy(ParamSystem.getColorThree(treble + this.time * 0.15));
         this.meshInnerWire.material.opacity = 0.2 + bass * 0.3;
-        this.meshInnerWire.scale.setScalar(0.85 + treble * 0.15 + Math.sin(this.time * 1.5) * 0.03);
+        // Inner wire breathes with treble independently
+        const innerBreath = 0.85 + treble * 0.15 + Math.sin(this.time * 1.5) * 0.03;
+        this.meshInnerWire.scale.setScalar(innerBreath);
+        // Audio-reactive point sizes
         this.meshPoints.material.size = (params.pointSize ?? 2.5) * (1 + bass * 2 + this._emissivePulse);
 
-        // ── ROTATION (uses SE.rotationMultiplier from marker system) ──
-        const rotMult = SE.rotationMultiplier ?? 1;
+        // Rotation
         const rotMode = params.autoRotateMode ?? 'smooth';
-        const rx = (params.rotSpeedX ?? 0.3) * (1 + mid * react) * rotMult;
-        const ry = (params.rotSpeedY ?? 0.5) * (1 + bass * react) * rotMult;
-        const rz = (params.rotSpeedZ ?? 0.1) * (1 + treble * react) * rotMult;
-        if (rotMode === 'off') {
-            // No rotation — user has full manual control; keep current angles
-        }
-        else if (rotMode === 'smooth') { this.group.rotation.x += rx * dt; this.group.rotation.y += ry * dt; this.group.rotation.z += rz * dt; }
+        const rx = (params.rotSpeedX ?? 0.3) * (1 + mid * react), ry = (params.rotSpeedY ?? 0.5) * (1 + bass * react), rz = (params.rotSpeedZ ?? 0.1) * (1 + treble * react);
+        if (rotMode === 'smooth') { this.group.rotation.x += rx * dt; this.group.rotation.y += ry * dt; this.group.rotation.z += rz * dt; }
         else if (rotMode === 'tumble') { this.group.rotation.x += rx * dt + Math.sin(this.time * 1.5) * 0.01; this.group.rotation.y += ry * dt + Math.cos(this.time * 1.2) * 0.01; this.group.rotation.z += rz * dt + Math.sin(this.time * 0.8) * 0.02; }
         else if (rotMode === 'orbit') { this.group.rotation.y += ry * dt; this.group.rotation.x = Math.sin(this.time * 0.5) * 0.3; this.group.rotation.z = Math.cos(this.time * 0.3) * 0.2; }
         else if (rotMode === 'wobble') { this.group.rotation.x = Math.sin(this.time * rx) * 0.5; this.group.rotation.y += ry * dt; this.group.rotation.z = Math.cos(this.time * rz) * 0.3; }
@@ -995,26 +1137,49 @@ const GeometryForgeMode2 = {
             this.group.rotation.x = Math.sin(this.time * 0.3 * rx) * 0.4;
             this.group.rotation.y += ry * dt * 0.2;
             this.group.rotation.z = Math.cos(this.time * 0.2 * rz) * 0.3;
-            this.group.scale.setScalar(1 + Math.sin(this.time * 0.5) * 0.08 * (1 + bass));
+            // Scale breathing
+            const breathSc = 1 + Math.sin(this.time * 0.5) * 0.08 * (1 + bass);
+            this.group.scale.setScalar(breathSc);
         }
-        else if (rotMode === 'chaotic') { this.group.rotation.x += (Math.sin(this.time * 0.7) * Math.cos(this.time * 0.3) * rx + bass * 0.1) * dt; this.group.rotation.y += (Math.cos(this.time * 0.5) * Math.sin(this.time * 0.4) * ry + mid * 0.1) * dt; this.group.rotation.z += (Math.sin(this.time * 0.6) * Math.cos(this.time * 0.8) * rz + treble * 0.05) * dt; }
-        else if (rotMode === 'beatLock') { const tY = Math.floor(audio.beatPhase * 4) * Math.PI / 2; this.group.rotation.y += (tY - this.group.rotation.y) * 0.12; this.group.rotation.x += rx * dt * 0.3; this.group.rotation.z = Math.sin(this.time * 0.3) * 0.15; }
-        if (rotMode !== 'breatheRot') this.group.scale.setScalar(1);
+        else if (rotMode === 'chaotic') {
+            // Lorenz-inspired unpredictable but smooth rotation
+            const lx = Math.sin(this.time * 0.7) * Math.cos(this.time * 0.3);
+            const ly = Math.cos(this.time * 0.5) * Math.sin(this.time * 0.4);
+            const lz = Math.sin(this.time * 0.6) * Math.cos(this.time * 0.8);
+            this.group.rotation.x += (lx * rx + bass * 0.1) * dt;
+            this.group.rotation.y += (ly * ry + mid * 0.1) * dt;
+            this.group.rotation.z += (lz * rz + treble * 0.05) * dt;
+        }
+        else if (rotMode === 'beatLock') {
+            // Snap to 90° increments on beat, smooth between
+            const targetY = Math.floor(audio.beatPhase * 4) * Math.PI / 2;
+            this.group.rotation.y += (targetY - this.group.rotation.y) * 0.12;
+            this.group.rotation.x += rx * dt * 0.3;
+            this.group.rotation.z = Math.sin(this.time * 0.3) * 0.15;
+        }
 
-        // Wrap rotation to prevent float32 precision loss
-        if (++this._rotWrapCounter > 600) {
+        // Wrap rotation to prevent float32 precision loss over long sessions
+        this._rotWrapCounter++;
+        if (this._rotWrapCounter > 600) { // ~every 10 seconds at 60fps
             this._rotWrapCounter = 0;
             const TWO_PI = Math.PI * 2;
-            this.group.rotation.x %= TWO_PI;
-            this.group.rotation.y %= TWO_PI;
-            this.group.rotation.z %= TWO_PI;
+            this.group.rotation.x = this.group.rotation.x % TWO_PI;
+            this.group.rotation.y = this.group.rotation.y % TWO_PI;
+            this.group.rotation.z = this.group.rotation.z % TWO_PI;
         }
 
-        // Beat spin burst — Y axis only, hard capped
+        // Beat spin burst — subtle, only on strong beats, single axis to avoid tumbling
         if (audio.bassBeat) {
-            this.group.rotation.y += Math.min(0.04, audio.bassBeatIntensity * 0.08 * (params.beatSpinBurst ?? 0.3));
+            const burst = (params.beatSpinBurst ?? 0.3);
+            const maxBurst = 0.04; // hard cap regardless of section — was 0.08/0.15
+            // Only Y axis — keeps the shape upright and symmetrical
+            this.group.rotation.y += Math.min(maxBurst, audio.bassBeatIntensity * 0.08 * burst);
         }
-        if (audio.dropDecay > 0.3) this.group.rotation.z += audio.dropDecay * 0.02;
+        // Drop decay: subtle Z tilt that resolves cleanly, much smaller coefficient
+        if (audio.dropDecay > 0.3) this.group.rotation.z += audio.dropDecay * 0.02; // was 0.15
+
+        // Reset scale for non-breatheRot modes
+        if (rotMode !== 'breatheRot') this.group.scale.setScalar(1);
 
         // ── GHOST TRAILS ──
         this.updateGhosts(params);

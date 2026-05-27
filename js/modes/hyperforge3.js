@@ -100,10 +100,10 @@ const HyperforgeMode3 = {
         outerSize:    { type: 'range', min: 0, max: 60,  default: 22,   step: 1,   label: '📐 Size' },
 
         // ═══ SUPERFORMULA ═══
-        sfM:          { type: 'range', min: 0, max: 30,  default: 6,    step: 0.5, label: '🔢 SF Symmetry (m)' },
-        sfN1:         { type: 'range', min: 0, max: 15,  default: 1,    step: 0.1, label: '🔷 SF Shape (n1)' },
-        sfN2:         { type: 'range', min: 0, max: 15,  default: 1,    step: 0.1, label: '↔️ SF Horizontal (n2)' },
-        sfN3:         { type: 'range', min: 0, max: 15,  default: 1,    step: 0.1, label: '↕️ SF Vertical (n3)' },
+        sfM:          { type: 'range', min: 1,   max: 20,  default: 6,    step: 0.5, label: '🔢 SF Symmetry (m)' },
+        sfN1:         { type: 'range', min: 0.1, max: 12,  default: 1,    step: 0.1, label: '🔷 SF Shape (n1)' },
+        sfN2:         { type: 'range', min: 0.1, max: 12,  default: 1,    step: 0.1, label: '↔️ SF Horizontal (n2)' },
+        sfN3:         { type: 'range', min: 0.1, max: 12,  default: 1,    step: 0.1, label: '↕️ SF Vertical (n3)' },
         sfAudioMap:   { type: 'toggle', default: true,                             label: '🎵 Audio Drives SF' },
 
         // ═══ DISPLACEMENT ═══
@@ -113,8 +113,8 @@ const HyperforgeMode3 = {
                 'audioSculpt', 'reaction', 'gravitationalWell', 'stringTheory', 'fluidSim'
             ], default: 'fourier', label: '🌊 Displace Mode'
         },
-        displaceAmt:        { type: 'range', min: 0, max: 40, default: 8,    step: 0.5, label: '📊 Displace Amount' },
-        displaceSpeed:      { type: 'range', min: 0, max: 8,  default: 1.5,  step: 0.1, label: '⏩ Displace Speed' },
+        displaceAmt:        { type: 'range', min: 0, max: 30, default: 8,    step: 0.5, label: '📊 Displace Amount' },
+        displaceSpeed:      { type: 'range', min: 0, max: 5,  default: 1.5,  step: 0.1, label: '⏩ Displace Speed' },
         symmetryAxis:       { type: 'select', options: ['off', 'x', 'y', 'z', 'xy', 'xz', 'yz', 'xyz'], default: 'off', label: '🔀 Symmetry Axis' },
         gravWellCount:      { type: 'range', min: 0, max: 8,  default: 2,    step: 1,   label: '🕳️ Gravity Wells' },
 
@@ -166,12 +166,13 @@ const HyperforgeMode3 = {
         flowPattern: { type: 'select', options: ['orbit', 'spiral', 'helix', 'chaos', 'vortex'], default: 'orbit', label: '🌀 Flow Pattern' },
 
         // ═══ ROTATION ═══
-        rotSpeed:         { type: 'range', min: 0, max: 8, default: 0.4, step: 0.05, label: '🔄 Rotation Speed' },
-        rotationEnabled:  { type: 'toggle', default: true,                            label: '🔄 Rotation On/Off' },
+        rotSpeed:         { type: 'range', min: 0, max: 2.0, default: 0.4, step: 0.05, label: '🔄 Rotation Speed' },
+        rotationEnabled:  { type: 'toggle', default: true,                              label: '🔄 Rotation On/Off' },
 
         // ═══ AUDIO REACTIVITY ═══
-        bassBreath:         { type: 'range', min: 0, max: 8, default: 2.5, step: 0.1, label: '🔊 Bass Breathing' },
-        beatExplode:        { type: 'range', min: 0, max: 8, default: 2,   step: 0.1, label: '💥 Beat Explode' },
+        reactivity:         { type: 'range', min: 0.1, max: 2.0, default: 1.0, step: 0.05, label: '⚡ Reactivity' },
+        bassBreath:         { type: 'range', min: 0, max: 3.0, default: 1.5, step: 0.1, label: '🔊 Bass Breathing' },
+        beatExplode:        { type: 'range', min: 0, max: 3.0, default: 2,   step: 0.1, label: '💥 Beat Explode' },
         beatExplosionStyle: { type: 'select', options: ['radial', 'shatter', 'invert', 'twist'], default: 'radial', label: '💥 Explode Style' },
 
         // ═══ DROP SECTION ═══
@@ -196,7 +197,7 @@ const HyperforgeMode3 = {
                 'fire', 'plasma', 'thermal', 'void', 'holographic'
             ], default: 'off', label: '🎨 Drop Color Override'
         },
-        dropIntensityMult: { type: 'range', min: 0, max: 8, default: 1.5, step: 0.1, label: '⚡ Drop Intensity' },
+        dropIntensityMult: { type: 'range', min: 0.5, max: 3.0, default: 1.5, step: 0.1, label: '⚡ Drop Intensity' },
     },
 
     // ── ATTRACTOR DISPATCH (shared via MathLib) ──
@@ -426,7 +427,7 @@ const HyperforgeMode3 = {
         this._activeParams = params;
 
         const SE    = audio.sectionEffects || { displacementScale: 1, speed: 1, rotationMultiplier: 1, particleEmissionRate: 1, bloomGlowMult: 1 };
-        const react = params.reactivity || 1.5;
+        const react = Math.min(params.reactivity ?? 1.0, 2.0);
         const bass  = audio.smoothBands.bass   || 0;
         const sub   = audio.smoothBands.sub    || 0;
         const mid   = audio.smoothBands.mid    || 0;
@@ -445,10 +446,19 @@ const HyperforgeMode3 = {
         // MATH-02: dt-corrected lerp so smoothing behaves the same at any framerate
         const lerpAlpha = Math.min(1, dt * 60 * this.SF_LERP_RATE);
         if (params.sfAudioMap && shape === 'superformula') {
-            this.smoothSfM  += ((m  + bass   * 4) - this.smoothSfM)  * lerpAlpha;
-            this.smoothSfN1 += ((n1 + sub    * 3) - this.smoothSfN1) * lerpAlpha;
-            this.smoothSfN2 += ((n2 + mid    * 2) - this.smoothSfN2) * lerpAlpha;
-            this.smoothSfN3 += ((n3 + treble * 2) - this.smoothSfN3) * lerpAlpha;
+            // Audio contribution is additive but capped — prevents superformula geometry explosion
+            // (m > 16 or n1 < 0.1 produce near-degenerate meshes)
+            const tgtM  = Math.min(m  + bass   * 2,  16);
+            const tgtN1 = Math.min(n1 + sub    * 1.5, 8);
+            const tgtN2 = Math.min(n2 + mid    * 1.5, 8);
+            const tgtN3 = Math.min(n3 + treble * 1.5, 8);
+            this.smoothSfM  += (tgtM  - this.smoothSfM)  * lerpAlpha;
+            this.smoothSfN1 += (tgtN1 - this.smoothSfN1) * lerpAlpha;
+            this.smoothSfN2 += (tgtN2 - this.smoothSfN2) * lerpAlpha;
+            this.smoothSfN3 += (tgtN3 - this.smoothSfN3) * lerpAlpha;
+            // Hard floor: prevents near-zero division in superformula
+            this.smoothSfM  = Math.max(1,   this.smoothSfM);
+            this.smoothSfN1 = Math.max(0.1, this.smoothSfN1);
             m = this.smoothSfM; n1 = this.smoothSfN1; n2 = this.smoothSfN2; n3 = this.smoothSfN3;
         }
 
@@ -559,15 +569,20 @@ const HyperforgeMode3 = {
         }
 
         // ── ROTATION ──
+        // rotSpeed is a clean "how fast" knob — no audio multiplication baked in.
+        // Audio adds a small additive beat kick only, keeping the visual legible at any volume.
         if (params.rotationEnabled !== false) {
-            const rotMult = SE.rotationMultiplier ?? 1;
-            const rot     = (params.rotSpeed || 0.4) * (1 + mid * react * 0.6) * rotMult;
-            this.group.rotation.x += rot * 0.3 * dt;
-            this.group.rotation.y += rot * dt;
-            this.group.rotation.z += rot * 0.1 * dt;
-            if (audio.bassBeat) {
-                this.group.rotation.y += Math.min(0.15, audio.bassBeatIntensity * 0.2) * rotMult;
-            }
+            const rotMult   = SE.rotationMultiplier ?? 1;
+            const rot       = (params.rotSpeed ?? 0.4) * rotMult;
+            const rotAudioX = mid    * 0.003 * Math.min(react, 2.0);
+            const rotAudioY = bass   * 0.005 * Math.min(react, 2.0);
+            const rotAudioZ = treble * 0.002 * Math.min(react, 2.0);
+            const beatKick  = audio.bassBeat
+                ? Math.min(0.08, audio.bassBeatIntensity * 0.1) * rotMult
+                : 0;
+            this.group.rotation.x += (rot * 0.3 + rotAudioX) * dt;
+            this.group.rotation.y += (rot       + rotAudioY + beatKick) * dt;
+            this.group.rotation.z += (rot * 0.1 + rotAudioZ) * dt;
         }
 
         // ── BEAT EXPLODE ──
@@ -587,16 +602,23 @@ const HyperforgeMode3 = {
         const mode      = this._dropDisplaceActive || params.displaceMode || 'fourier';
         const dropMult  = this._dropDisplaceActive ? (params.dropIntensityMult || 1.5) : 1;
         
-        const amt       = (params.displaceAmt || 8) * (params.reactivity || 1.5) * dropMult;
+        const react = Math.min(params.reactivity ?? 1.0, 2.0);
+        // amt hard-capped — prevents vertices flying to infinity at high reactivity
+        const amt   = Math.min(
+            (params.displaceAmt ?? 8) * react * dropMult,
+            50
+        );
         
-        const speed     = (params.displaceSpeed || 1.5) * (SE.speed ?? 1);
+        const speed     = (params.displaceSpeed ?? 1.5) * (SE.speed ?? 1);
         const bass      = audio.smoothBands.bass || 0;
         const sub       = audio.smoothBands.sub  || 0;
         const rms       = audio.rms || 0;
         const colorMode = this._dropColorActive || params.colorMode || 'reactionDiffusion';
         const sym       = params.symmetryAxis || 'off';
         const explStyle = params.beatExplosionStyle || 'radial';
-        const breathScale  = 1 + (sub + bass) * (params.bassBreath || 2.5) * 0.2;
+        // breathScale clamped — bass + sub can reach 2.0, bassBreath max 3.0, coeff 0.12 → max scale ≈1.72×
+        const breath       = Math.min(params.bassBreath ?? 1.5, 3.0);
+        const breathScale  = 1 + (sub + bass) * breath * 0.12;
         const hasSustained = audio.hasSustainedBass;
         const subSustain   = audio.subSustain || 0;
         const wobbleLFO    = audio.wobbleLFO  || 0;
@@ -791,9 +813,13 @@ const HyperforgeMode3 = {
                     break;
                 }
                 case 'chaos':
-                    v.x += (Math.random() - 0.5) * speed * bass * 3;
-                    v.y += (Math.random() - 0.5) * speed * mid  * 3;
-                    v.z += (Math.random() - 0.5) * speed * bass * 3;
+                    v.x += (Math.random() - 0.5) * speed * bass * 2;
+                    v.y += (Math.random() - 0.5) * speed * mid  * 2;
+                    v.z += (Math.random() - 0.5) * speed * bass * 2;
+                    // Clamp: chaos should feel energetic but particles must stay in view
+                    v.x = Math.max(-1.5, Math.min(1.5, v.x));
+                    v.y = Math.max(-1.5, Math.min(1.5, v.y));
+                    v.z = Math.max(-1.5, Math.min(1.5, v.z));
                     break;
                 case 'vortex': {
                     const vd = R - dist;

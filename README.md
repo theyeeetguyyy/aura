@@ -138,7 +138,7 @@ We welcome new visual modes and engine improvements! To add a new visualizer:
 1. Fork the repo and create a new file in `js/modes/`.
 2. Follow the standard mode interface (`init`, `update(audio, params, dt)`, `dispose`).
 3. Add your mode to `index.html` and the `visualModes` registry in `js/visuals.js`.
-4. Open a PR!
+4. Open a PR!!
 
 ---
 
