@@ -50,6 +50,17 @@ const VisualEngine = (() => {
     let modeKeys         = [];
     let modeErrorReported = false;
 
+    // ── Layer composition (multi-mode) ────────────────────
+    // Each layer holds: { modeKey, mode, group, errorReported }
+    // The "main" layer is the existing activeMode.
+    // Additional layers render simultaneously in the same scene.
+    const layers = {
+        background: null,
+        accent:     null,
+        overlay:    null,
+    };
+    let composerActive = false;  // true when any layer is set
+
     // ── Post-processing ───────────────────────────────────
     let renderPass = null;
     let bloomPass  = null;
@@ -204,8 +215,15 @@ const VisualEngine = (() => {
 
         if (activeMode && activeMode.destroy) activeMode.destroy(scene);
 
-        // Clear scene but protect cameras
-        const toRemove = scene.children.filter(obj => obj !== editorCamera && obj !== CameraEngine?.camera);
+        // Clear scene but protect cameras AND layer groups
+        const layerGroups = new Set(
+            Object.values(layers).filter(l => l).map(l => l.group)
+        );
+        const toRemove = scene.children.filter(obj =>
+            obj !== editorCamera &&
+            obj !== CameraEngine?.camera &&
+            !layerGroups.has(obj)
+        );
         for (const obj of toRemove) {
             obj.traverse(child => {
                 if (child.geometry) child.geometry.dispose();
@@ -249,6 +267,145 @@ const VisualEngine = (() => {
 
     function nextMode() { const i = modeKeys.indexOf(activeModeKey); setMode(modeKeys[(i+1) % modeKeys.length]); return activeModeKey; }
     function prevMode() { const i = modeKeys.indexOf(activeModeKey); setMode(modeKeys[(i-1+modeKeys.length) % modeKeys.length]); return activeModeKey; }
+
+    // ──────────────────────────────────────────────────────
+    // LAYER COMPOSITION — run multiple modes simultaneously
+    // ──────────────────────────────────────────────────────
+
+    /**
+     * setLayer(slot, modeKey) — Assign a mode to a composition layer.
+     * The mode inits into its own THREE.Group (so it can be removed independently).
+     * Valid slots: 'background', 'accent', 'overlay'
+     */
+    function setLayer(slot, modeKey) {
+        if (!layers.hasOwnProperty(slot)) {
+            console.warn(`[VisualEngine] Unknown layer slot: "${slot}"`);
+            return;
+        }
+        if (!modes[modeKey]) {
+            console.warn(`[VisualEngine] Unknown mode: "${modeKey}"`);
+            return;
+        }
+
+        // Clear existing layer in this slot
+        clearLayer(slot);
+
+        // Create a container group for this layer
+        const group = new THREE.Group();
+        group.name = `layer_${slot}_${modeKey}`;
+        scene.add(group);
+
+        // Create a proxy scene that redirects .add() into our group
+        const proxyScene = _createProxyScene(group);
+
+        // Create a dummy camera that absorbs position/lookAt calls
+        // so the layer mode can't hijack the real editor camera
+        const dummyCam = _createDummyCamera();
+
+        const mode = modes[modeKey];
+        try {
+            if (mode.init) mode.init(proxyScene, dummyCam, renderer);
+        } catch (err) {
+            console.error(`[VisualEngine] Layer "${slot}" (${modeKey}) failed to init:`, err);
+        }
+
+        layers[slot] = {
+            modeKey,
+            mode,
+            group,
+            proxyScene,
+            errorReported: false,
+        };
+
+        composerActive = true;
+        console.log(`[VisualEngine] Layer "${slot}" → ${modeKey}`);
+    }
+
+    /**
+     * clearLayer(slot) — Remove a layer and dispose its resources.
+     */
+    function clearLayer(slot) {
+        const layer = layers[slot];
+        if (!layer) return;
+
+        // Destroy mode
+        try {
+            if (layer.mode.destroy) layer.mode.destroy(layer.proxyScene);
+        } catch (e) { /* ignore */ }
+
+        // Dispose all objects in the group
+        layer.group.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+                if (Array.isArray(child.material)) child.material.forEach(disposeMaterial);
+                else if (child.material.dispose) disposeMaterial(child.material);
+            }
+        });
+        scene.remove(layer.group);
+
+        layers[slot] = null;
+        composerActive = Object.values(layers).some(l => l !== null);
+    }
+
+    /**
+     * clearAllLayers() — Remove all composition layers.
+     */
+    function clearAllLayers() {
+        for (const slot of Object.keys(layers)) clearLayer(slot);
+    }
+
+    /**
+     * _createProxyScene(group) — Creates an object that looks like a THREE.Scene
+     * to the mode's init(), but redirects all .add() calls into our group.
+     * This way the mode's objects get parented to our group, not the root scene.
+     */
+    function _createProxyScene(group) {
+        return {
+            add(obj)    { group.add(obj); },
+            remove(obj) { group.remove(obj); },
+            // Modes sometimes read scene properties:
+            get children() { return group.children; },
+            get background() { return scene.background; },
+            set background(v) { /* ignore — only main mode controls background */ },
+            get fog() { return scene.fog; },
+            set fog(v) { /* ignore */ },
+            // Some modes check instanceof THREE.Scene — give them a plausible response
+            isScene: true,
+            type: 'Scene',
+        };
+    }
+
+    /**
+     * _createDummyCamera() — Creates a camera-like object that absorbs
+     * position/lookAt writes so layer modes can't hijack the real camera.
+     * Reads proxy through to the real editorCamera for fov, aspect, etc.
+     */
+    function _createDummyCamera() {
+        // Create a real camera so modes that do math with it don't crash,
+        // but its values never reach the renderer
+        const dummy = new THREE.PerspectiveCamera(
+            editorCamera.fov,
+            editorCamera.aspect,
+            editorCamera.near,
+            editorCamera.far
+        );
+        dummy.position.copy(editorCamera.position);
+        dummy.quaternion.copy(editorCamera.quaternion);
+        dummy.updateProjectionMatrix();
+        return dummy;
+    }
+
+    /**
+     * getLayerInfo() — Returns current layer state for UI.
+     */
+    function getLayerInfo() {
+        const info = {};
+        for (const [slot, layer] of Object.entries(layers)) {
+            info[slot] = layer ? { modeKey: layer.modeKey, name: layer.mode.name || layer.modeKey } : null;
+        }
+        info.main = activeModeKey ? { modeKey: activeModeKey, name: activeMode?.name || activeModeKey } : null;
+        return info;
+    }
 
     // ──────────────────────────────────────────────────────
     // EDITOR CAMERA — MOUSE ORBIT & ZOOM
@@ -603,6 +760,33 @@ const VisualEngine = (() => {
     }
 
     // ──────────────────────────────────────────────────────
+    // BUILD AUDIO-MAPPED PARAMS (shared by main mode + layers)
+    // ──────────────────────────────────────────────────────
+    function _buildAudioParams(audioBus) {
+        const baseParams = { ...ParamSystem.getAllGlobal(), ...ParamSystem.getAllMode() };
+        if (audioBus.isPlaying) {
+            const mappings = ParamSystem.getMappings();
+            for (const key in mappings) {
+                const map = mappings[key];
+                let audioVal = 0;
+                if      (map.band === 'onset')     audioVal = audioBus.onsetStrength;
+                else if (map.band === 'envelope')  audioVal = audioBus.envelope;
+                else if (map.band === 'rms')       audioVal = audioBus.rms;
+                else if (map.band === 'beatPhase') audioVal = audioBus.beatPhase;
+                else    audioVal = audioBus.smoothBands[map.band] || audioBus.rawBands[map.band] || 0;
+
+                const stemMap = { sub:'stemReactivity_drums', bass:'stemReactivity_bass', lowMid:'stemReactivity_mids', mid:'stemReactivity_mids', highMid:'stemReactivity_highs', treble:'stemReactivity_highs', brilliance:'stemReactivity_highs' };
+                if (stemMap[map.band]) audioVal *= (ParamSystem.get(stemMap[map.band]) || 1.0);
+
+                if (baseParams[key] !== undefined && typeof baseParams[key] === 'number') {
+                    baseParams[key] += audioVal * map.amount;
+                }
+            }
+        }
+        return baseParams;
+    }
+
+    // ──────────────────────────────────────────────────────
     // MAIN UPDATE LOOP
     // ──────────────────────────────────────────────────────
     function update() {
@@ -631,33 +815,32 @@ const VisualEngine = (() => {
         // Effects
         updateEffects(audioBus, { ...ParamSystem.getAllGlobal(), ...ParamSystem.getAllMode() }, dt);
 
-        // Mode update
+        // Mode update — main mode + all active layers
+        const baseParams = _buildAudioParams(audioBus);
+
+        // Main mode
         if (activeMode && activeMode.update) {
             try {
-                const baseParams = { ...ParamSystem.getAllGlobal(), ...ParamSystem.getAllMode() };
-                if (audioBus.isPlaying) {
-                    const mappings = ParamSystem.getMappings();
-                    for (const key in mappings) {
-                        const map = mappings[key];
-                        let audioVal = 0;
-                        if      (map.band === 'onset')     audioVal = audioBus.onsetStrength;
-                        else if (map.band === 'envelope')  audioVal = audioBus.envelope;
-                        else if (map.band === 'rms')       audioVal = audioBus.rms;
-                        else if (map.band === 'beatPhase') audioVal = audioBus.beatPhase;
-                        else    audioVal = audioBus.smoothBands[map.band] || audioBus.rawBands[map.band] || 0;
-
-                        const stemMap = { sub:'stemReactivity_drums', bass:'stemReactivity_bass', lowMid:'stemReactivity_mids', mid:'stemReactivity_mids', highMid:'stemReactivity_highs', treble:'stemReactivity_highs', brilliance:'stemReactivity_highs' };
-                        if (stemMap[map.band]) audioVal *= (ParamSystem.get(stemMap[map.band]) || 1.0);
-
-                        if (baseParams[key] !== undefined && typeof baseParams[key] === 'number') {
-                            baseParams[key] += audioVal * map.amount;
-                        }
-                    }
-                }
                 activeMode.update(audioBus, baseParams, dt_visual);
                 modeErrorReported = false;
             } catch (err) {
                 if (!modeErrorReported) { console.warn(`Mode "${activeModeKey}" error:`, err.message); modeErrorReported = true; }
+            }
+        }
+
+        // Composition layers
+        if (composerActive) {
+            for (const [slot, layer] of Object.entries(layers)) {
+                if (!layer || !layer.mode.update) continue;
+                try {
+                    layer.mode.update(audioBus, baseParams, dt_visual);
+                    layer.errorReported = false;
+                } catch (err) {
+                    if (!layer.errorReported) {
+                        console.warn(`Layer "${slot}" (${layer.modeKey}) error:`, err.message);
+                        layer.errorReported = true;
+                    }
+                }
             }
         }
 
@@ -695,10 +878,13 @@ const VisualEngine = (() => {
         getCameraSnapshot,
         applyStudioStateAtTime,
         applyNodeSnapshot,
+        // Layer composition
+        setLayer, clearLayer, clearAllLayers, getLayerInfo,
         toggleFlash() { flashEnabled = !flashEnabled; return flashEnabled; },
         get flashEnabled()  { return flashEnabled; },
         get activeModeKey() { return activeModeKey; },
         get activeMode()    { return activeMode; },
+        get composerActive(){ return composerActive; },
         get scene()         { return scene; },
         get camera()        { return editorCamera; },   // backward-compat alias
         get renderer()      { return renderer; },

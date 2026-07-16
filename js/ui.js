@@ -64,13 +64,12 @@ const UI = (() => {
     }
 
     function setupGlobalSettings() {
-        const openBtn = document.getElementById('btn-global-settings');
-        const modal = document.getElementById('global-settings-modal');
-        const closeBtn = document.getElementById('global-settings-close');
-        const liveMap = document.getElementById('settings-live-ui-mapping');
+        const openBtn      = document.getElementById('btn-global-settings');
+        const modal        = document.getElementById('global-settings-modal');
+        const closeBtn     = document.getElementById('global-settings-close');
+        const liveMap      = document.getElementById('settings-live-ui-mapping');
         const followTimeline = document.getElementById('settings-follow-timeline');
-        const bpmAuto = document.getElementById('bpm-auto');
-        const bpmManual = document.getElementById('bpm-manual');
+        const bpmManual    = document.getElementById('bpm-manual');  // #bpm-auto does not exist in HTML
         if (!openBtn || !modal || !closeBtn) return;
 
         openBtn.addEventListener('click', () => {
@@ -105,21 +104,23 @@ const UI = (() => {
 
     // ── Transport Bar ──────────────────────────────────────
     function setupTransport() {
-        _playBtn = document.getElementById('btn-play');
-        _seekBar = document.getElementById('seek-bar');
+        _playBtn     = document.getElementById('btn-play');
+        _seekBar     = document.getElementById('seek-bar');    // may be null — guarded below
         const volBar = document.getElementById('vol-bar');
-        _recBtn = document.getElementById('btn-record');
+        _recBtn      = document.getElementById('btn-record');
         _timeDisplay = document.getElementById('time-display');
-        _levelFill = document.getElementById('level-fill');
-        _bpmDisplay = document.getElementById('bpm-display');
-        _volDisplay = document.getElementById('vol-display');
-        const bpmAuto = document.getElementById('bpm-auto');
+        _levelFill   = document.getElementById('level-fill');  // may be null — guarded in update
+        _bpmDisplay  = document.getElementById('bpm-display');
+        _volDisplay  = document.getElementById('vol-display'); // may be null — guarded in update
+        // NOTE: #bpm-auto does not exist in HTML — removed.
         const bpmManual = document.getElementById('bpm-manual');
 
-        _playBtn.addEventListener('click', () => {
-            AudioEngine.togglePlay();
-            updatePlayButton();
-        });
+        if (_playBtn) {
+            _playBtn.addEventListener('click', () => {
+                AudioEngine.togglePlay();
+                updatePlayButton();
+            });
+        }
 
         // Loop button
         const loopBtn = document.getElementById('btn-loop');
@@ -130,20 +131,24 @@ const UI = (() => {
             });
         }
 
-        // Volume — 4.13: Show percentage
-        volBar.addEventListener('input', () => {
-            const v = volBar.value / 100;
-            AudioEngine.setVolume(v);
-            if (_volDisplay) _volDisplay.textContent = `${volBar.value}%`;
-        });
+        // Volume
+        if (volBar) {
+            volBar.addEventListener('input', () => {
+                const v = volBar.value / 100;
+                AudioEngine.setVolume(v);
+                if (_volDisplay) _volDisplay.textContent = `${volBar.value}%`;
+            });
+        }
 
         // Record
-        _recBtn.addEventListener('click', () => {
-            const canvas = document.getElementById('aura-canvas');
-            Recorder.toggle(canvas);
-            _recBtn.classList.toggle('recording', Recorder.isRecording);
-            updateRecOverlay();
-        });
+        if (_recBtn) {
+            _recBtn.addEventListener('click', () => {
+                const canvas = document.getElementById('aura-canvas');
+                Recorder.toggle(canvas);
+                _recBtn.classList.toggle('recording', Recorder.isRecording);
+                updateRecOverlay();
+            });
+        }
 
         // Flash toggle
         const flashBtn = document.getElementById('btn-flash');
@@ -155,9 +160,8 @@ const UI = (() => {
             });
         }
 
-        // 5.9: Create debug HUD
+        // Debug HUD + REC overlay
         createDebugHUD();
-        // 4.10: Create REC overlay
         createRecOverlay();
 
         if (bpmManual) {
@@ -298,6 +302,11 @@ const UI = (() => {
 
             // Hide the drop zone with fade
             dropZone.classList.add('hidden');
+
+            // AURA Studio: show scene picker in Studio mode
+            if (window.AURA_MODE === 'studio' && typeof StudioController !== 'undefined') {
+                StudioController.showScenePicker();
+            }
 
             // 1.9: Re-render markers for new file (clears stale markers from old duration)
             renderMarkers();
@@ -471,6 +480,7 @@ const UI = (() => {
     }
 
     function toggleGraphPanel() {
+        // Graph panel not implemented — placeholder for future use
     }
 
     function updateModeList() {
@@ -1362,8 +1372,8 @@ const UI = (() => {
 
     // ── Shortcuts Modal (4.11) ──────────────────────────────
     function setupShortcutsModal() {
-        const openBtn = document.getElementById('btn-shortcuts');
-        const modal = document.getElementById('shortcuts-modal');
+        const openBtn  = document.getElementById('btn-shortcuts');
+        const modal    = document.getElementById('shortcuts-modal');
         const closeBtn = document.getElementById('shortcuts-close');
         if (!openBtn || !modal || !closeBtn) return;
 
@@ -1372,12 +1382,7 @@ const UI = (() => {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) modal.classList.remove('open');
         });
-
-        // Screenshot button
-        const screenshotBtn = document.getElementById('btn-screenshot');
-        if (screenshotBtn) {
-            screenshotBtn.addEventListener('click', () => screenshot());
-        }
+        // NOTE: screenshot button listener is already set up in setupTransport() — not duplicated here.
     }
 
     // ── Preset System (5.1) ─────────────────────────────────

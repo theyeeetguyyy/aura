@@ -140,6 +140,11 @@ const StemManager = (() => {
         const dropZone = document.getElementById('drop-zone');
         if (dropZone) dropZone.style.display = 'none';
 
+        // AURA Studio: show scene picker in Studio mode
+        if (window.AURA_MODE === 'studio' && typeof StudioController !== 'undefined') {
+            StudioController.showScenePicker();
+        }
+
         if (loadingText) loadingText.textContent = '';
 
         console.log(`[StemManager] Loaded ${enabledStems.length} stems. Primary: ${primaryFile.name}`);

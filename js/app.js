@@ -23,6 +23,11 @@ const AuraApp = (() => {
         // Init UI
         UI.init();
 
+        // Init Studio Controller (chooser, scene picker, immersive mode)
+        if (typeof StudioController !== 'undefined') {
+            StudioController.init();
+        }
+
         // Set default mode
         VisualEngine.setMode('geometryForge');
         UI.updateModeList();
@@ -80,6 +85,12 @@ const AuraApp = (() => {
 
         // 2. Update visuals (mode + render)
         VisualEngine.update();
+
+        // 2.5. Capture frame for MP4 recording (if active)
+        // Must run immediately after the visual render, before anything modifies the canvas.
+        if (typeof Recorder !== 'undefined' && Recorder.isRecording) {
+            Recorder.captureFrame(canvas);
+        }
 
         // 3. Update UI
         UI.update();

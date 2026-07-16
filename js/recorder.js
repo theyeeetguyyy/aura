@@ -1,145 +1,349 @@
 // ============================================================
-// AURA — Recorder
+// AURA — Recorder v3  (WebCodecs MP4)
 //
-// Capture:  canvas.captureStream() → MediaRecorder → WebM/VP8
-// Export:   Raw, ultra-high bitrate WebM download
+// Engine:   VideoEncoder (H.264) + AudioEncoder (AAC)
+// Muxer:    mp4-muxer  (window.Mp4Muxer, loaded from CDN)
+// Capture:  VideoFrame(canvas) — one frame per render tick,
+//           zero dropped frames, zero stutter.
+//
+// Requires Chrome 94+ (VideoEncoder / VideoFrame API).
+// Falls back to a clear error on unsupported browsers.
 // ============================================================
 
 const Recorder = (() => {
 
-    // ── Profile (Max Quality) ───────────────────────────────
-    const PROFILE = {
-        label:              'Best',
-        captureVideoBitrate: 100_000_000, // 100 Mbps for visually lossless WebM
-        captureAudioBitrate: 320_000      // 320 kbps for audio
+    // ── State ────────────────────────────────────────────────
+    let _muxer            = null;
+    let _muxerTarget      = null;
+    let _videoEncoder     = null;
+    let _audioEncoder     = null;
+    let _audioScriptNode  = null;
+    let _tapCtx           = null;
+
+    let _isRecording      = false;
+    let _isProcessing     = false;
+    let _startTime        = 0;
+    let _frameCount       = 0;
+    let _audioTimestampUs = 0;   // running audio clock in μs
+
+    const TARGET_FPS = 60;
+
+    // Quality → video bitrate mapping (bps)
+    const QUALITY_BITRATES = {
+        low:     5_000_000,   //  5 Mbps – fast encode, smaller file
+        medium:  15_000_000,  // 15 Mbps – good balance
+        best:    40_000_000,  // 40 Mbps – visually lossless
+        highest: 80_000_000,  // 80 Mbps – archival quality
     };
 
-    const CAPTURE_FPS = 60;
-    const CHUNK_MS    = 5_000;
-
-    // ── State ───────────────────────────────────────────────
-    let mediaRecorder  = null;
-    let chunks         = [];
-    let isRecording    = false;
-    let isProcessing   = false;
-    let startTime      = 0;
-
-    // ── MIME type ───────────────────────────────────────────
-    function pickMimeType() {
-        const candidates = [
-            'video/webm; codecs=vp8,opus',
-            'video/webm; codecs=vp8',
-            'video/webm'
-        ];
-        for (const m of candidates) {
-            if (MediaRecorder.isTypeSupported(m)) return m;
-        }
-        return 'video/webm';
-    }
-
+    // ── Helpers ──────────────────────────────────────────────
     function setStatus(msg) {
         const el = document.getElementById('record-status');
         if (el) el.textContent = msg || '';
     }
 
-    // ── Helpers ─────────────────────────────────────────────
-    function downloadBlob(blob, filename) {
+    function _toast(msg, type = 'info') {
+        if (typeof UI !== 'undefined' && UI.showToast) UI.showToast(msg, type);
+        else console.warn('[Recorder]', msg);
+    }
+
+    function _downloadBlob(blob, filename) {
         const url = URL.createObjectURL(blob);
         const a   = document.createElement('a');
         a.href     = url;
         a.download = filename;
+        document.body.appendChild(a);
         a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
     }
 
-    function buildFilename(ext = 'webm') {
-        return `aura_best_${Date.now()}.${ext}`;
-    }
+    // ── start() ──────────────────────────────────────────────
+    async function start(canvas) {
+        if (_isRecording || _isProcessing) return;
 
-    // ── Public API ───────────────────────────────────────────
-    function start(canvas) {
-        if (isRecording || isProcessing) return;
-
-        const mimeType    = pickMimeType();
-        const videoStream = canvas.captureStream(CAPTURE_FPS);
-        const audioStream = (typeof AudioEngine !== 'undefined') ? AudioEngine.getAudioStream() : null;
-
-        const combined = new MediaStream();
-        videoStream.getTracks().forEach(t => combined.addTrack(t));
-        if (audioStream) {
-            audioStream.getTracks().forEach(t => combined.addTrack(t));
-        } else {
-            console.warn('[Recorder] No audio stream — export will be video-only.');
+        // ── Browser support gate ─────────────────────────────
+        if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') {
+            _toast(
+                'MP4 recording requires Chrome 94 or newer. ' +
+                'Please update your browser.',
+                'error'
+            );
+            return;
+        }
+        if (!window.Mp4Muxer) {
+            _toast(
+                'MP4 muxer not loaded — check your internet connection and reload the page.',
+                'error'
+            );
+            return;
         }
 
-        mediaRecorder = new MediaRecorder(combined, {
-            mimeType,
-            videoBitsPerSecond: PROFILE.captureVideoBitrate,
-            audioBitsPerSecond: PROFILE.captureAudioBitrate
+        // ── Canvas dimensions (H.264 requires even W/H) ──────
+        const W = Math.floor(canvas.width  / 2) * 2;
+        const H = Math.floor(canvas.height / 2) * 2;
+        if (W === 0 || H === 0) {
+            _toast('Canvas is not ready yet. Try again.', 'error');
+            return;
+        }
+
+        // ── Quality ──────────────────────────────────────────
+        const quality      = document.getElementById('settings-export-quality')?.value || 'best';
+        const videoBitrate = QUALITY_BITRATES[quality] ?? QUALITY_BITRATES.best;
+
+        // ── Audio stream + sample rate ────────────────────────
+        let audioStream = null;
+        let sampleRate  = 44100;
+
+        if (typeof AudioEngine !== 'undefined') {
+            audioStream = AudioEngine.getAudioStream();
+        }
+        if (audioStream) {
+            try {
+                _tapCtx    = new AudioContext();
+                sampleRate = _tapCtx.sampleRate;
+            } catch (e) {
+                console.warn('[Recorder] Could not create tap AudioContext:', e);
+                audioStream = null;
+                _tapCtx     = null;
+            }
+        }
+
+        // ── Create mp4-muxer ─────────────────────────────────
+        const { Muxer, ArrayBufferTarget } = window.Mp4Muxer;
+        _muxerTarget = new ArrayBufferTarget();
+        _muxer = new Muxer({
+            target: _muxerTarget,
+            video: {
+                codec:  'avc',
+                width:   W,
+                height:  H,
+            },
+            ...(audioStream ? {
+                audio: {
+                    codec:            'aac',
+                    numberOfChannels:  2,
+                    sampleRate,
+                }
+            } : {}),
+            fastStart: 'in-memory',   // puts moov at front → proper seekable MP4
         });
 
-        chunks    = [];
-        startTime = performance.now();
-        isRecording = true;
+        // ── VideoEncoder (H.264) ─────────────────────────────
+        _frameCount   = 0;
+        _videoEncoder = new VideoEncoder({
+            output: (chunk, meta) => {
+                if (_muxer) _muxer.addVideoChunk(chunk, meta);
+            },
+            error: (e) => {
+                console.error('[Recorder] VideoEncoder error:', e);
+                _toast('Video encoder error — check console.', 'error');
+            },
+        });
 
-        mediaRecorder.ondataavailable = e => {
-            if (e.data.size > 0) chunks.push(e.data);
-        };
+        try {
+            _videoEncoder.configure({
+                codec:       'avc1.4D0034',  // Main Profile Level 5.2
+                width:        W,
+                height:       H,
+                bitrate:      videoBitrate,
+                framerate:    TARGET_FPS,
+                latencyMode: 'quality',
+            });
+        } catch (e) {
+            console.error('[Recorder] VideoEncoder.configure() failed:', e);
+            _toast('MP4 encoder not available on this device/browser. Try Chrome 94+.', 'error');
+            _cleanup();
+            return;
+        }
 
-        mediaRecorder.onstop = () => {
-            isProcessing = true;
-            setStatus('Finalizing WebM…');
-            const webmBlob = new Blob(chunks, { type: mimeType });
-            chunks = [];
-            
-            const filename = buildFilename('webm');
-            downloadBlob(webmBlob, filename);
-            
-            const mb = (webmBlob.size / 1_048_576).toFixed(1);
-            console.log(`[Recorder] ✓ WebM ready — ${mb} MB — ${filename}`);
+        // ── AudioEncoder (AAC-LC, optional) ──────────────────
+        _audioTimestampUs = 0;
 
-            if (typeof UI !== 'undefined' && UI.showToast) {
-                UI.showToast(`WebM exported — ${mb} MB`, 'info');
+        if (audioStream && _tapCtx) {
+            try {
+                _audioEncoder = new AudioEncoder({
+                    output: (chunk, meta) => {
+                        if (_muxer) _muxer.addAudioChunk(chunk, meta);
+                    },
+                    error: (e) => console.warn('[Recorder] AudioEncoder error (non-fatal):', e),
+                });
+
+                _audioEncoder.configure({
+                    codec:            'mp4a.40.2',  // AAC-LC
+                    numberOfChannels:  2,
+                    sampleRate,
+                    bitrate:           320_000,
+                });
+
+                // Tap audio from the AudioEngine's MediaStreamDestination
+                const source     = _tapCtx.createMediaStreamSource(audioStream);
+                _audioScriptNode = _tapCtx.createScriptProcessor(4096, 2, 2);
+
+                // Route through a muted gain so onaudioprocess fires
+                // without adding a second copy of audio to the output
+                const silentGain = _tapCtx.createGain();
+                silentGain.gain.value = 0;
+                source.connect(_audioScriptNode);
+                _audioScriptNode.connect(silentGain);
+                silentGain.connect(_tapCtx.destination);
+
+                _audioScriptNode.onaudioprocess = (e) => {
+                    if (!_isRecording || !_audioEncoder) return;
+
+                    const left  = e.inputBuffer.getChannelData(0);
+                    const right = e.inputBuffer.getChannelData(1);
+                    const n     = left.length;
+                    const sr    = e.inputBuffer.sampleRate;
+
+                    // f32-planar layout: [all L samples][all R samples]
+                    const planar = new Float32Array(n * 2);
+                    planar.set(left,  0);
+                    planar.set(right, n);
+
+                    try {
+                        const audioData = new AudioData({
+                            format:           'f32-planar',
+                            sampleRate:        sr,
+                            numberOfFrames:    n,
+                            numberOfChannels:  2,
+                            timestamp:         _audioTimestampUs,
+                            data:              planar,
+                        });
+                        _audioEncoder.encode(audioData);
+                        audioData.close();
+                        // Advance timestamp by exact sample count
+                        _audioTimestampUs += Math.round(n / sr * 1_000_000);
+                    } catch { /* encoder in closing state – skip silently */ }
+                };
+
+            } catch (err) {
+                console.warn('[Recorder] Audio encoder setup failed – recording video only:', err);
+                // Re-create muxer without audio track
+                if (_audioScriptNode) { _audioScriptNode.disconnect(); _audioScriptNode = null; }
+                if (_tapCtx)         { _tapCtx.close(); _tapCtx = null; }
+                _audioEncoder = null;
+                _muxerTarget  = new ArrayBufferTarget();
+                _muxer        = new Muxer({
+                    target:    _muxerTarget,
+                    video:     { codec: 'avc', width: W, height: H },
+                    fastStart: 'in-memory',
+                });
+                _toast('Audio encoder not available – recording video only.', 'info');
             }
+        }
 
-            isProcessing = false;
-            setStatus('');
-        };
-
-        mediaRecorder.start(CHUNK_MS);
-        setStatus('Recording Best…');
+        // ── Begin ─────────────────────────────────────────────
+        _isRecording = true;
+        _startTime   = performance.now();
+        setStatus('⏺ Recording…');
 
         console.log(
-            `[Recorder] Started — ${canvas.width}×${canvas.height} @ ${CAPTURE_FPS}fps` +
-            ` [${mimeType}] [Best]`
+            `[Recorder] ✓ MP4 recording started — ${W}×${H} @ ${TARGET_FPS}fps` +
+            ` [${quality}] ${(videoBitrate / 1e6).toFixed(0)} Mbps` +
+            (audioStream ? ` + AAC ${sampleRate}Hz` : ' (video only)')
         );
     }
 
-    function stop() {
-        if (!isRecording || !mediaRecorder || isProcessing) return;
-        mediaRecorder.stop();
-        isRecording = false;
-        setStatus('Finishing…');
-        console.log('[Recorder] Stopped — finalizing WebM…');
+    // ── captureFrame() ───────────────────────────────────────
+    // Called from AuraApp.loop() immediately after VisualEngine.update().
+    // Creates a VideoFrame from the canvas at the exact current moment —
+    // no async, no dropped frames, one frame per render tick.
+    function captureFrame(canvas) {
+        if (!_isRecording || !_videoEncoder || _videoEncoder.state !== 'configured') return;
+
+        // timestamp in μs from recording start
+        const timestamp  = Math.round((performance.now() - _startTime) * 1000);
+        const isKeyFrame = (_frameCount % (TARGET_FPS * 2)) === 0;  // keyframe every 2 s
+
+        try {
+            const frame = new VideoFrame(canvas, { timestamp });
+            _videoEncoder.encode(frame, { keyFrame: isKeyFrame });
+            frame.close();
+            _frameCount++;
+        } catch (e) {
+            // Encoder may be in closing state – skip silently
+        }
     }
 
+    // ── stop() ───────────────────────────────────────────────
+    async function stop() {
+        if (!_isRecording) return;
+        _isRecording  = false;
+        _isProcessing = true;
+        setStatus('Encoding…');
+
+        // ── Disconnect audio tap ─────────────────────────────
+        if (_audioScriptNode) {
+            try { _audioScriptNode.disconnect(); } catch (_) {}
+            _audioScriptNode = null;
+        }
+        if (_tapCtx) {
+            try { await _tapCtx.close(); } catch (_) {}
+            _tapCtx = null;
+        }
+
+        // ── Flush encoders ───────────────────────────────────
+        try {
+            if (_videoEncoder && _videoEncoder.state === 'configured') {
+                await _videoEncoder.flush();
+            }
+        } catch (e) { console.error('[Recorder] Video flush error:', e); }
+
+        try {
+            if (_audioEncoder && _audioEncoder.state === 'configured') {
+                await _audioEncoder.flush();
+            }
+        } catch (e) { console.warn('[Recorder] Audio flush error (non-fatal):', e); }
+
+        // ── Finalize → download ──────────────────────────────
+        try {
+            _muxer.finalize();
+            const buffer = _muxerTarget.buffer;
+            const blob   = new Blob([buffer], { type: 'video/mp4' });
+            const mb     = (blob.size / 1_048_576).toFixed(1);
+
+            _downloadBlob(blob, `aura_${Date.now()}.mp4`);
+            console.log(`[Recorder] ✓ MP4 ready — ${mb} MB — ${_frameCount} frames`);
+            _toast(`✓ MP4 exported — ${mb} MB`, 'info');
+        } catch (e) {
+            console.error('[Recorder] Finalize/download error:', e);
+            _toast('MP4 export failed — see console for details.', 'error');
+        }
+
+        _cleanup();
+    }
+
+    function _cleanup() {
+        _muxer        = null;
+        _muxerTarget  = null;
+        _videoEncoder = null;
+        _audioEncoder = null;
+        _isProcessing = false;
+        setStatus('');
+    }
+
+    // ── toggle() ─────────────────────────────────────────────
     function toggle(canvas) {
-        if (isProcessing) return;
-        if (isRecording) stop();
-        else start(canvas);
+        if (_isProcessing) return;
+        if (_isRecording)  stop();
+        else               start(canvas);
     }
 
     function getRecordingTime() {
-        if (!isRecording) return 0;
-        return (performance.now() - startTime) / 1000;
+        if (!_isRecording) return 0;
+        return (performance.now() - _startTime) / 1000;
     }
 
+    // ── Public API ───────────────────────────────────────────
     return {
         start,
         stop,
         toggle,
-        get isRecording()  { return isRecording;  },
-        get isProcessing() { return isProcessing; },
-        getRecordingTime
+        captureFrame,
+        get isRecording()  { return _isRecording;  },
+        get isProcessing() { return _isProcessing; },
+        getRecordingTime,
     };
+
 })();
