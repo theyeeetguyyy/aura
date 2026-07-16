@@ -92,22 +92,12 @@ const Recorder = (() => {
         const videoBitrate = QUALITY_BITRATES[quality] ?? QUALITY_BITRATES.best;
 
         // ── Audio stream + sample rate ────────────────────────
-        let audioStream = null;
-        let sampleRate  = 44100;
-
-        if (typeof AudioEngine !== 'undefined') {
-            audioStream = AudioEngine.getAudioStream();
-        }
-        if (audioStream) {
-            try {
-                _tapCtx    = new AudioContext();
-                sampleRate = _tapCtx.sampleRate;
-            } catch (e) {
-                console.warn('[Recorder] Could not create tap AudioContext:', e);
-                audioStream = null;
-                _tapCtx     = null;
-            }
-        }
+        // We tap audio directly inside AudioEngine's own AudioContext via
+        // the analyser node. Cross-context createMediaStreamSource is unreliable.
+        const audioCtx     = (typeof AudioEngine !== 'undefined') ? AudioEngine.context  : null;
+        const audioAnalyser= (typeof AudioEngine !== 'undefined') ? AudioEngine.analyser : null;
+        const hasAudio     = !!(audioCtx && audioAnalyser);
+        const sampleRate   = hasAudio ? audioCtx.sampleRate : 44100;
 
         // ── Create mp4-muxer ─────────────────────────────────
         const { Muxer, ArrayBufferTarget } = window.Mp4Muxer;
@@ -119,7 +109,7 @@ const Recorder = (() => {
                 width:   W,
                 height:  H,
             },
-            ...(audioStream ? {
+            ...(hasAudio ? {
                 audio: {
                     codec:            'aac',
                     numberOfChannels:  2,
@@ -159,9 +149,11 @@ const Recorder = (() => {
         }
 
         // ── AudioEncoder (AAC-LC, optional) ──────────────────
+        // Tap directly from AudioEngine's analyser into a ScriptProcessorNode
+        // in the SAME AudioContext — no cross-context issues.
         _audioTimestampUs = 0;
 
-        if (audioStream && _tapCtx) {
+        if (hasAudio) {
             try {
                 _audioEncoder = new AudioEncoder({
                     output: (chunk, meta) => {
@@ -177,17 +169,17 @@ const Recorder = (() => {
                     bitrate:           320_000,
                 });
 
-                // Tap audio from the AudioEngine's MediaStreamDestination
-                const source     = _tapCtx.createMediaStreamSource(audioStream);
-                _audioScriptNode = _tapCtx.createScriptProcessor(4096, 2, 2);
-
-                // Route through a muted gain so onaudioprocess fires
-                // without adding a second copy of audio to the output
-                const silentGain = _tapCtx.createGain();
+                // Create ScriptProcessorNode in AudioEngine's own context.
+                // Route: analyser → scriptNode → silentGain → destination
+                // The silentGain (volume=0) keeps the graph active so
+                // onaudioprocess fires without doubling the audio output.
+                _audioScriptNode = audioCtx.createScriptProcessor(4096, 2, 2);
+                const silentGain = audioCtx.createGain();
                 silentGain.gain.value = 0;
-                source.connect(_audioScriptNode);
+
+                audioAnalyser.connect(_audioScriptNode);
                 _audioScriptNode.connect(silentGain);
-                silentGain.connect(_tapCtx.destination);
+                silentGain.connect(audioCtx.destination);
 
                 _audioScriptNode.onaudioprocess = (e) => {
                     if (!_isRecording || !_audioEncoder) return;
@@ -213,19 +205,17 @@ const Recorder = (() => {
                         });
                         _audioEncoder.encode(audioData);
                         audioData.close();
-                        // Advance timestamp by exact sample count
                         _audioTimestampUs += Math.round(n / sr * 1_000_000);
                     } catch { /* encoder in closing state – skip silently */ }
                 };
 
             } catch (err) {
                 console.warn('[Recorder] Audio encoder setup failed – recording video only:', err);
-                // Re-create muxer without audio track
                 if (_audioScriptNode) { _audioScriptNode.disconnect(); _audioScriptNode = null; }
-                if (_tapCtx)         { _tapCtx.close(); _tapCtx = null; }
                 _audioEncoder = null;
                 _muxerTarget  = new ArrayBufferTarget();
                 _muxer        = new Muxer({
+
                     target:                 _muxerTarget,
                     video:                  { codec: 'avc', width: W, height: H },
                     fastStart:              'in-memory',
@@ -280,10 +270,7 @@ const Recorder = (() => {
             try { _audioScriptNode.disconnect(); } catch (_) {}
             _audioScriptNode = null;
         }
-        if (_tapCtx) {
-            try { await _tapCtx.close(); } catch (_) {}
-            _tapCtx = null;
-        }
+        // NOTE: _tapCtx is no longer used — audio runs in AudioEngine.context directly.
 
         // ── Flush encoders ───────────────────────────────────
         try {

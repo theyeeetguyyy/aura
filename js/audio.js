@@ -1411,6 +1411,11 @@ const AudioEngine = (() => {
         return energy * scale;
     }
 
+    // Returns the MediaStream from mediaStreamDest (used by Recorder for audio capture)
+    function getAudioStream() {
+        return mediaStreamDest ? mediaStreamDest.stream : null;
+    }
+
     return {
         init, loadFile, play, pause, togglePlay,
         seek, seekRelative, setVolume, getVolume, getAudioStream,
@@ -1420,6 +1425,7 @@ const AudioEngine = (() => {
         update, getReactivity,
         audioBus,
         get audioElement() { return audioElement; },
-        get context() { return ctx; }
+        get context()      { return ctx; },
+        get analyser()     { return analyser; },
     };
 })();
