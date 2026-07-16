@@ -126,7 +126,8 @@ const Recorder = (() => {
                     sampleRate,
                 }
             } : {}),
-            fastStart: 'in-memory',   // puts moov at front → proper seekable MP4
+            fastStart:              'in-memory',
+            firstTimestampBehavior: 'offset',
         });
 
         // ── VideoEncoder (H.264) ─────────────────────────────
@@ -225,9 +226,10 @@ const Recorder = (() => {
                 _audioEncoder = null;
                 _muxerTarget  = new ArrayBufferTarget();
                 _muxer        = new Muxer({
-                    target:    _muxerTarget,
-                    video:     { codec: 'avc', width: W, height: H },
-                    fastStart: 'in-memory',
+                    target:                 _muxerTarget,
+                    video:                  { codec: 'avc', width: W, height: H },
+                    fastStart:              'in-memory',
+                    firstTimestampBehavior: 'offset',
                 });
                 _toast('Audio encoder not available – recording video only.', 'info');
             }
