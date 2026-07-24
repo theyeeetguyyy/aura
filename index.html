@@ -74,7 +74,10 @@
             <button class="studio-view-btn active" id="btn-view-inspector">Inspector</button>
             <button class="studio-view-btn active" id="btn-view-timeline">Timeline</button>
         </div>
-        <div class="studio-topbar-status" id="studio-status">Load audio to start editing</div>
+        <div class="studio-topbar-status" id="studio-status">
+            <span id="section-indicator" class="section-indicator section-hidden" style="padding:2px 8px;border-radius:10px;font-family:var(--mono);font-size:11px;margin-right:8px;"></span>
+            <span id="track-name">Load audio to start editing</span>
+        </div>
         <button class="studio-settings-btn" id="btn-global-settings">Settings</button>
     </div>
     <canvas id="aura-canvas"></canvas>
@@ -107,6 +110,7 @@
     <input type="file" id="stem-file-mids" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
     <input type="file" id="stem-file-highs" accept=".mp3,.wav,.ogg,.flac,.m4a" style="display:none">
     <button class="panel-toggle" id="btn-modes" title="Library (Tab)">◆</button>
+    <button class="panel-toggle" id="btn-graph" title="Graph (N)">🕸</button>
     <button class="panel-toggle" id="btn-params" title="Inspector (P)">⚙</button>
     <div class="panel" id="modes-panel">
         <div class="panel-header"><span class="panel-title">Library</span></div>
@@ -123,6 +127,38 @@
         <div id="library-modes-view" class="library-view">
             <div class="mode-search-wrap"><input type="text" id="mode-search" placeholder="Search modes..." autocomplete="off"></div>
             <div id="mode-list"></div>
+        </div>
+    </div>
+    <div class="panel" id="graph-panel">
+        <div class="panel-header">
+            <span class="panel-title">State Node Graph</span>
+            <button class="panel-close" id="graph-panel-close">✕</button>
+        </div>
+        <div style="padding: 10px 12px; display: flex; gap: 8px;">
+            <button class="panel-action-btn" id="btn-graph-new-node">＋ New Node</button>
+            <button class="panel-action-btn" id="btn-graph-capture">⦿ Capture Current</button>
+        </div>
+        <div class="graph-wrap">
+            <svg class="graph-svg" id="graph-svg">
+                <g id="graph-edges"></g>
+            </svg>
+            <div class="graph-nodes" id="graph-nodes"></div>
+        </div>
+        <div class="graph-hint">💡 Drag nodes to move. Click output port (purple) then input port (green) to link. Double-click node to preview.</div>
+        <div class="graph-inspector" id="graph-inspector">
+            <div class="gi-title">Node Inspector</div>
+            <div class="gi-row">
+                <label>Name</label>
+                <input type="text" id="gi-name" placeholder="Node Name">
+            </div>
+            <div class="gi-row">
+                <label>Mode</label>
+                <select id="gi-mode"></select>
+            </div>
+            <div class="gi-actions">
+                <button class="timeline-btn action-btn" id="gi-add-to-timeline">＋ Add to Timeline</button>
+                <button class="timeline-btn" id="gi-capture">⦿ Update Capture</button>
+            </div>
         </div>
     </div>
     <div class="panel" id="params-panel">
@@ -180,6 +216,10 @@
                 <div class="volume-mini">
                     <span class="volume-icon">🔊</span>
                     <input type="range" id="vol-bar" min="0" max="100" value="80" title="Volume">
+                    <span id="vol-display" style="font-family:var(--mono);font-size:10px;color:var(--text-dim);width:28px;">80%</span>
+                    <div class="level-meter" title="Audio Output Level" style="width:40px;height:4px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden;flex-shrink:0;">
+                        <div id="level-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#22c55e,#8b5cf6,#ef4444);border-radius:2px;"></div>
+                    </div>
                 </div>
                 <div class="tg-divider"></div>
                 <button class="transport-btn small-btn" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↩</button>
@@ -387,11 +427,14 @@
     <script src="js/project/store.js"></script>
     <script src="js/project/serialize.js"></script>
     <script src="js/project/autosave.js"></script>
+    <script src="js/graph/graphModel.js"></script>
     <script src="js/graph/graphEvaluator.js"></script>
+    <script src="js/graph/uiGraph.js"></script>
     <script src="js/studio/stateLibrary.js"></script>
     <script src="js/studio/scenePresets.js"></script>
     <script src="js/studio/studioController.js"></script>
     <script src="js/studio/layout.js"></script>
+    <script src="js/timeline/timelineModel.js"></script>
     <script src="js/timeline/uiTimeline.js"></script>
     <script src="js/ui.js"></script>
 
@@ -511,6 +554,9 @@
     </div>
 
     <!-- Preview mode toolbar removed — camera controls now live in timeline dock -->
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- APP BOOTSTRAP -->
     <script src="js/studio/stemManager.js"></script>

@@ -111,6 +111,11 @@ const NeonPlasmaMode = {
     update(audio, params, dt) {
         if (!this.group) return;
         this.time += dt;
+
+        // Cleanup temp objects from previous frame
+        const toRemove = this.group.children.filter(c => c.userData._temp);
+        toRemove.forEach(c => { this.group.remove(c); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+
         const bass = audio.smoothBands.bass || 0;
         const mid = audio.smoothBands.mid || 0;
         const treble = audio.smoothBands.treble || 0;
@@ -268,10 +273,6 @@ const NeonPlasmaMode = {
             this.ringParticles.geometry.attributes.color.needsUpdate = true;
             this.ringParticles.geometry.attributes.position.needsUpdate = true;
         }
-
-        // Cleanup temp objects from last frame
-        const toRemove = this.group.children.filter(c => c.userData._temp);
-        toRemove.forEach(c => { this.group.remove(c); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
 
         if (params.dropReaction && audio.isDropSection) this.group.rotation.z += 0.3;
         this.group.rotation.y += 0.002 * (1 + rms);

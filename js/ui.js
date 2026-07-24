@@ -409,10 +409,12 @@ const UI = (() => {
         const modePanelBtn = document.getElementById('btn-modes');
         const paramsPanelBtn = document.getElementById('btn-params');
         const graphPanelBtn = document.getElementById('btn-graph');
+        const graphCloseBtn = document.getElementById('graph-panel-close');
 
-        modePanelBtn.addEventListener('click', () => toggleModesPanel());
-        paramsPanelBtn.addEventListener('click', () => toggleParamsPanel());
+        if (modePanelBtn) modePanelBtn.addEventListener('click', () => toggleModesPanel());
+        if (paramsPanelBtn) paramsPanelBtn.addEventListener('click', () => toggleParamsPanel());
         if (graphPanelBtn) graphPanelBtn.addEventListener('click', () => toggleGraphPanel());
+        if (graphCloseBtn) graphCloseBtn.addEventListener('click', () => toggleGraphPanel());
 
         // Mode list click handler
         document.getElementById('mode-list').addEventListener('click', (e) => {
@@ -480,7 +482,13 @@ const UI = (() => {
     }
 
     function toggleGraphPanel() {
-        // Graph panel not implemented — placeholder for future use
+        const panel = document.getElementById('graph-panel');
+        if (!panel) return;
+        const isOpen = panel.classList.contains('open');
+        panel.classList.toggle('open', !isOpen);
+        if (!isOpen && typeof GraphUI !== 'undefined') {
+            GraphUI.render();
+        }
     }
 
     function updateModeList() {
@@ -1208,9 +1216,9 @@ const UI = (() => {
     // ── Marker System ─────────────────────────────────────
 
     function setupMarkers() {
-        const addBtn = document.getElementById('btn-add-marker');
-        const clearBtn = document.getElementById('btn-clear-markers');
-        const markerTrack = document.getElementById('marker-track');
+        const addBtn = document.getElementById('btn-add-marker') || document.getElementById('btn-add-marker-tl');
+        const clearBtn = document.getElementById('btn-clear-markers') || document.getElementById('btn-clear-markers-tl');
+        const markerTrack = document.getElementById('marker-track') || document.getElementById('timeline-marker-track');
 
         if (addBtn) {
             addBtn.addEventListener('click', () => addMarkerAtCurrentTime());
@@ -1223,17 +1231,17 @@ const UI = (() => {
                     MarkerSystem.clearAll();
                     renderMarkers();
                     clearMarkersConfirm = false;
-                    clearBtn.textContent = '🗑️';
-                    clearBtn.title = 'Clear All Markers';
+                    clearBtn.textContent = '✕ Clear';
+                    clearBtn.title = 'Clear all markers';
                     if (clearMarkersTimer) { clearTimeout(clearMarkersTimer); clearMarkersTimer = null; }
                 } else {
                     clearMarkersConfirm = true;
-                    clearBtn.textContent = '⚠️';
+                    clearBtn.textContent = '⚠️ Confirm';
                     clearBtn.title = 'Click again to confirm';
                     clearMarkersTimer = setTimeout(() => {
                         clearMarkersConfirm = false;
-                        clearBtn.textContent = '🗑️';
-                        clearBtn.title = 'Clear All Markers';
+                        clearBtn.textContent = '✕ Clear';
+                        clearBtn.title = 'Clear all markers';
                     }, 2000);
                 }
             });
@@ -1267,8 +1275,8 @@ const UI = (() => {
     }
 
     function renderMarkers() {
-        const dotsContainer = document.getElementById('marker-dots');
-        const markerTrack = document.getElementById('marker-track');
+        const dotsContainer = document.getElementById('marker-dots') || document.getElementById('timeline-marker-track');
+        const markerTrack = document.getElementById('marker-track') || document.getElementById('timeline-marker-track');
         if (!dotsContainer) return;
 
         dotsContainer.innerHTML = '';
