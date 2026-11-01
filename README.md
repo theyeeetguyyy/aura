@@ -1,5 +1,8 @@
 <div align="center">
   <h1>🎵 AURA STUDIO</h1>
+  <h2> NOTE THIS IS VERSION 1, NOT VERSION 2, VERSION 2 IS LATEST https://aura.winnn.me </h2>
+
+  
   <p><strong>The Professional Cinematic Audio Visualization Engine</strong></p>
   <p>Create, Sequence, and Render Cinematic 3D Visuals from any Audio directly in your browser.</p>
 </div>
